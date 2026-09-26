@@ -172,9 +172,17 @@ def build(bot, adapter):
     async def setup(interaction: dc.Interaction):
         await setup_command(interaction, packs_list, kits_list, bot)
 
-    commands = [app_commands.Command(name="setup",
-                                     description="키 입력 · 검증 · 적용 (서버 소유자 전용)",
-                                     callback=setup)]
+    import doctor as doctor_mod
+
+    async def doctor(interaction: dc.Interaction):
+        await doctor_mod.doctor_command(interaction, DATA, ENV_FILE)
+
+    commands = [
+        app_commands.Command(name="setup", description="키 입력 · 검증 · 적용 (서버 소유자 전용)",
+                             callback=setup),
+        app_commands.Command(name="doctor", description="무엇이 안 되는지 스스로 진단 (키는 가려짐)",
+                             callback=doctor),
+    ]
 
     async def sync_guild(guild):
         for cmd in commands:

@@ -12,6 +12,30 @@ from discord_ui import (ENV_FILE, PENDING, TICK, CROSS, _apply, _env, _verify, r
 
 log = logging.getLogger(__name__)
 
+class DoctorView(discord.ui.View):
+    """The /doctor result plus a button that renders the instructor-copy in a code block."""
+
+    def __init__(self, findings, timeout=900):
+        super().__init__(timeout=timeout)
+        self.findings = findings
+        self.add_item(ShareButton())
+
+
+class ShareButton(discord.ui.Button):
+    def __init__(self):
+        super().__init__(style=discord.ButtonStyle.secondary, label="강사에게 보내기용 복사본",
+                         custom_id="kit:doctor:share")
+
+    async def callback(self, interaction):
+        import doctor
+        # Discord refuses to put very long text in a component callback, so the copy is sent
+        # as a followup rather than edited into the original message.
+        await interaction.response.send_message(
+            "아래를 그대로 강사에게 보내 주세요 (키·채널ID·이메일은 가려집니다):\n"
+            f"```\n{doctor.copy_for_instructor(self.view.findings)[:1800]}\n```",
+            ephemeral=True)
+
+
 class PackModal(discord.ui.Modal):
     """One pack's keys. Must be the interaction's first response — Discord allows nothing else."""
 

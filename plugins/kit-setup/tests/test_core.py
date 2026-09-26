@@ -5,6 +5,9 @@ Discord UI is not covered here because it cannot be imported without discord.py;
 manual E2E checklist in the plan (Task 9 Step 3).
 """
 import asyncio
+import io
+import tarfile
+import time
 import json
 import os
 import stat
@@ -288,6 +291,259 @@ class ApplyFlow(unittest.TestCase):
         self.assertNotIn("b", keys)   # writing the literal "${...}" would store a useless string
 
 
+class PacksFetch(unittest.TestCase):
+    """Downloading the private packs repo must never damage a working install."""
+
+    def setUp(self):
+        import fetch_packs
+        self.fp = fetch_packs
+        self.data = Path(tempfile.mkdtemp())
+
+    def _tarball(self, build):
+        """Build an in-memory .tar.gz the way GitHub serves one (single top-level dir)."""
+        import io, tarfile
+        raw = io.BytesIO()
+        with tarfile.open(fileobj=raw, mode="w:gz") as tf:
+            root = tarfile.TarInfo("Wendy-Nam-hermes-kit-packs-abc123/")
+            root.type = tarfile.DIRTYPE
+            tf.addfile(root)
+            build(tf)
+        return raw.getvalue()
+
+    def _add(self, tf, name, data=b"x"):
+        info = tarfile.TarInfo(f"Wendy-Nam-hermes-kit-packs-abc123/{name}")
+        info.size = len(data)
+        tf.addfile(info, io.BytesIO(data))
+
+    def _fetch(self, blob):
+        return self.fp._safe_extract(blob, Path(tempfile.mkdtemp()))
+
+    def test_no_token_means_skip_and_success(self):
+        ok, msg = self.fp.fetch("o/r", "main", "", self.data)
+        self.assertFalse(ok)
+        self.assertIn("KIT_ACCESS_CODE", msg)
+
+    def test_installs_kit_skills_and_replaces_them_on_a_later_run(self):
+        blob = self._tarball(lambda tf: self._add(tf, "skills/kit/base/SKILL.md", b"v1"))
+        with patch.object(self.fp, "_download", return_value=blob):
+            self.assertTrue(self.fp.fetch("o/r", "main", "tok", self.data)[0])
+        target = self.data / "skills" / "kit" / "base" / "SKILL.md"
+        self.assertEqual(target.read_bytes(), b"v1")
+        blob2 = self._tarball(lambda tf: self._add(tf, "skills/kit/base/SKILL.md", b"v2"))
+        with patch.object(self.fp, "_download", return_value=blob2):
+            self.assertTrue(self.fp.fetch("o/r", "main", "tok", self.data)[0])
+        self.assertEqual(target.read_bytes(), b"v2")
+
+    def test_soul_and_freellmapi_are_not_overwritten(self):
+        self.data.mkdir(exist_ok=True)
+        (self.data / "soul").mkdir()
+        (self.data / "soul" / "SOUL.md").write_text("학생이 고친 버전")
+        blob = self._tarball(lambda tf: self._add(tf, "soul/SOUL.md", b"author"))
+        with patch.object(self.fp, "_download", return_value=blob):
+            self.fp.fetch("o/r", "main", "tok", self.data)
+        self.assertEqual((self.data / "soul" / "SOUL.md").read_text(), "학생이 고친 버전")
+
+    def test_a_symlink_in_the_tarball_aborts_everything(self):
+        def build(tf):
+            link = tarfile.TarInfo("Wendy-Nam-hermes-kit-packs-abc123/skills/kit/evil")
+            link.type = tarfile.SYMTYPE
+            link.linkname = "/opt/data/.env"
+            tf.addfile(link)
+        with self.assertRaises(ValueError) as ctx:
+            self._fetch(self._tarball(build))
+        self.assertIn("링크", str(ctx.exception))
+
+    def test_path_traversal_is_refused(self):
+        def build(tf):
+            self._add(tf, "skills/kit/../../escape.md")
+        with self.assertRaises(ValueError):
+            self._fetch(self._tarball(build))
+
+    def test_a_failed_download_leaves_the_previous_skills_intact(self):
+        import urllib.error
+        blob = self._tarball(lambda tf: self._add(tf, "skills/kit/base/SKILL.md", b"v1"))
+        with patch.object(self.fp, "_download", return_value=blob):
+            self.fp.fetch("o/r", "main", "tok", self.data)
+        good = (self.data / "skills" / "kit" / "base" / "SKILL.md").read_bytes()
+        err = urllib.error.HTTPError("u", 404, "Not Found", {}, None)
+        with patch.object(self.fp, "_download", side_effect=err):
+            ok, msg = self.fp.fetch("o/r", "main", "tok", self.data)
+        self.assertFalse(ok)
+        self.assertIn("404", msg)
+        self.assertEqual((self.data / "skills" / "kit" / "base" / "SKILL.md").read_bytes(), good)
+
+    def test_expired_token_says_so(self):
+        import urllib.error
+        err = urllib.error.HTTPError("u", 401, "Bad credentials", {}, None)
+        with patch.object(self.fp, "_download", side_effect=err):
+            ok, msg = self.fp.fetch("o/r", "main", "expired", self.data)
+        self.assertFalse(ok)
+        self.assertIn("만료", msg)
+
+    def test_network_error_never_raises(self):
+        with patch.object(self.fp, "_download", side_effect=TimeoutError("no route")):
+            ok, msg = self.fp.fetch("o/r", "main", "tok", self.data)
+        self.assertFalse(ok)
+        self.assertIn("실패", msg)
+
+
+class Doctor(unittest.TestCase):
+    """The report is what a student sends to their instructor, so redaction is the point."""
+
+    def setUp(self):
+        import doctor
+        self.d = doctor
+        self.data = Path(tempfile.mkdtemp())
+
+    def test_mask_removes_key_shapes_tokens_ids_and_emails(self):
+        for secret in ("gsk_abcdefghijklmnopqrstuvwxyz012345",
+                       "AIzaSyA1234567890abcdefghijklmnopqrstuvw",
+                       "187.127.124.238",
+                       "1523328379951120526",
+                       "student@example.com",
+                       "DISCORD_BOT_TOKEN=MTIzNDU2Nzg5MDEy"):
+            out = self.d.mask(f"값: {secret} 끝")
+            self.assertNotIn(secret, out, secret)
+            self.assertIn("[가림]", out)
+
+    def test_instructor_copy_is_redacted(self):
+        findings = [self.d.Finding("봇", self.d.BAD, "키 gsk_abcdefghijklmnopqrstuvwxyz012345 가 거부")]
+        self.assertNotIn("gsk_abcdefghijklmnopqrstuvwxyz012345", self.d.copy_for_instructor(findings))
+
+    def test_env_file_missing_points_at_setup(self):
+        f = self.d.check_env_file(self.data / ".env")
+        self.assertEqual(f.status, self.d.BAD)
+        self.assertIn("/setup", f.detail)
+
+    def test_loose_env_permissions_are_flagged(self):
+        p = self.data / ".env"
+        p.write_text("A=1\n")
+        os.chmod(p, 0o644)
+        f = self.d.check_env_file(p)
+        self.assertEqual(f.status, self.d.BAD)
+        self.assertIn("600", f.detail)
+
+    def test_healthy_env_file_passes(self):
+        p = self.data / ".env"
+        p.write_text("A=1\n")
+        os.chmod(p, 0o600)
+        self.assertEqual(self.d.check_env_file(p).status, self.d.OK)
+
+    def test_missing_key_is_reported_as_needing_setup(self):
+        with patch.dict(v.VALIDATORS, {"gemini": lambda k: (True, "확인됨")}):
+            out = self.d.check_keys({}, self.data / ".env")
+        gem = [f for f in out if "Gemini" in f.name]
+        self.assertEqual(gem[0].status, self.d.BAD)
+        self.assertIn("/setup", gem[0].detail)
+
+    def test_a_rejected_key_shows_the_reason_without_the_value(self):
+        with patch.dict(v.VALIDATORS, {"gemini": lambda k: (False, "키가 거부됐습니다 (HTTP 401)")}):
+            out = self.d.check_keys({"GEMINI_API_KEY": "AIzaSECRET"}, self.data / ".env")
+        line = out[0].line()
+        self.assertIn("401", line)
+        self.assertNotIn("AIzaSECRET", line)
+
+    def test_optional_addon_absent_is_not_an_error(self):
+        with patch("urllib.request.urlopen", side_effect=OSError("no route")):
+            f = self.d.check_optional("http://freellmapi:3001/api/ping", "freellmapi 심화팩")
+        self.assertEqual(f.status, self.d.SKIP)
+
+    def test_report_summarises_the_worst_state(self):
+        out = self.d.report([self.d.Finding("a", self.d.OK, "정상"),
+                             self.d.Finding("b", self.d.BAD, "문제")])
+        self.assertIn("🔴", out)
+        self.assertIn("문제가 있습니다", out)
+
+    def test_report_of_all_good_says_so(self):
+        self.assertIn("모든 항목 정상", self.d.report([self.d.Finding("a", self.d.OK, "정상")]))
+
+    def test_gateway_just_restarted_is_a_hint_not_an_alarm(self):
+        class P:
+            def is_running(self):
+                return True
+
+            def create_time(self):
+                import time as t
+                return t.time() - 10
+        self.assertEqual(self.d.check_gateway(P()).status, self.d.WARN)
+
+    def test_gateway_down_is_an_error(self):
+        class P:
+            def is_running(self):
+                return False
+        self.assertEqual(self.d.check_gateway(P()).status, self.d.BAD)
+
+
+class Backup(unittest.TestCase):
+    """The exclusion list is the safety property: a backup must never become a key archive."""
+
+    def setUp(self):
+        import backup
+        self.b = backup
+        self.data = Path(tempfile.mkdtemp())
+        (self.data / "memories").mkdir()
+        (self.data / "memories" / "note.md").write_text("학생 메모")
+        (self.data / "config.yaml").write_text("a: 1")
+        (self.data / ".env").write_text("GEMINI_API_KEY=AIzaSECRET\n")
+        (self.data / "auth.json").write_text('{"token": "secret"}')
+        (self.data / "profiles").mkdir()
+        (self.data / "profiles" / "p").mkdir()
+        (self.data / "profiles" / "p" / "auth.json").write_text('{"token": "nested-secret"}')
+        (self.data / "vaults").mkdir()
+        (self.data / "vaults" / "note.md").write_text("볼트 노트")
+        self.dest = Path(tempfile.mkdtemp())
+
+    def _archive(self):
+        return self.dest / f"{time.strftime('%Y-%m-%d')}.tar.gz"
+
+    def _names(self, archive):
+        with tarfile.open(archive) as tf:
+            return tf.getnames()
+
+    def test_backup_contains_notes_and_config(self):
+        ok, msg = self.b.build(self.data, self.dest)
+        self.assertTrue(ok, msg)
+        names = self._names(self._archive())
+        self.assertIn("config.yaml", names)
+        self.assertIn("memories/note.md", names)
+        self.assertIn("vaults/note.md", names)
+
+    def test_backup_never_contains_env_or_auth_at_any_depth(self):
+        self.b.build(self.data, self.dest)
+        for n in self._names(self._archive()):
+            self.assertNotIn(".env", n, n)
+            self.assertNotIn("auth", n, n)
+        blob = self._archive().read_bytes()
+        self.assertNotIn(b"AIzaSECRET", blob)
+        self.assertNotIn(b"nested-secret", blob)
+
+    def test_two_runs_on_the_same_day_do_not_overwrite(self):
+        self.assertTrue(self.b.build(self.data, self.dest)[0])
+        ok, msg = self.b.build(self.data, self.dest)
+        self.assertFalse(ok)
+        self.assertIn("이미", msg)
+
+    def test_old_archives_are_pruned_to_keep_count(self):
+        for d in ("2026-01-01", "2026-01-02", "2026-01-03", "2026-01-04", "2026-01-05"):
+            (self.dest / f"{d}.tar.gz").write_bytes(b"old")
+        self.b.build(self.data, self.dest)
+        self.assertLessEqual(len(list(self.dest.glob("*.tar.gz"))), self.b.KEEP)
+
+    def test_nothing_to_back_up_leaves_no_empty_archive(self):
+        ok, _ = self.b.build(Path(tempfile.mkdtemp()), self.dest)
+        self.assertFalse(ok)
+        self.assertEqual(list(self.dest.glob("*.tar.gz")), [])
+
+    def test_cron_registration_is_idempotent_and_uses_no_agent(self):
+        ok, msg = self.b.install_cron(self.data)
+        self.assertTrue(ok, msg)
+        self.assertFalse(self.b.install_cron(self.data)[0])
+        jobs = json.loads((self.data / "cron" / "jobs.json").read_text())
+        self.assertEqual(len(jobs), 1)
+        self.assertTrue(jobs[0]["no_agent"])
+
+
 if __name__ == "__main__":
     unittest.main()
+
 

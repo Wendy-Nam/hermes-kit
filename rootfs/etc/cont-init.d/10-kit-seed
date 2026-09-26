@@ -39,14 +39,27 @@ for v in work personal; do
   [ -e "$D/vaults/$v/.obsidian" ] || { as_h mkdir -p "$D/vaults/$v"; as_h cp -r "$K/seed/vaults/$v/." "$D/vaults/$v/"; }
 done
 
-# kit-setup: the /setup Discord command (keys via modal, verified, never through an LLM).
-# Copied per kit version — it is kit code, unlike rtk's own plugin below.
+# Private packs repo (Phase 3, Task 10). Best effort like the public skill install: a first boot
+# with no network, or a token that expired when the cohort ended, must still finish.
+# kit-setup: the /setup and /doctor Discord commands. Copied per kit version — kit code,
+# unlike rtk's own plugin below. The packs fetch below imports it, so it goes first.
 if [ -d "$K/plugins/kit-setup" ]; then
   as_h mkdir -p "$D/plugins/kit-setup"
   as_h cp -r "$K/plugins/kit-setup/." "$D/plugins/kit-setup/"
   as_h find "$D/plugins/kit-setup" -name __pycache__ -type d -exec rm -rf {} + 2>/dev/null || true
   log "kit-setup plugin installed"
 fi
+
+# Private packs repo (Phase 3, Task 10) — needs the plugin copied just above.
+# Best effort: no network, or a token that expired at the end of the cohort, must not fail boot.
+as_h env KIT_ACCESS_CODE="${KIT_ACCESS_CODE:-}" "$PY" -c '
+import sys, os
+sys.path.insert(0, "/opt/data/plugins/kit-setup")
+from pathlib import Path
+from fetch_packs import fetch
+print("[kit] " + fetch("Wendy-Nam/hermes-kit-packs", "main",
+                       os.environ.get("KIT_ACCESS_CODE", ""), Path("/opt/data"))[1])
+' 2>/dev/null || log "private packs fetch skipped"
 
 # rtk's own Hermes plugin (accepts rewrite exit codes 0 and 3, fails open); refreshed per kit version.
 as_h rtk init --agent hermes >/dev/null && log "rtk hermes plugin installed"
