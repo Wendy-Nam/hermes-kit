@@ -97,6 +97,8 @@
 
 ## 7. 운영 서버에 한 변경 (전부)
 - `/opt/data/skills/media/youtube-content/scripts/gemini_video.py`: `--fast` 400 폴백 2줄 추가(서아 님 승인). 롤백: 같은 폴더 `gemini_video.py.bak-20260926-064043-fast400`으로 되돌리기.
+- **OmniRoute 병행 배포(2026-09-26, 서아 님 승인)**: 호스트 `/docker/omniroute`(compose 프로젝트 `omniroute`), 이미지 `diegosouzapw/omniroute:3.8.50@sha256:085c57ad…`, 메모리 2GB 상한, `REQUIRE_API_KEY=true`, 포트 `127.0.0.1:20128`만(대시보드는 `ssh -L 20128:127.0.0.1:20128 vps`), 네트워크 `hermes-agent-ywj7_default`(Hermes에서 `http://omniroute:20128`). 비밀값은 `/docker/omniroute/.env`(600). **Hermes·freellmapi 설정은 미변경.** 롤백: `cd /docker/omniroute && docker compose down -v`.
+- 테스트 컨테이너 `hermes-kit-test`는 메모리 확보를 위해 정지 상태(`docker start hermes-kit-test`로 재개).
 - 그 외 변경 없음(rtk 수정 제안은 불필요로 판명되어 미적용).
 
 ## 8. 테스트 환경 정리 (필요할 때)
@@ -122,4 +124,6 @@ ssh vps 'cd /docker/hermes-kit-test && docker compose down -v; docker volume rm 
 - 결론 유지(키트 = freellmapi, Gemini는 Hermes에서 직접 호출). 후속: freellmapi 스키마 정리 패치(격리 검증 → 운영은 승인 후), freellmapi·Hermes 업스트림 이슈(공개 게시라 문안 승인 후).
 - **방향 전환(서아 님 결정, 2026-09-26): 운영은 OmniRoute로 이전** — 이유는 정확도가 아니라 유지보수 부담(체인 수동 조절, session-sticky/turn-router, freellmapi 패치 5개, CLI 보조툴 관리)을 한 도구로 통합. 두 라우터의 결함은 모두 **Gemini 전용**이므로 **Gemini는 Hermes가 직접 호출**하고 나머지를 OmniRoute로 → 패치 불필요.
 - 검증: OmniRoute 3.8.50 + Command Code `cmd/deepseek/deepseek-v4-flash`, Hermes 도구 25·45개 여러 턴 → **둘 다 2턴에 완료**. 키 없는 `oc/*`는 불가(OpenCode 무료 티어는 OpenCode 밖에서 403, deepseek-free는 unavailable) — "키 없이 바로 작동" 광고와 다름.
+- **OmniRoute 압축 방침**: Hermes rtk 플러그인 유지(메인 두뇌·Gemini는 OmniRoute를 거치지 않으므로 OmniRoute RTK로 대체 불가). OmniRoute 압축은 기본값(session-dedup → lite)으로 시작 → 전환 후 캐시 2회 호출 테스트로 확인. **Caveman은 대화 콤보에서 끔**(답변을 약 75% 줄여 한국어 응답 품질 저하 우려), 보조 작업 콤보에만 선택.
+- **이전 다음 단계**: 2) freellmapi 키 복호화→호스트 파이프→OmniRoute import(값 비출력) + 프로바이더별 실호출 검증 3) 콤보(대화·보조·private·비전, unfiltered 제외) 4) Hermes 보조·위임 연결 전환(승인 후), freellmapi 1주 유지.
 - 재평가 조건: OmniRoute가 thought_signature 왕복을 고친 안정 릴리스를 내면 같은 테스트(`scratchpad`의 `omnitest.py --loop`)로 재확인.
