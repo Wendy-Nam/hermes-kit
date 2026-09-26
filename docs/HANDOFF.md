@@ -110,3 +110,12 @@ ssh vps 'cd /docker/hermes-kit-test && docker compose down -v; docker volume rm 
 - GHCR 이미지 공개 게시 시점
 - 운영 freellmapi 체인 순서 조정(대화·위임은 캐싱 모델 우선) 적용 여부
 - CLI 워커 2주 측정용 주간 리포트 크론 설치 여부
+
+## 10. OmniRoute 평가 (2026-09-26) — 키트는 freellmapi 유지
+격리 테스트 네트워크에서 Hermes 실제 도구 스키마(25개 ≈1.1만 토큰, 전체 45개 ≈2.1만 토큰)로 Gemini 직접 vs OmniRoute 비교.
+- 단일 요청: OmniRoute 3.8.50·`main`(9/21) 모두 25/45개 도구 정상(200 + 도구 호출). "도구 많으면 끊김"은 **재현 안 됨**.
+- **여러 턴 도구 루프: OmniRoute 경유 시 Gemini thought_signature(`extra_content`)가 클라이언트로 오지 않고, 모델이 이미 읽은 파일을 반복 호출** — 직접 호출은 2~3턴에 답변 완료. 이슈 #14811(Hermes+OmniRoute 400·토큰 과다)과 같은 증상. 안정판 최신이 여전히 3.8.50(8/26).
+- 그 외: 키 1개일 때 OmniRoute 자체 쿨다운이 구글 실제 한도보다 길게 잠금, 카탈로그에 `gemini-3.5-flash` 없음, Docker 이미지의 CLI는 `tsx` 누락으로 실행 불가(설정은 HTTP API로), 대기 메모리 490~640MB(freellmapi 101MB).
+- CLI·구독 쿼타 기능은 TLS/클라이언트 지문 위장 기반(`docs/security/STEALTH_GUIDE.md`) + 자체 정지 감지 기능 존재 → 수강생 키트 제외.
+- 서아 님 freellmapi 프리미엄은 평생 플랜·활성(live 카탈로그). 운영 개선 후보: 죽은 커스텀 키(401 ×152/7일) 교체, 구글 키 모델 범위 2.5→3.x, private 풀에서 xkiro 제외, 대화 체인 캐싱 모델 우선 — **전부 서아 님 승인 대기**.
+- 재평가 조건: OmniRoute가 thought_signature 왕복을 고친 안정 릴리스를 내면 같은 테스트(`scratchpad`의 `omnitest.py --loop`)로 재확인.
