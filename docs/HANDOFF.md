@@ -98,6 +98,7 @@
 ## 7. 운영 서버에 한 변경 (전부)
 - `/opt/data/skills/media/youtube-content/scripts/gemini_video.py`: `--fast` 400 폴백 2줄 추가(서아 님 승인). 롤백: 같은 폴더 `gemini_video.py.bak-20260926-064043-fast400`으로 되돌리기.
 - **OmniRoute 병행 배포(2026-09-26, 서아 님 승인)**: 호스트 `/docker/omniroute`(compose 프로젝트 `omniroute`), 이미지 `diegosouzapw/omniroute:3.8.50@sha256:085c57ad…`, 메모리 2GB 상한, `REQUIRE_API_KEY=true`, 포트 `127.0.0.1:20128`만(대시보드는 `ssh -L 20128:127.0.0.1:20128 vps`), 네트워크 `hermes-agent-ywj7_default`(Hermes에서 `http://omniroute:20128`). 비밀값은 `/docker/omniroute/.env`(600). **Hermes·freellmapi 설정은 미변경.** 롤백: `cd /docker/omniroute && docker compose down -v`.
+- **OmniRoute 키 이전(2026-09-26, 2단계 완료)**: freellmapi 활성 키 39개를 컨테이너 내부 복호화 → 호스트 파이프 → OmniRoute API로 이전(값 비출력). 결과: 공식 프로바이더 26 + OpenAI 호환 노드 11 = **37 연결, 일괄 테스트 36 통과**(speechify는 `/models` 없음 → 모델 ID 지정 검증 필요). 미이전: Cloudflare(키가 `accountId:token` — 대시보드에서 계정 ID 필드로), zhipu(호스트 미확인; OmniRoute glm/zai는 국제판 `api.z.ai`). 연결 이름 `fl-<platform>`. 스크립트 `/docker/omniroute/migrate/{fl_export.mjs,om_import.py,om_testall.py}`(600, 멱등 — 재실행 시 기존 이름 건너뜀). 함정: 노드 생성은 `apiType:"chat"` 필수(스키마상 optional인데 superRefine에서 요구), prefix `github`은 Copilot용 예약 → `github-models`, freellmapi 복호화 전 `initEncryptionKey()` 필요, ESM 스크립트는 `/app/server` 안에서 실행해야 `better-sqlite3` 해석. **freellmapi·Hermes 미변경.**
 - 테스트 컨테이너 `hermes-kit-test`는 메모리 확보를 위해 정지 상태(`docker start hermes-kit-test`로 재개).
 - 그 외 변경 없음(rtk 수정 제안은 불필요로 판명되어 미적용).
 
