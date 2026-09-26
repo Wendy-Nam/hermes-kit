@@ -7,6 +7,7 @@ vault that syncs to a laptop. Keys are re-entered through /setup instead.
 Runs from a cron with no_agent: true, so it never spends tokens and never fails the job.
 """
 import logging
+import os
 import sys
 import tarfile
 import time

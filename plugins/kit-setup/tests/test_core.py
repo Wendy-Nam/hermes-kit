@@ -5,12 +5,14 @@ Discord UI is not covered here because it cannot be imported without discord.py;
 manual E2E checklist in the plan (Task 9 Step 3).
 """
 import asyncio
+import importlib.util
 import io
 import tarfile
 import time
 import json
 import os
 import stat
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -615,6 +617,56 @@ class Updates(unittest.TestCase):
         jobs = json.loads((data / "cron" / "jobs.json").read_text())
         self.assertEqual(len(jobs), 1)
         self.assertTrue(jobs[0]["no_agent"])
+
+
+class Entrypoints(unittest.TestCase):
+    """Run each script the way a cron or a container would, not the way a test would.
+
+    The weekly backup shipped with a NameError in its __main__ block that 67 passing tests
+    never noticed, because every one of them called build() directly. A test that imports a
+    module proves nothing about the part that only runs in production.
+    """
+
+    def _run(self, name, env=None, args=()):
+        e = {k: v for k, v in os.environ.items() if not k.startswith(("GEMINI_", "APIFY_"))}
+        e.update(env or {})
+        return subprocess.run([sys.executable, str(HERE / f"{name}.py"), *args],
+                              capture_output=True, text=True, timeout=60, env=e)
+
+    def test_backup_entrypoint_runs_and_writes_an_archive(self):
+        home = Path(tempfile.mkdtemp())
+        (home / "memories").mkdir()
+        (home / "memories" / "n.md").write_text("노트")
+        r = self._run("backup", {"HERMES_HOME": str(home)})
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertNotIn("Traceback", r.stderr)
+        self.assertTrue(list((home / "vaults" / "personal" / "_backup").glob("*.tar.gz")))
+
+    def test_backup_entrypoint_on_an_empty_home_is_not_a_crash(self):
+        r = self._run("backup", {"HERMES_HOME": tempfile.mkdtemp()})
+        self.assertNotIn("Traceback", r.stderr)
+
+    def test_update_check_entrypoint_runs(self):
+        r = self._run("updates", {"HERMES_HOME": tempfile.mkdtemp()})
+        self.assertNotIn("Traceback", r.stderr)
+
+    def test_every_module_imports_cleanly(self):
+        for name in ("env_store", "validators", "packs", "owner", "discord_ui",
+                     "doctor", "backup", "updates", "fetch_packs"):
+            spec = importlib.util.spec_from_file_location(f"m_{name}", HERE / f"{name}.py")
+            m = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(m)
+            self.assertTrue(m, name)
+
+    def test_doctor_and_setup_share_the_same_owner_rule(self):
+        """/doctor is owner-only for the same reason /setup is: it re-checks real keys."""
+        import inspect
+
+        import doctor
+        import discord_ui
+
+        self.assertIn("guild.owner_id", inspect.getsource(doctor.doctor_command))
+        self.assertIn("guild.owner_id", inspect.getsource(discord_ui.setup_command))
 
 
 if __name__ == "__main__":

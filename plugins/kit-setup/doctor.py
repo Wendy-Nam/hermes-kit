@@ -170,8 +170,24 @@ def collect(data_dir: Path, env_file: Path, process=None) -> list[Finding]:
 
 
 async def doctor_command(interaction, data_dir: Path, env_file: Path, process=None):
-    """`/doctor` — ephemeral report, plus a copyable plain-text version for the instructor."""
+    """`/doctor` — ephemeral report, plus a copyable plain-text version for the instructor.
+
+    Owner-only, same rule as /setup. The report is masked, but it still says which packs are
+    configured and which keys the provider accepted, and every run re-checks those keys over
+    the network. A guild member spamming it would burn the student's quota and rate limits.
+    """
     from views import DoctorView
+
+    import owner as owner_mod
+
+    guild = interaction.guild
+    if guild is None:
+        await interaction.response.send_message("서버에서만 실행할 수 있습니다.", ephemeral=True)
+        return
+    if interaction.user.id != guild.owner_id and not owner_mod.is_approved(interaction.user.id):
+        await interaction.response.send_message("이 서버의 소유자만 실행할 수 있습니다.",
+                                                ephemeral=True)
+        return
 
     await interaction.response.defer(ephemeral=True, thinking=True)
     findings = await asyncio.to_thread(collect, data_dir, env_file, process)
