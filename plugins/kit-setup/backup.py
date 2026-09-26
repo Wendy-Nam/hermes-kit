@@ -7,6 +7,7 @@ vault that syncs to a laptop. Keys are re-entered through /setup instead.
 Runs from a cron with no_agent: true, so it never spends tokens and never fails the job.
 """
 import logging
+import sys
 import tarfile
 import time
 from pathlib import Path
@@ -89,3 +90,13 @@ def install_cron(data_dir: Path) -> tuple[bool, str]:
     })
     jobs_file.write_text(json.dumps(jobs, ensure_ascii=False, indent=2))
     return True, "주간 백업 크론을 등록했습니다 (월요일 04:00, LLM 미사용)"
+
+
+
+if __name__ == "__main__":       # cron entrypoint
+    _DATA = Path(os.environ.get("HERMES_HOME") or "/opt/data")
+    _ok, _msg = build(_DATA, _DATA / "vaults" / "personal" / "_backup")
+    print(_msg, file=sys.stderr)
+    # A same-day re-run is a no-op, not a failure — a backup cron that reports failure
+    # every time it is retried trains people to ignore it.
+    raise SystemExit(0)

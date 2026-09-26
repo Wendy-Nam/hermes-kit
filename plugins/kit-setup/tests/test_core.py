@@ -543,6 +543,53 @@ class Backup(unittest.TestCase):
         self.assertTrue(jobs[0]["no_agent"])
 
 
+class Updates(unittest.TestCase):
+    def test_version_parsing_is_numeric_not_lexicographic(self):
+        import updates
+        self.assertGreater(updates.parse_version("0.21.3-k1"), updates.parse_version("0.21.2-k9"))
+        self.assertGreater(updates.parse_version("1.0.0"), updates.parse_version("0.99.99"))
+        self.assertEqual(updates.parse_version("v0.21.2-k1"), (0, 21, 2, 1))
+        self.assertEqual(updates.parse_version("0.21.2"), (0, 21, 2, 0))
+        self.assertIsNone(updates.parse_version("latest"))
+        self.assertIsNone(updates.parse_version(""))
+
+    def test_no_update_when_current_is_newer(self):
+        import updates
+        with patch.object(updates, "latest_release", return_value=("v0.21.2-k1", "notes")):
+            self.assertFalse(updates.check("0.21.3-k1")[0])
+
+    def test_update_message_carries_the_bullets(self):
+        import updates
+        with patch.object(updates, "latest_release",
+                          return_value=("v0.21.3-k2", "- 버그 수정\n- 체인 추가\n- 셋째\n- 넷째")):
+            avail, tag, msg = updates.check("0.21.2-k1")
+        self.assertTrue(avail)
+        self.assertIn("0.21.2-k1", msg)
+        self.assertIn("0.21.3-k2", msg)
+        self.assertIn("버그 수정", msg)
+        self.assertIn("셋째", msg)
+        self.assertNotIn("넷째", msg)   # only the first three bullets
+
+    def test_release_notes_fallback_still_tells_the_student_what_to_do(self):
+        import updates
+        with patch.object(updates, "latest_release", return_value=("v0.21.3-k2", "")):
+            self.assertIn("Redeploy", updates.check("0.21.2-k1")[2])
+
+    def test_unreachable_github_is_silent_not_an_alert(self):
+        import updates
+        with patch.object(updates, "latest_release", return_value=(None, "GitHub에 연결하지 못했습니다")):
+            self.assertFalse(updates.check("0.21.2-k1")[0])
+
+    def test_update_cron_is_idempotent_and_no_agent(self):
+        import updates
+        data = Path(tempfile.mkdtemp())
+        self.assertTrue(updates.install_cron(data)[0])
+        self.assertFalse(updates.install_cron(data)[0])
+        jobs = json.loads((data / "cron" / "jobs.json").read_text())
+        self.assertEqual(len(jobs), 1)
+        self.assertTrue(jobs[0]["no_agent"])
+
+
 if __name__ == "__main__":
     unittest.main()
 
