@@ -45,16 +45,30 @@ def _env():
     return get_env(ENV_FILE)
 
 
-def _write(values: dict, config: dict) -> None:
-    """Persist keys, then config. Either both happen or the student is told nothing was saved."""
+def _write(values: dict, config: dict) -> list[str]:
+    """Persist keys, then config. Returns a line per config key, naming any that failed.
+
+    Keys first, then config: if this raises, the key is saved and the student is told the save
+    failed — the reverse order would leave a key-less config pointing at a key that is not there.
+    """
     from env_store import set_env
 
     set_env(ENV_FILE, values)
+    lines = []
     for k, v in config.items():
         if "${" in str(v):       # a value that refers back to an env var keeps that reference
             continue
-        subprocess.run([HERMES, "config", "set", k, str(v), "--force"],
-                       capture_output=True, text=True, timeout=60, check=False)
+        try:
+            r = subprocess.run([HERMES, "config", "set", k, str(v), "--force"],
+                               capture_output=True, text=True, timeout=60, check=False)
+            ok = r.returncode == 0
+        except Exception:
+            ok = False
+        # Never claim success for a setting that did not stick: a student who sees a green tick
+        # on "stt.provider" and finds voice still off will not re-run it.
+        lines.append(f"{TICK} 설정 적용: {k}" if ok else
+                     f"{CROSS} 설정 적용 실패: {k} — 키는 저장됐지만 이 설정은 반영되지 않았습니다")
+    return lines
 
 
 async def _verify(entries) -> list[tuple[str, bool, str]]:
@@ -81,12 +95,8 @@ async def _verify(entries) -> list[tuple[str, bool, str]]:
 
 def _apply(entries, config) -> list[str]:
     """Write a verified pack. Returns human-readable status lines (never the values)."""
-    lines = []
-    _write({spec.env: val for spec, val in entries}, config)
-    for spec, _ in entries:
-        lines.append(f"{TICK} {spec.label} 저장")
-    for k in config:
-        lines.append(f"{TICK} 설정 적용: {k}")
+    lines = [f"{TICK} {spec.label} 저장" for spec, _ in entries]
+    lines += _write({spec.env: val for spec, val in entries}, config)
     return lines
 
 

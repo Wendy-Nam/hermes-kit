@@ -44,8 +44,8 @@ done
 # kit-setup: the /setup and /doctor Discord commands. Copied per kit version — kit code,
 # unlike rtk's own plugin below. The packs fetch below imports it, so it goes first.
 if [ -d "$K/plugins/kit-setup" ]; then
-  as_h mkdir -p "$D/plugins/kit-setup"
-  as_h cp -r "$K/plugins/kit-setup/." "$D/plugins/kit-setup/"
+  as_h mkdir -p "$D/plugins/kit-setup" || log "kit-setup dir create failed (continuing)"
+  as_h cp -r "$K/plugins/kit-setup/." "$D/plugins/kit-setup/" || log "kit-setup copy failed (continuing)"
   as_h find "$D/plugins/kit-setup" -name __pycache__ -type d -exec rm -rf {} + 2>/dev/null || true
   log "kit-setup plugin installed"
 fi

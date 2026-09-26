@@ -290,6 +290,29 @@ class ApplyFlow(unittest.TestCase):
         self.assertIn("a", keys)
         self.assertNotIn("b", keys)   # writing the literal "${...}" would store a useless string
 
+    def test_a_failed_config_set_is_reported_not_claimed_as_applied(self):
+        """A green tick on a setting that did not stick is worse than an honest red one."""
+        import subprocess as sp
+        with patch.object(self.du.subprocess, "run",
+                          return_value=sp.CompletedProcess([], 1, "", "boom")):
+            lines = self.du._apply([(self.spec, "x")], {"stt.provider": "groq"})
+        failed = [l for l in lines if "stt.provider" in l][0]
+        self.assertIn("설정 적용 실패", failed)
+        self.assertNotIn("✅", failed)
+
+    def test_a_missing_hermes_binary_is_reported_not_raised(self):
+        with patch.object(self.du.subprocess, "run", side_effect=FileNotFoundError("no hermes")):
+            lines = self.du._apply([(self.spec, "x")], {"a": "1"})
+        self.assertIn("설정 적용 실패", "\n".join(lines))
+        self.assertEqual(env_store.get_env(self.tmp / ".env"), {"GEMINI_API_KEY": "x"})
+
+    def test_successful_config_set_is_still_claimed(self):
+        import subprocess as sp
+        with patch.object(self.du.subprocess, "run",
+                          return_value=sp.CompletedProcess([], 0, "", "")):
+            lines = self.du._apply([(self.spec, "x")], {"stt.provider": "groq"})
+        self.assertIn("✅ 설정 적용: stt.provider", "\n".join(lines))
+
 
 class PacksFetch(unittest.TestCase):
     """Downloading the private packs repo must never damage a working install."""

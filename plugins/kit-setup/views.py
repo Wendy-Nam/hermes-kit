@@ -117,7 +117,12 @@ class ApplyButton(discord.ui.Button):
         await interaction.response.send_message("재시작합니다. 10초 뒤 준비 완료를 알려드릴게요.",
                                                 ephemeral=True)
         await asyncio.sleep(1)
-        restart_gateway()
+        if not restart_gateway():
+            # No stale marker left behind: otherwise the next unrelated restart greets
+            # the channel for a setup that never completed.
+            PENDING.unlink(missing_ok=True)
+            await interaction.followup.send(
+                "재시작하지 못했습니다. Hostinger에서 컨테이너를 다시 시작해 주세요.", ephemeral=True)
 
 
 class HomeView(discord.ui.View):
