@@ -877,9 +877,9 @@ networks: {default: {name: hermes-kit}}   # 심화팩(freellmapi)이 external로
 
 ### Task 20: 첫날 체험용 스타터 크론 (선택 토글)
 - [ ] `/setup` 마지막 화면에 켜고 끌 수 있는 3개:
-  - ☀️ 아침 브리핑 (서아 님 `daily-korea-morning-brief` 일반화 — 날씨는 외부 프록시 의존이라 제외, 뉴스·일정 위주)
-  - 📧 이메일 다이제스트 (🔗 구글 연동 선택 시만, `email-digest-batching` 일반화)
   - 🗓 주간 회고 (번들 `weekly-review-planning`, 일요일 밤)
+  - ▶️ 유튜브 요약 채널 안내 (크론 아님 — 첫날 "링크 하나 보내보세요" 체험)
+  - (보류) 아침 브리핑·이메일 다이제스트 — 서아 님 체감 만족도가 낮아 개선 전까지 제외(2026-09-26)
 - [ ] 모두 `max_turns` 지정(Task 1b 패치), 보조 모델(OpenCode Go/Command Code)로 실행해 Codex 한도 보호.
 
 ## 운영 정책
@@ -1009,6 +1009,16 @@ email/email-inbox-triage
 - 같은 업스트림 커밋(`5eb99eb2`)이라 Hermes 동작은 운영 서버와 동일. Docker Hub 공식, MIT, **amd64·arm64 둘 다** 제공(ARM VPS 리스크 해소), 다이제스트 고정.
 - Hostinger 이미지를 베이스로 쓰지 않는 이유: Hostinger 레이어는 소스·라이선스 비공개라 **공개 파생 이미지로 재배포하기 애매**하고, 그 레이어가 주는 것(4860 대시보드 기본 인증, nexos 기본 모델, Claude Code CLI 선설치)은 키트에서 불필요하거나(`/setup`·`/doctor`가 대시보드 대체) 선택 설치(CLI 워커 팩)로 대체된다.
 - 주의: 보이스 패치·코어 패치는 Hostinger 빌드 위에서 검증됐다. Hostinger 레이어가 건드린 파일(nexos/oxylabs 프로바이더 관련)과 겹치는지는 Task 1 빌드의 앵커 검사로 드러남 — 실패하면 해당 패치만 업스트림 기준으로 재작성.
+
+
+### D9. 공개 스킬 모음 레포 (2026-09-26)
+
+- 서아 님 스킬을 **공개 레포 하나**에 모은다. 구조 `skills/<스킬명>/SKILL.md` + `scripts/` = anthropics/skills와 같은 형식 → Hermes 네이티브 tap으로 개별 설치:
+  `hermes skills tap add <owner>/<repo>` → `hermes skills install <스킬명>`. Hermes tap은 스킬 폴더 전체(스크립트 포함)를 커밋 고정으로 가져온다(`tools/skills_hub_github.py:226-292`, 심볼릭 링크·위험 경로 거부). Claude Code 등 다른 에이전트는 폴더 복사.
+- 1차 수록: ▶️ 유튜브 요약(Gemini판, 테스트 28개 보유), 💬 카톡·팀즈 읽기(agent-messenger는 사용자가 npm 설치 — 동봉 안 함). 구직 키트는 기존 레포 유지, README에서 링크.
+- 보류: 아침 브리핑·이메일 다이제스트(만족도 낮음), 위키 자동화(`ehr-wiki` 전제), session-sticky·turn-router(freellmapi 라우팅 전제). 제외: hermes-snow-search(제3자 작성).
+- 키트 연동: 시드 훅이 이 레포를 tap으로 등록 → 직군 키트는 tap 설치 목록만 가짐. 비공개 팩에는 SOUL·체인 튜닝만 남고, 경우에 따라 기수 PAT 불필요.
+- 🤖 CLI 워커는 **실험 팩**: 2026-09-26 기준 영수증 12건(전부 당일 구축·스모크), 실패 4건(33%), 성공 8건도 부모 검증 전(`*_unverified`). 2주 실사용 측정(부모 검증 통과율, 워커 보고 토큰 vs 부모 검증 비용) 후 공개·키트 포함 결정. Antigravity(`agy`)는 측정 대상에 추가.
 
 ## 스파이크 결과
 
