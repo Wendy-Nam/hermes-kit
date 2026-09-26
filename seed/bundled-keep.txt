@@ -1,0 +1,14 @@
+autonomous-ai-agents/hermes-agent
+note-taking/obsidian
+media/youtube-content
+research/llm-wiki
+research/grounded-citations
+web/blocked-page-recovery
+productivity/pdf
+productivity/docx
+productivity/xlsx
+productivity/powerpoint
+productivity/meeting-action-items
+productivity/document-to-action-items
+productivity/weekly-review-planning
+email/email-inbox-triage

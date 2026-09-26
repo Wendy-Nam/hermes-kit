@@ -1,0 +1,38 @@
+#!/bin/sh
+# hermes-kit first-boot seed. Runs after Hermes' own cont-init (01/015/02), which already seeded
+# a full default config.yaml, .env template and SOUL.md — so the kit overlays, never copies-if-missing.
+# POSIX sh on purpose: a `#!/command/with-contenv sh` hook failed to exec under this image's s6
+# (execlineb) on the author's server (2026-09-20).
+set -eu
+D="${HERMES_HOME:-/opt/data}"
+K=/opt/kit
+PY=/opt/hermes/.venv/bin/python
+H=/opt/hermes/.venv/bin/hermes
+as_h() { /command/s6-setuidgid hermes env HOME="$D" HERMES_HOME="$D" "$@"; }
+log() { echo "[kit] $*"; }
+
+new="$(cat "$K/VERSION")"
+old="$(cat "$D/.kit-version" 2>/dev/null || echo none)"
+[ "$new" = "$old" ] && { log "kit $new already seeded"; exit 0; }
+log "seeding kit $new (previous: $old)"
+
+if [ "$old" = none ]; then
+  as_h "$PY" "$K/bin/merge_yaml.py" "$D/config.yaml" "$K/seed/config-overlay.yaml"
+  as_h cp "$K/seed/SOUL.md" "$D/SOUL.md"
+  # Bundled skills: stop re-seeding, then drop every bundled skill not on the keep-list.
+  as_h "$H" skills opt-out -y >/dev/null 2>&1 || log "skills opt-out failed (continuing)"
+  ( cd /opt/hermes/skills && find . -name SKILL.md | sed 's|/SKILL.md$||; s|^\./||' ) | while read -r s; do
+    grep -qxF "$s" "$K/seed/bundled-keep.txt" || rm -rf "${D:?}/skills/$s"
+  done
+fi
+
+# Vault templates: only where the vault does not exist yet (never touch a user's notes).
+for v in work personal; do
+  [ -e "$D/vaults/$v/.obsidian" ] || { as_h mkdir -p "$D/vaults/$v"; as_h cp -r "$K/seed/vaults/$v/." "$D/vaults/$v/"; }
+done
+
+# rtk's own Hermes plugin (accepts rewrite exit codes 0 and 3, fails open); refreshed per kit version.
+as_h rtk init --agent hermes >/dev/null && log "rtk hermes plugin installed"
+
+as_h sh -c "echo '$new' > '$D/.kit-version'"
+log "done"

@@ -1,0 +1,29 @@
+# Keys the kit changes on top of Hermes' default config.yaml (merged once, on first kit boot).
+# Values mirror the author's tuned server; key names verified against v2026.9.11 + patches/core.
+agent:
+  reasoning_effort: low
+  max_turns: 20
+timezone: Asia/Seoul
+file_read_max_chars: 16000
+OBSIDIAN_VAULT_PATH: /opt/data/vaults/personal
+tool_budget:                      # patches/core/patch-budget-caps.py reads these
+  max_result_size_chars: 8000
+  turn_budget_chars: 24000
+  preview_size_chars: 1500
+  mcp_result_size_chars: 2000
+skills:
+  creation_nudge_interval: 0
+  compact_categories:             # patches/core/patch-skills-compact.py
+    - note-taking
+    - media
+    - productivity
+    - creative
+    - email
+    - research
+tts:
+  provider: none                  # voice patch 10; the voice pack switches it on
+voice:
+  auto_tts: false
+  auto_voice_reply: false
+web:
+  search_backend: ddgs

@@ -1,0 +1,9 @@
+.git
+.omc
+**/.omc
+docs
+spikes
+tests
+**/__pycache__
+*.pyc
+.scratch*
