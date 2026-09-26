@@ -118,4 +118,6 @@ ssh vps 'cd /docker/hermes-kit-test && docker compose down -v; docker volume rm 
 - 그 외: 키 1개일 때 OmniRoute 자체 쿨다운이 구글 실제 한도보다 길게 잠금, 카탈로그에 `gemini-3.5-flash` 없음, Docker 이미지의 CLI는 `tsx` 누락으로 실행 불가(설정은 HTTP API로), 대기 메모리 490~640MB(freellmapi 101MB).
 - CLI·구독 쿼타 기능은 TLS/클라이언트 지문 위장 기반(`docs/security/STEALTH_GUIDE.md`) + 자체 정지 감지 기능 존재 → 수강생 키트 제외.
 - 서아 님 freellmapi 프리미엄은 평생 플랜·활성(live 카탈로그). 운영 개선 후보: 죽은 커스텀 키(401 ×152/7일) 교체, 구글 키 모델 범위 2.5→3.x, private 풀에서 xkiro 제외, 대화 체인 캐싱 모델 우선 — **전부 서아 님 승인 대기**.
+- **freellmapi도 같은 조건으로 테스트(2026-09-26)**: 운영과 같은 이미지(`freellmapi:hermes-v0.12.0`) 새 인스턴스 + 같은 Gemini 키 + Hermes 도구 25개 → **첫 요청부터 400**. 원인: Hermes `delegate_task.routing.reasoning_effort`의 `anyOf[1] = {"type":"boolean","enum":[false]}` — Gemini 네이티브 API는 문자열 enum만 허용, freellmapi Google 어댑터가 스키마를 정리하지 않고 전송(`...any_of[1].enum[0] (TYPE_STRING), false`). OmniRoute·구글 OpenAI 호환 엔드포인트는 통과. 운영에서 안 보인 이유: 구글 키 모델 범위가 폐지된 2.5로 묶여 Gemini로 거의 안 감 → **모델 범위를 3.x로 넓히기 전에 이 버그부터 패치할 것**.
+- 결론 유지(키트 = freellmapi, Gemini는 Hermes에서 직접 호출). 후속: freellmapi 스키마 정리 패치(격리 검증 → 운영은 승인 후), freellmapi·Hermes 업스트림 이슈(공개 게시라 문안 승인 후).
 - 재평가 조건: OmniRoute가 thought_signature 왕복을 고친 안정 릴리스를 내면 같은 테스트(`scratchpad`의 `omnitest.py --loop`)로 재확인.
