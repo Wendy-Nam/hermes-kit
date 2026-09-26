@@ -15,6 +15,17 @@
 | 테스트 환경 | 서아 님 VPS(`ssh vps` = 호스트 root)의 격리 compose 프로젝트 `hermes-kit-test` (`/docker/hermes-kit-test`, 메모리 2.5GB·CPU 1 상한, 운영 볼륨 미마운트) |
 | 운영 서버 | `ssh hermes` = 운영 컨테이너 안(HOME=/opt/data). **읽기 전용 원칙**, 변경은 서아 님 승인 건만 |
 
+**Phase 3 — 코드 부분 완료** (`fetch_packs.py`, `advanced/docker-compose.freellmapi.yml`)
+- `fetch_packs.py`: `KIT_ACCESS_CODE`로 비공개 팩 레포를 받아 설치. **전부 best effort** — 네트워크 없음·코드 만료에도 부팅은 성공. **tarball 안의 심볼릭 링크/`../` 는 전체 중단**(안 그러면 다운로드 경로로 학생 `.env`를 덮을 수 있음), 임시 디렉터리 풀고 나서 옮김(중단된 다운로드가 반쪽 스킬 트리를 남기지 않게). `soul/`·`freellmapi/`는 **없을 때만** 복사
+- `advanced/docker-compose.freellmapi.yml`: 두 번째 프로젝트로 붙여넣는 심화팩. **포트 미공개**(대시보드가 인터넷에 닿으면 안 됨), `ENCRYPTION_KEY`는 첫 기동에 볼륨에서 자동 생성
+- **남음(서아 님 권한·준비물)**: Task 10 Step 1(레포 B 생성 + PAT), Task 11 스킬 큐레이션(개인 문맥 일반화), Task 12 Step 1/3/3b/4/5(freellmapi 체인·키 — 실서비스 필요)
+
+**Phase 7 — Task 17/18/19 코드 완료** (`doctor.py`, `updates.py`, `backup.py`)
+- `/doctor`: LLM 없이 자가진단. 각 항목이 **원인과 조치**를 말함("Hostinger에서 재배포하세요") — 상태 코드만 찍으면 학생이 뭘 해야 할지 모름. **강사 복사본은 마스킹**(프로바이더 키 형태·Discord 스노우flake·이메일·IP·`KEY=value`)
+- `updates.py`: 태그를 **숫자로** 비교(`0.21.10` > `0.21.9`). 파싱 불가하면 "모르겠다" — 잘못된 "최신입니다"가 침묵보다 나쁨
+- `backup.py`: 주간 `no_agent` tarball. **`.env`·`auth.json`·세션은 깊이 상관없이 제외** — 백업이 평문 키 창고가 되면 안 됨. 실패 시 부분 아카이브 삭제
+- **남음**: Task 17 합격 기준(리허설에서 실제 확인), Task 19 "연결 해제", Task 20 스타터 크론
+
 **Phase 2 `/setup` 플러그인** (`plugins/kit-setup/`) — 코드·테스트 완료, **수동 E2E 남음**
 - `env_store.py`(원자적 600 쓰기·개행 주입 거부), `validators.py`(8종, 키는 헤더만), `packs.py`+`packs.json`/`kits.json`(로드시 전수 검증), `owner.py`(승인·초대링크·`PATCH /applications/@me`), `discord_ui.py`+`views.py`(모달·버튼)
 - 계약: **팩의 키가 하나라도 검증 실패하면 아무것도 저장하지 않는다**(반쪽 설정은 나중에 못 고침). 키는 헤더로만, 응답·로그·메시지에 값이 안 나감
@@ -55,11 +66,14 @@
 - 테스트 9 → **21개**. 각 수정에 회귀 테스트. skills-guard SAFE 유지.
 
 ## 5. 다음 할 일 (순서)
-1. **GHCR 공개 게시(서아 님 확인 후)**: `v0.21.2-k1` 태그 푸시 → GitHub 패키지 설정에서 visibility **Public** 수동 전환. 키트 CI는 **녹색 확인 완료**(`61abdc5`, 전 단계 success).
-2. **Phase 2 `/setup` 플러그인**(Task 5~9): `.env` 저장소·키 검증기·팩 정의·주인 등록+초대링크+`PATCH /applications/@me`(인텐트·권한 자동)·모달 UI. **명령은 반드시 길드 전용 등록**(S2 교훈).
-3. 스파이크 잔여: S11(볼트 2개·채널별 프로필 — **테스트용 LLM 선택 대기**), S12(CLI OAuth 중계 — 서아 님 클릭 필요), S6(Composio 키), S9(Hostinger 화면).
-4. 이후: Phase 4 Syncthing·대화 가져오기, Phase 5 compose(freellmapi는 별도 심화팩 compose), Phase 6 리허설·매뉴얼 v2, Phase 7 `/doctor`·업데이트 알림·백업.
-5. 보류: 카톡·팀즈 스킬(서아 님 지시로 키트 이후), 텔레그램 `/setup`(v1.1, 미니앱 폼 안), 아침 브리핑·이메일 다이제스트(만족도 낮음), CLI 워커(2주 실측 후).
+1. **GHCR 공개 게시(서아 님 확인 후)**: `v0.21.2-k1` 태그 푸시 → GitHub 패키지 설정에서 visibility **Public** 수동 전환. 키트 CI는 **녹색 확인 완료**.
+2. **레포 B 생성**(Task 10 Step 1) — private 레포 + fine-grained PAT(Contents Read-only, 만료 = 기수 종료일). `fetch_packs.py`가 기다리는 대상.
+3. **Phase 2/7 수동 E2E** — 테스트 봇으로 `/setup`·`/doctor` 체크리스트, 실키 검증, 백업 크론 1회 실행.
+4. **Task 14 Step 2 리허설** — 깨끗한 VPS에 compose 붙여넣고 20분 스톱워치. 이때 `/doctor` 합격 기준도 함께 확인.
+5. **Task 11 스킬 큐레이션** — 개인 스킬을 일반화해서 레포 B로. "SAN"·개인 경로·채널 ID 0건이 기준.
+6. **Task 20 스타터 크론**, Task 19 "연결 해제".
+7. 이후: Phase 4 Syncthing·대화 가져오기, Phase 6 리허설·매뉴얼 v2, Task 12b CLI 워커 팩(고급), Task 12c 메신저 팩.
+8. 보류: 텔레그램 `/setup`(v1.1), 아침 브리핑·이메일 다이제스트(만족도 낮음), CLI 워커(2주 실측 후).
 
 ## 6. 함정 (이번에 실제로 밟은 것)
 - 빌드 중 Hermes import가 `/opt/data`에 root 파일을 남기면 **모든 새 볼륨의 부팅이 깨짐** → 빌드 검증은 임시 HERMES_HOME에서, 가드로 차단 중.
@@ -73,6 +87,9 @@
 - **`.gitignore`의 `*.env`가 `versions.env`까지 삼켰다** → CI가 매번 `./versions.env: No such file or directory`로 8초 만에 실패. 되돌리려면 `!versions.env`이 필요한데, **주석은 반드시 별도 줄에** — gitignore에서 줄 끝 `#`는 주석이 아니라 패턴의 일부라 `!versions.env   # 메모`는 아무것도 예외 처리하지 않는다(조용히).
 - 스크립트를 import해서 단위 테스트하려고 하면, 그게 불가능한 이유(import 시점 부수효과)를 먼저 확인할 것 — `yt.py`가 폴백 체인 전체를 최상위에서 실행해서 테스트가 불가능했다.
 - macOS에서 `~/Documents` 아래 폴더가 쓰기는 되는데 읽기가 EPERM이 될 수 있음(TCC). 읽기가 막히면 GitHub에서 클론해 작업 후 푸시 — 원본 폴더 상태는 건드리지 않는다.
+- **비밀 스캔은 마스킹 테스트까지 잡는다**(2026-09-26 실제 적중). `/doctor` 마스킹 테스트에 서아 님 채널 ID·서버 IP·키 형태 문자열을 리터럴로 넣었다가 CI가 실패. 이런 값은 **런타임에 조립**하고 IP는 TEST-NET-3(`203.0.113.x`)을 쓴다. "가린다"를 테스트하면서 정작 진짜 값을 커밋하기 쉬운 자리.
+- `(?i)` 인라인 플래그는 **패턴 맨 앞에만** 올 수 있다. 중간에 두면 `TypeError`로 정규식 컴파일 자체가 실패한다(무시되는 게 아니다).
+- `discord` 모듈을 상속하는 클래스는 모듈 최상위에 둘 수 없다 — `discord.py`가 없는 환경(CI)에서 import가 죽는다. SDK에 묶인 위젯은 별도 모듈로 빼고 게이트웨이 안에서만 import.
 
 ## 7. 운영 서버에 한 변경 (전부)
 - `/opt/data/skills/media/youtube-content/scripts/gemini_video.py`: `--fast` 400 폴백 2줄 추가(서아 님 승인). 롤백: 같은 폴더 `gemini_video.py.bak-20260926-064043-fast400`으로 되돌리기.

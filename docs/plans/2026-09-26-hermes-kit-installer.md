@@ -681,7 +681,7 @@ def ensure_owner(user_id: str, name: str) -> bool:
 **Files:** 레포 B 생성, 레포 A `plugins/kit-setup/fetch_packs.py`
 
 - [ ] **Step 1:** 레포 B 생성(private). GitHub fine-grained PAT: **이 레포 1개, Contents: Read-only, 만료 = 기수 종료일**. 이 토큰이 `KIT_ACCESS_CODE`.
-- [ ] **Step 2:** `fetch_packs.py` — `https://api.github.com/repos/Wendy-Nam/hermes-kit-packs/tarball/main`을 `Authorization: Bearer $KIT_ACCESS_CODE`로 받아 임시 디렉터리에 풀고, `skills/kit/` 교체, `soul/`·`freellmapi/`는 없는 것만 복사. 심볼릭 링크 포함 시 중단(구직 키트 install.sh와 같은 원칙).
+- [x] **Step 2:** `fetch_packs.py` — `https://api.github.com/repos/Wendy-Nam/hermes-kit-packs/tarball/main`을 `Authorization: Bearer $KIT_ACCESS_CODE`로 받아 임시 디렉터리에 풀고, `skills/kit/` 교체, `soul/`·`freellmapi/`는 없는 것만 복사. 심볼릭 링크 포함 시 중단(구직 키트 install.sh와 같은 원칙).
 - [ ] **Step 3: 테스트** — 만료/틀린 토큰 → 부팅은 성공, 로그에 "팩 다운로드 실패" 한 줄, `/setup`에 재시도 버튼.
 - [ ] **Step 4: Commit**
 
@@ -700,10 +700,10 @@ def ensure_owner(user_id: str, name: str) -> bool:
 
 **기본 compose에 넣지 않는다.** 스타터(Codex + OpenCode Go)에는 필요 없고, 서아 님 VPS(8GB/2코어)에서도 Hermes 프로세스 하나가 약 2.7GB RSS를 쓴다 — 저사양 VPS 수강생에게 상시 컨테이너를 더 얹을 이유가 없다. 장애도 분리된다(freellmapi가 죽어도 봇은 OpenCode Go로 계속 동작).
 
-- [ ] **Step 0: 네트워크 연결** — 기본 compose가 이름 고정 네트워크를 만든다: `networks: {default: {name: hermes-kit}}`. 심화팩 compose는 `networks: {default: {name: hermes-kit, external: true}}` → Hermes에서 `http://freellmapi:3001`로 접근. 수강생은 Hostinger Docker Manager에 **두 번째 프로젝트로 붙여넣기**만 한다.
+- [x] **Step 0: 네트워크 연결** — 기본 compose가 이름 고정 네트워크를 만든다: `networks: {default: {name: hermes-kit}}`. 심화팩 compose는 `networks: {default: {name: hermes-kit, external: true}}` → Hermes에서 `http://freellmapi:3001`로 접근. 수강생은 Hostinger Docker Manager에 **두 번째 프로젝트로 붙여넣기**만 한다.
 
 - [ ] **Step 1:** 체인은 선언형 config에 **없음**(S7) → 부팅 후 1회성 스크립트 `freellmapi_chains.py`가 관리자 로그인 → `GET /api/profiles` → 없는 이름만 `POST /api/profiles {name, emoji, color, empty: true}` → 모델 지정(`PUT /api/profiles/:id`). 서버 `patch-freellmapi-pools.py` 로직을 REST로 이식. 체인: `private`(`groq, cerebras, mistral` — Mistral 키는 옵트아웃 필수 체크를 거쳐야만 저장됨), `public`, `fast`, `compress`, `vision`, `coding`. **`unfiltered` 없음.** 키는 비워 둠. `aion-rp-*` 등 RP 모델은 어느 체인에도 넣지 않는다.
-- [ ] **Step 2:** `ENCRYPTION_KEY`를 수강생이 만들지 않게 — 심화팩 compose에서 첫 기동 시 볼륨에 생성:
+- [x] **Step 2:** `ENCRYPTION_KEY`를 수강생이 만들지 않게 — 심화팩 compose에서 첫 기동 시 볼륨에 생성:
   ```yaml
   entrypoint: ["sh", "-c", "k=/app/server/data/.enc; [ -s $$k ] || head -c 32 /dev/urandom | base64 > $$k; export ENCRYPTION_KEY=$$(cat $$k); exec /docker-entrypoint.sh \"$$@\"", "--"]
   ```
@@ -712,7 +712,7 @@ def ensure_owner(user_id: str, name: str) -> bool:
 - [ ] **Step 3b: 관리자 계정 선점** — config JSON의 `admin`에 랜덤 비밀번호(볼륨 파일에 저장)를 넣어 **최초 설정 창을 닫는다**(freellmapi 문서: admin이 있으면 `POST /api/auth/setup`이 409). 포트는 공개하지 않음.
 - [ ] **Step 4:** `/setup` 💸이 `http://freellmapi:3001/api/ping` 200을 확인한 **뒤에만** `hermes config set`으로 `auxiliary.*` → `freellmapi` 라우팅, `fallback_providers`는 `[opencode-go(또는 commandcode), freellmapi]` 순 (서버 config의 auxiliary 블록, 모델 `auto:private`/`auto:fast`/`auto:compress`/`auto:vision`).
 - [ ] **Step 5: 확인** — `curl -H "Authorization: Bearer $K" http://freellmapi:3001/v1/models | grep -c unfiltered` → 0.
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ---
 
@@ -734,7 +734,7 @@ def ensure_owner(user_id: str, name: str) -> bool:
 | Antigravity (`agy`) | 구글 계정(무료 포함)으로 Gemini 에이전트 — 6월부터 개인 계정용 Gemini CLI 대체 | SSH 세션이면 인증 URL 출력(문서) | 헤드리스 `agy -p`. 컨테이너 하위 프로세스에서도 URL 출력되는지 실측 후 공개 |
 
 - [ ] **Step 3: 로그인 중계** — `cli_login.py`: 선택한 CLI의 로그인 명령을 하위 프로세스로 실행 → 출력에서 URL만 추출해 디스코드에 ephemeral로 표시 → 사용자가 브라우저에서 승인 후 받은 코드를 모달로 입력 → 하위 프로세스 stdin에 전달. 토큰은 CLI 자체 저장소(`/opt/data/executors/auth/<cli>`)에만 남고 채팅·로그에 출력하지 않음.
-- [ ] **Step 4: 정책 파일 일반화** — `cli-task-policy.json`의 모델 allowlist에서 서아 님 계정 전용 항목 제거, 서버 경로 `/opt/data` 외 참조 grep 0건.
+- [x] **Step 4: 정책 파일 일반화** — `cli-task-policy.json`의 모델 allowlist에서 서아 님 계정 전용 항목 제거, 서버 경로 `/opt/data` 외 참조 grep 0건.
 - [ ] **Step 5: 확인** — 서아 님 스킬 문서에 기록된 스모크와 같은 방식: 공개 픽스처 `add.py` 수정 작업을 `cli-task --execute`로 OpenCode·Cline 각각 실행 → 영수증 생성, Cline은 `tool_events: []` + 원본 파일 불변, 부모가 `add(2,3)==5` 확인.
 - [ ] **Step 6: Commit**
 
@@ -760,8 +760,8 @@ def ensure_owner(user_id: str, name: str) -> bool:
   - 🧾 업무방 하루 요약 → work 볼트 `Meetings/카톡-YYYY-MM-DD.md` (**구독 모델만**, 무료 풀 금지)
   - 🔔 키워드 알림 (LLM 없음, 정규식)
 - [ ] **Step 5: 팀즈** — `agent-teams`의 인증 방식(디바이스 코드 여부)을 S13에서 확인 후 같은 패턴으로 `teams-ro.sh` 작성. 확인 전에는 카톡만 제공.
-- [ ] **Step 6: 일반화** — 스킬·스크립트에서 "SAN" → "사용자", 서아 님 채널 ID 제거, `san_quote` → `user_quote`.
-- [ ] **Step 7: 확인** — 테스트 계정으로: 로그인 후 PC 카톡이 유지되는지, `kakao-ro.sh message send …` → exit 3, 크론 1회 실행 시 새 메시지만 전달, 두 번째 실행은 무출력.
+- [x] **Step 6: 일반화** — 스킬·스크립트에서 "SAN" → "사용자", 서아 님 채널 ID 제거, `san_quote` → `user_quote`.
+- [x] **Step 7: 확인** — 테스트 계정으로: 로그인 후 PC 카톡이 유지되는지, `kakao-ro.sh message send …` → exit 3, 크론 1회 실행 시 새 메시지만 전달, 두 번째 실행은 무출력.
 - [ ] **Step 8: Commit**
 
 ## Phase 4 — Obsidian / Syncthing
@@ -864,12 +864,12 @@ networks: {default: {name: hermes-kit}}   # 심화팩(freellmapi)이 external로
 ## Phase 7 — 운영 도구 (원격 지원 줄이기)
 
 ### Task 17: `/doctor` — LLM 없는 자가진단
-- [ ] 항목: 게이트웨이 가동 시간, 키별 검증(Task 6 재사용, 키 값 출력 없음), OpenCode Go 한도 잔여(가능하면), Syncthing 연결 상태, 심화팩 `freellmapi /api/ping`, 디스크 여유, 최근 크론 실패 3건, kit 버전.
-- [ ] 결과는 ephemeral + **"강사에게 보내기용" 복사본**(키·토큰·채널ID·이메일 마스킹). 구직 키트의 `kit-doctor.py` 형식을 먼저 읽고 맞춘다.
+- [x] 항목: 게이트웨이 가동 시간, 키별 검증(Task 6 재사용, 키 값 출력 없음), OpenCode Go 한도 잔여(가능하면), Syncthing 연결 상태, 심화팩 `freellmapi /api/ping`, 디스크 여유, 최근 크론 실패 3건, kit 버전.
+- [x] 결과는 ephemeral + **"강사에게 보내기용" 복사본**(키·토큰·채널ID·이메일 마스킹). 구직 키트의 `kit-doctor.py` 형식을 먼저 읽고 맞춘다.
 - [ ] 합격 기준: Task 15 리허설에서 막힌 지점이 `/doctor` 출력만으로 원인 식별 가능.
 
 ### Task 18: 업데이트 알림
-- [ ] 주 1회 LLM 없는 크론: GHCR 태그 목록에서 현재 `KIT_VERSION`보다 높은 태그가 있으면 홈 채널에 "업데이트 있음 → Hostinger에서 재배포(1분)" + 변경사항 3줄(릴리스 노트).
+- [x] 주 1회 LLM 없는 크론: GHCR 태그 목록에서 현재 `KIT_VERSION`보다 높은 태그가 있으면 홈 채널에 "업데이트 있음 → Hostinger에서 재배포(1분)" + 변경사항 3줄(릴리스 노트).
 
 ### Task 19: 백업·해제
 - [ ] 주 1회 LLM 없는 크론: `memories/`, `config.yaml`, `SOUL.md`, `cron/jobs.json`, `profiles/*/config.yaml`을 tar → `vaults/personal/_backup/YYYY-MM-DD.tar.gz` (최근 4개 유지). **`.env`·`auth.json`·메신저 세션은 제외**(키는 `/setup`으로 재입력). Syncthing으로 PC에 자동 사본.
