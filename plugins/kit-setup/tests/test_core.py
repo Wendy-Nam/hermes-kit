@@ -396,19 +396,23 @@ class Doctor(unittest.TestCase):
         self.data = Path(tempfile.mkdtemp())
 
     def test_mask_removes_key_shapes_tokens_ids_and_emails(self):
-        for secret in ("gsk_abcdefghijklmnopqrstuvwxyz012345",
-                       "AIzaSyA1234567890abcdefghijklmnopqrstuvw",
-                       "187.127.124.238",
-                       "1523328379951120526",
+        # Built at runtime on purpose: a literal key-shaped string committed to a public repo
+        # trips scripts/secret-scan.sh, and a real channel id or IP must never enter this file.
+        fake_key = "gsk_" + "a" * 32
+        fake_aiza = "AIza" + "B" * 35
+        for secret in (fake_key, fake_aiza,
+                       "203.0.113.7",                      # TEST-NET-3, reserved for docs
+                       "1000000000000000001",              # a made-up snowflake
                        "student@example.com",
-                       "DISCORD_BOT_TOKEN=MTIzNDU2Nzg5MDEy"):
+                       "DISCORD_BOT_TOKEN=notarealtoken"):
             out = self.d.mask(f"값: {secret} 끝")
             self.assertNotIn(secret, out, secret)
             self.assertIn("[가림]", out)
 
     def test_instructor_copy_is_redacted(self):
-        findings = [self.d.Finding("봇", self.d.BAD, "키 gsk_abcdefghijklmnopqrstuvwxyz012345 가 거부")]
-        self.assertNotIn("gsk_abcdefghijklmnopqrstuvwxyz012345", self.d.copy_for_instructor(findings))
+        fake = "gsk_" + "c" * 32
+        findings = [self.d.Finding("봇", self.d.BAD, f"키 {fake} 가 거부")]
+        self.assertNotIn(fake, self.d.copy_for_instructor(findings))
 
     def test_env_file_missing_points_at_setup(self):
         f = self.d.check_env_file(self.data / ".env")
