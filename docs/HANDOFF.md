@@ -15,6 +15,16 @@
 | 테스트 환경 | 서아 님 VPS(`ssh vps` = 호스트 root)의 격리 compose 프로젝트 `hermes-kit-test` (`/docker/hermes-kit-test`, 메모리 2.5GB·CPU 1 상한, 운영 볼륨 미마운트) |
 | 운영 서버 | `ssh hermes` = 운영 컨테이너 안(HOME=/opt/data). **읽기 전용 원칙**, 변경은 서아 님 승인 건만 |
 
+**Phase 2 `/setup` 플러그인** (`plugins/kit-setup/`) — 코드·테스트 완료, **수동 E2E 남음**
+- `env_store.py`(원자적 600 쓰기·개행 주입 거부), `validators.py`(8종, 키는 헤더만), `packs.py`+`packs.json`/`kits.json`(로드시 전수 검증), `owner.py`(승인·초대링크·`PATCH /applications/@me`), `discord_ui.py`+`views.py`(모달·버튼)
+- 계약: **팩의 키가 하나라도 검증 실패하면 아무것도 저장하지 않는다**(반쪽 설정은 나중에 못 고침). 키는 헤더로만, 응답·로그·메시지에 값이 안 나감
+- `/setup`은 **길드 전용 등록 + 자체 `tree.sync(guild=)`**(S2 교훈), 서버 소유자만
+- `PERMS=277028654080` 테스트로 고정 → 학생은 앱 만들고 토큰만 붙여넣음(인텐트·권한 체크박스 단계 삭제)
+- 테스트 35개 통과(CI에서 실행). `views.py` 분리 → discord.py 없는 CI에서도 로직 테스트 가능
+- **남음**: 실키 수동 확인(Task 6 Step 5), 테스트 봇 E2E 체크리스트(Task 9 Step 3) — 둘 다 서아 님 준비물 필요
+
+**Phase 5 Task 14** — `docker-compose.yml` 작성 완료. 채울 값은 `DISCORD_BOT_TOKEN`·`KIT_ACCESS_CODE` 2칸뿐, 나머지 키는 `/setup`으로. **남음: 신규 VPS 리허설(Step 2) — S9 확인 겸 스톱워치**
+
 ## 3. 완료 (검증 근거 포함)
 
 **Phase 0 스파이크** — S1 베이스 이미지 식별, S2 `/setup` 모달(길드 전용 명령), S3 주인 자동 승인, S4 재시작(s6, ~5초), S4b cont-init 환경, S5 rtk, S7 freellmapi 체인(REST만 가능), S8 라이선스, S10 private 풀 학습정책, 캐시 테스트. 결과는 계획서 하단 표.

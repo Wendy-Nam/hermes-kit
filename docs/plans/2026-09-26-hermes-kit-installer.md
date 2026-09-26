@@ -179,14 +179,14 @@ hermes-kit-packs/
 **Interfaces:**
 - Produces: 이미지 안 `/usr/local/bin/rtk`, 패치된 `/opt/hermes`, `/opt/kit/seed`, `/opt/kit/plugins`
 
-- [ ] **Step 1: versions.env**
+- [x] **Step 1: versions.env**
 ```sh
 HERMES_BASE_IMAGE=docker.io/nousresearch/hermes-agent:v2026.9.11@sha256:9469b3e78b9545b6d576eb8887a95352e9a0ea83730eaf31431cf862ca1010e1
 RTK_VERSION=0.50.0
 KIT_VERSION=1
 ```
 
-- [ ] **Step 2: Dockerfile**
+- [x] **Step 2: Dockerfile**
 ```dockerfile
 ARG HERMES_BASE_IMAGE
 FROM ${HERMES_BASE_IMAGE}
@@ -247,10 +247,10 @@ Expected: 전 항목 PASS.
 | `patch-omh-*`, `patch-snow-search-*`, `patch-evo-dspy3.py`, `patch-embed-role.py`, `patch-background-review-pilot.py` | 개인 플러그인·실험 기능 |
 | `patch-voice-*`, `patch-tts-provider-none-*`, `patch-elevenlabs-*`, `patch-discord-call-slash.py` | 보이스 패치 번들(Task 1)과 중복 |
 
-- [ ] **Step 1:** 포함 목록을 `patches/core/`로 복사, Dockerfile에서 `for f in patches/core/patch-*.py; do python $f; done && python patches/core/compression-fix-20260919/apply.py && python patches/core/check.py`.
-- [ ] **Step 2:** 각 패치를 **깨끗한 베이스 이미지**에 적용 → 출력이 "already patched"면 업스트림이 이미 고친 것 → 목록에서 삭제. 앵커 불일치면 빌드 실패.
-- [ ] **Step 3: 효과 측정** — 같은 seed로 패치 전/후 이미지에서 `.skills_prompt_snapshot.json` 크기와 첫 턴 입력 토큰 수 기록.
-- [ ] **Step 4: Commit**
+- [x] **Step 1:** 포함 목록을 `patches/core/`로 복사, Dockerfile에서 `for f in patches/core/patch-*.py; do python $f; done && python patches/core/compression-fix-20260919/apply.py && python patches/core/check.py`.
+- [x] **Step 2:** 각 패치를 **깨끗한 베이스 이미지**에 적용 → 출력이 "already patched"면 업스트림이 이미 고친 것 → 목록에서 삭제. 앵커 불일치면 빌드 실패.
+- [x] **Step 3: 효과 측정** — 같은 seed로 패치 전/후 이미지에서 `.skills_prompt_snapshot.json` 크기와 첫 턴 입력 토큰 수 기록.
+- [x] **Step 4: Commit**
 
 ### Task 2: 배포용 기본 config + SOUL
 
@@ -273,10 +273,10 @@ Expected: 전 항목 PASS.
 | `display.platforms.discord` 블록 | `command_allowlist` (보안상 기본값 유지) |
 | `auxiliary.*` → provider `gemini`, model `gemini-3.6-flash` (Gemini 키 1개로 동작) | `auxiliary.*`의 freellmapi 라우팅 (freellmapi 팩이 덮어씀) |
 
-- [ ] **Step 1:** 위 표대로 `seed/config-overlay.yaml` 작성 — **바꿀 키만** 담는다(공식 기본 config 2,135줄을 복제하지 않음). `/opt/kit/bin/merge_yaml.py`(딕셔너리는 재귀 병합, 리스트·스칼라는 교체) + 단위 테스트 1개. `_config_version`은 베이스 이미지의 `hermes config check`가 요구하는 값으로.
-- [ ] **Step 2: 검증** — `docker run --rm -v $PWD/seed/config.yaml:/opt/data/config.yaml --entrypoint hermes hermes-kit:dev config check` → 오류 0.
-- [ ] **Step 3:** `seed/SOUL.md` — 서버 SOUL에서 개인 페르소나("에르", SAN 등) 제거한 범용 비서 톤. 한국어 답변, 디스코드 가독성 규칙(굵은 제목→2~3문장→빈 줄) 유지.
-- [ ] **Step 4: Commit**
+- [x] **Step 1:** 위 표대로 `seed/config-overlay.yaml` 작성 — **바꿀 키만** 담는다(공식 기본 config 2,135줄을 복제하지 않음). `/opt/kit/bin/merge_yaml.py`(딕셔너리는 재귀 병합, 리스트·스칼라는 교체) + 단위 테스트 1개. `_config_version`은 베이스 이미지의 `hermes config check`가 요구하는 값으로.
+- [x] **Step 2: 검증** — `docker run --rm -v $PWD/seed/config.yaml:/opt/data/config.yaml --entrypoint hermes hermes-kit:dev config check` → 오류 0.
+- [x] **Step 3:** `seed/SOUL.md` — 서버 SOUL에서 개인 페르소나("에르", SAN 등) 제거한 범용 비서 톤. 한국어 답변, 디스코드 가독성 규칙(굵은 제목→2~3문장→빈 줄) 유지.
+- [x] **Step 4: Commit**
 
 ### Task 3: 첫 부팅 시드 훅
 
@@ -287,7 +287,7 @@ Expected: 전 항목 PASS.
 - Consumes: `/opt/kit/{seed,plugins,VERSION}`, env `KIT_ACCESS_CODE`, `DISCORD_BOT_TOKEN`
 - Produces: `/opt/data/.kit-version`, `/opt/data/plugins/{rtk-rewrite,kit-setup}`, `/opt/data/skills/kit/`, `.env`의 `DISCORD_BOT_TOKEN`
 
-- [ ] **Step 1: 스크립트**
+- [x] **Step 1: 스크립트**
 ```sh
 #!/bin/sh
 # ponytail: 없는 것만 복사. kit 소유 경로만 버전 바뀌면 교체.
@@ -360,7 +360,7 @@ Expected: diff 없음, 마지막 줄 `1` (토큰 중복 없음).
 **Files:**
 - Create: `scripts/secret-scan.sh`, `.github/workflows/build.yml`
 
-- [ ] **Step 1: secret-scan.sh**
+- [x] **Step 1: secret-scan.sh**
 ```sh
 #!/bin/sh
 # 공개 이미지에 들어가면 안 되는 것. 하나라도 있으면 실패.
@@ -389,7 +389,7 @@ exit $bad
 
 **Interfaces:** Produces `set_env(path: Path, updates: dict[str, str]) -> None`, `get_env(path: Path) -> dict[str, str]`
 
-- [ ] **Step 1: 실패 테스트**
+- [x] **Step 1: 실패 테스트**
 ```python
 import os, stat, tempfile, unittest
 from pathlib import Path
@@ -412,8 +412,8 @@ class T(unittest.TestCase):
 if __name__ == "__main__":
     unittest.main()
 ```
-- [ ] **Step 2:** `cd plugins/kit-setup && python3 -m unittest tests.test_env_store -v` → FAIL (ImportError)
-- [ ] **Step 3: 구현**
+- [x] **Step 2:** `cd plugins/kit-setup && python3 -m unittest tests.test_env_store -v` → FAIL (ImportError)
+- [x] **Step 3: 구현**
 ```python
 import os, tempfile
 from pathlib import Path
@@ -443,8 +443,8 @@ def set_env(path: Path, updates: dict[str, str]) -> None:
     os.chmod(tmp, 0o600)
     os.replace(tmp, path)  # 원자적 교체: 중간에 죽어도 .env가 반쪽이 되지 않음
 ```
-- [ ] **Step 4:** 테스트 PASS
-- [ ] **Step 5: Commit**
+- [x] **Step 4:** 테스트 PASS
+- [x] **Step 5: Commit**
 
 ### Task 6: 키 검증기
 
@@ -452,7 +452,7 @@ def set_env(path: Path, updates: dict[str, str]) -> None:
 
 **Interfaces:** Produces `VALIDATORS: dict[str, Callable[[str], Result]]`, `Result = tuple[bool, str]` (성공 여부, 사람이 읽을 한 줄). 키 이름: `discord, gemini, groq, webshare, apify, composio`.
 
-- [ ] **Step 1: 실패 테스트** (네트워크 없이 — `_get`을 가짜로 교체)
+- [x] **Step 1: 실패 테스트** (네트워크 없이 — `_get`을 가짜로 교체)
 ```python
 import unittest, validators as v
 
@@ -488,8 +488,8 @@ class T(unittest.TestCase):
         self.assertEqual(self.calls[1][2], "http://u:p@1.2.3.4:8080")
         self.assertIn("wanted.co.kr", self.calls[1][0])
 ```
-- [ ] **Step 2:** FAIL 확인
-- [ ] **Step 3: 구현**
+- [x] **Step 2:** FAIL 확인
+- [x] **Step 3: 구현**
 ```python
 import json, urllib.request, urllib.error
 
@@ -546,10 +546,10 @@ VALIDATORS = {
     # opencode_go·commandcode의 /models가 인증을 요구하는지 S12에서 확인 — 인증 없이 200이면 최소 chat 호출로 교체
 }
 ```
-- [ ] **Step 4:** PASS
+- [x] **Step 4:** PASS
 - [ ] **Step 5: 실키 수동 확인** (서아 님 키로, 컨테이너 안에서 — 출력에 키 없음):
   `python3 -c "import validators as v,os; print(v.VALIDATORS['groq'](os.environ['GROQ_API_KEY']))"`
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ### Task 7: 팩 정의
 
@@ -557,7 +557,7 @@ VALIDATORS = {
 
 **Interfaces:** Produces `load_packs() -> list[Pack]`, `Pack(id, title, keys: list[KeySpec], config: dict[str, str], env: dict[str, str])`, `KeySpec(env, label, hint, validator, url)`
 
-- [ ] **Step 1: packs.json**
+- [x] **Step 1: packs.json**
 ```json
 [
   {"id": "base", "title": "기본", "required": true,
@@ -608,9 +608,9 @@ VALIDATORS = {
 ```
 `/setup` 흐름: 키트 복수 선택 → 필요한 기능 팩 합집합의 키만 모달로 요청 → 키트 스킬을 `skills/kit/<id>/`로 복사. (`installer: job-hunt`는 `hermes-job-hunt-for-korean/install.sh` 호출)
 
-- [ ] **Step 2: 테스트** — 모든 `validator`가 `VALIDATORS`에 있고(composio는 S6 후), 팩당 키 ≤ 5개(디스코드 모달 한도), `env` 이름이 대문자·밑줄만, 모든 키트의 `features`가 packs.json에 존재.
-- [ ] **Step 3: packs.py** — dataclass 로드 + 위 검증.
-- [ ] **Step 4:** PASS → Commit
+- [x] **Step 2: 테스트** — 모든 `validator`가 `VALIDATORS`에 있고(composio는 S6 후), 팩당 키 ≤ 5개(디스코드 모달 한도), `env` 이름이 대문자·밑줄만, 모든 키트의 `features`가 packs.json에 존재.
+- [x] **Step 3: packs.py** — dataclass 로드 + 위 검증.
+- [x] **Step 4:** PASS → Commit
 
 ### Task 8: 주인 등록 + 초대 링크
 
@@ -618,7 +618,7 @@ VALIDATORS = {
 
 **Interfaces:** Produces `ensure_owner(guild_owner_id: str, name: str) -> bool`, `invite_url(app_id: str) -> str`
 
-- [ ] **Step 1: owner.py** (S3 결과 반영)
+- [x] **Step 1: owner.py** (S3 결과 반영)
 ```python
 from gateway.pairing import PairingStore
 
@@ -629,21 +629,21 @@ def ensure_owner(user_id: str, name: str) -> bool:
     code = s.generate_code("discord", user_id, name)
     return bool(code and s.approve_code("discord", code))
 ```
-- [ ] **Step 2: invite.py** — `.env`의 토큰으로 `/users/@me` → `id` → 권한 정수로 URL 출력.
+- [x] **Step 2: invite.py** — `.env`의 토큰으로 `/users/@me` → `id` → 권한 정수로 URL 출력.
   권한(비트 합): View Channels(1<<10) + Send Messages(1<<11) + Send in Threads(1<<38) + Embed Links(1<<14) + Attach Files(1<<15) + Read History(1<<16) + Connect(1<<20) + Speak(1<<21) + Use Slash Commands(1<<31).
   ```python
   PERMS = sum(1 << b for b in (10, 11, 38, 14, 15, 16, 20, 21, 31))
   print(f"[kit] 봇 초대 링크: https://discord.com/oauth2/authorize?client_id={app_id}&permissions={PERMS}&scope=bot%20applications.commands")
   ```
-- [ ] **Step 2b: 앱 설정 자동화** (Discord 문서 확인: "Only limited intent flags … can be updated via the API") — `invite.py`가 초대 링크 출력 전에 봇 토큰으로 `PATCH /applications/@me`:
+- [x] **Step 2b: 앱 설정 자동화** (Discord 문서 확인: "Only limited intent flags … can be updated via the API") — `invite.py`가 초대 링크 출력 전에 봇 토큰으로 `PATCH /applications/@me`:
   ```python
   LIMITED = (1 << 19) | (1 << 15)   # GATEWAY_MESSAGE_CONTENT_LIMITED | GATEWAY_GUILD_MEMBERS_LIMITED
   body = {"flags": LIMITED,
           "install_params": {"scopes": ["bot", "applications.commands"], "permissions": str(PERMS)}}
   ```
   → 수강생은 Developer Portal에서 **New Application + Reset Token**만 하면 됨(인텐트 토글·권한 체크박스 단계 삭제). 앱 생성·토큰 발급은 공개 API가 없어 수동 유지. 100개 서버 이상 봇은 limited 인텐트 불가 — 수강생 봇은 해당 없음.
-- [ ] **Step 3: 테스트** — `PERMS` 값 고정 assert(`277028654080`, 2026-09-26 테스트 봇에서 이 값으로 필요한 권한 전부 확인), S3 절차로 ensure_owner 두 번 호출 시 두 번째 False, PATCH 후 `GET /applications/@me`의 flags에 limited 비트 존재.
-- [ ] **Step 4: Commit**
+- [x] **Step 3: 테스트** — `PERMS` 값 고정 assert(`277028654080`, 2026-09-26 테스트 봇에서 이 값으로 필요한 권한 전부 확인), S3 절차로 ensure_owner 두 번 호출 시 두 번째 False, PATCH 후 `GET /applications/@me`의 flags에 limited 비트 존재.
+- [x] **Step 4: Commit**
 
 ### Task 9: `/setup` 디스코드 UI
 
@@ -662,15 +662,15 @@ def ensure_owner(user_id: str, name: str) -> bool:
 6. "적용하기" 버튼 → "재시작합니다(10초)" 메시지 → S4 방식으로 재시작 → 기동 후 홈 채널에 "준비 끝" 인사(플러그인 `on_startup` 훅 또는 `.kit-pending-greeting` 파일).
 7. LLM 구독: "🧠 두뇌 연결" 버튼 → Hermes 기존 `/auth` 흐름으로 안내(새 코드 없음).
 
-- [ ] **Step 1:** `plugin.yaml` (`name: kit-setup`, `kind: standalone`), `__init__.py`의 `register(ctx)`는 `ctx.register_platform_handler("discord", build)`만.
-- [ ] **Step 2:** `discord_ui.py` 구현 (S2 스파이크 코드를 확장).
+- [x] **Step 1:** `plugin.yaml` (`name: kit-setup`, `kind: standalone`), `__init__.py`의 `register(ctx)`는 `ctx.register_platform_handler("discord", build)`만.
+- [x] **Step 2:** `discord_ui.py` 구현 (S2 스파이크 코드를 확장).
 - [ ] **Step 3: 수동 E2E (테스트 봇)** — 체크리스트:
   - [ ] 서버 소유자 아닌 계정 `/setup` → 거절
   - [ ] 틀린 Groq 키 → "거부됨 (HTTP 401)", `.env` 변경 없음
   - [ ] 맞는 키 → ✅, `.env` 600 권한, 게이트웨이 로그·세션 DB에 키 문자열 없음 (`grep -r gsk_ /opt/data/logs /opt/data/sessions` 결과 0)
   - [ ] 음성 팩 → 재시작 후 보이스룸 입장 시 자동 참여
   - [ ] 구직 팩 → Webshare 경유 원티드 확인 메시지
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ---
 
@@ -815,7 +815,7 @@ RUN set -eux; for v in work personal; do \
 
 **Files:** `docker-compose.yml`
 
-- [ ] **Step 1:**
+- [x] **Step 1:**
 ```yaml
 services:
   hermes:
