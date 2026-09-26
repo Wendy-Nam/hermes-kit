@@ -161,3 +161,14 @@ ssh vps 'cd /docker/hermes-kit-test && docker compose down -v; docker volume rm 
 - `all`: + 메인 모델 6개(work는 Nous 직접이라 제외) + session-sticky 2파일.
 - 파일마다 `.bak-omniroute-<ts>` 백업, 적용 후 `docker restart hermes-agent-ywj7-hermes-agent-1`. 롤백 = 백업 복사 + 재시작.
 - 확인할 것: coder 프로필 `api_mode: codex_responses`가 OmniRoute `/v1/responses`로 도는지, 전환 후 캐시 적중률(Hermes 세션 DB `cached_input_tokens`).
+
+## 12. 최대 풀 + 실검증 + Hermes 1단계 전환 (2026-09-27)
+- **풀 생성기** `/docker/omniroute/migrate/om_pool.py plan → probe → apply`: 콤보 = 고정 머리(검증된 기존 설계) → 구독·웹 계정(호출량 적고 개인정보 아닌 콤보만) → **freellmapi 프리미엄 카탈로그**(성능·속도 순위, 도구·비전 지원, 컨텍스트, 무료 여부)로 정렬한 무료 풀 → E6-3 예비. **모든 모델을 Hermes 실제 도구 25개로 시험해 통과한 것만** 넣음(머리 포함 — 정중한 거절도 200이라 폴백이 안 걸리므로). 결과: 230개 시험, 67개 통과, 콤보당 13~23개.
+- 시험 방식 함정: 동시 16개로 몰면 업체가 403/429 → OmniRoute가 모델 잠금 → 연쇄 실패(1차 39/215). 업체별 순차·1.5초 간격·일시 오류 20초 후 재시도로 해결. `probe.json`은 통과한 (모델, 종류)만 재사용.
+- 학습·공개 위험 경로(kilo 무료 = 학습용 기록, lmarena = 공개)는 `hermes-public`에만. private은 Mistral·Cloudflare 잠금 유지.
+- **작동 안 하는 연결(자동 제외)**: auggie·devin-cli(컨테이너에 CLI 필요), zai-web(Playwright Chromium 필요), Copilot(모델마다 '이 연동에서 사용 불가' — 요금제), opencode 계정(카탈로그/무료 티어 거부), gemini-web 비전, lmarena(403/429 잦음), huggingface(월 무료 크레딧 소진 402), electronhub(잔액 소진, 주간 충전), kilo(OmniRoute kilo-gateway는 **실제 Kilo 계정 키 필수** — freellmapi는 키 없이 익명 호출), command-code의 claude-*(Anthropic Messages 형식 필요). Claude 계정(sonnet-5, opus-5)·Antigravity 2개(Claude)·deepseek-web은 통과.
+- **3.8.51 변경**: `xkiro`가 기본 프로바이더가 되어 같은 prefix 노드를 가림 → 키를 기본 프로바이더로 옮기고 노드 삭제. **별칭은 모든 prefix의 모델 부분에 걸림**(예: `claude-sonnet-5` 별칭이 `claude/claude-sonnet-5`를 command-code로 가로챔) → 별칭은 `deepseek-v4.1-flash`만 남기고, omh 옛 이름은 전환 스크립트가 콤보 이름으로 바꿈.
+- **콤보 인수 테스트**(`om_suite.py`): 여러 턴 도구 루프 11/11(2턴 완료, 반복 호출 없음), 6~11만 토큰 입력 5/5, 스트리밍+도구 3/3, `/v1/responses` 2/2, 캐시: command-code·experiential 두 번째 호출 99% 캐시(Upstage는 캐시 정보 없음). 폴백 실동작 확인(앞 모델 403 → 다음 모델).
+- **Hermes 1단계 적용(2026-09-26 16:38 UTC, 서아 님 승인)**: `hermes_to_omniroute.py --scope aux --apply` — 설정 7개의 보조·위임·폴백 35경로, 크론 17개, omh 경로(21+20), `.env` 8개에 `OMNIROUTE_API_KEY`. 백업 `*.bak-omniroute-20260926-163857`. 재시작 후 E2E(`hermes -z … --provider omniroute -m solar-pro4`, `hermes` 사용자) → read_file 사용 후 한국어 답변, 제목 생성은 `hermes-ops-fast`. 8분간 콤보 43건 전부 200, Hermes 오류 없음.
+- **2단계(메인 6개 프로필 + session-sticky) 미적용** — 운영 배포 권한 확인 대기. 명령: `python3 /docker/omniroute/migrate/hermes_to_omniroute.py --scope all --apply && docker restart hermes-agent-ywj7-hermes-agent-1`.
+- 롤백(1단계): 각 파일 옆 `.bak-omniroute-20260926-163857`을 원래 이름으로 복사 → Hermes 재시작. freellmapi는 그대로 살아 있음.
