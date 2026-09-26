@@ -20,10 +20,18 @@ if [ "$old" = none ]; then
   as_h "$PY" "$K/bin/merge_yaml.py" "$D/config.yaml" "$K/seed/config-overlay.yaml"
   as_h cp "$K/seed/SOUL.md" "$D/SOUL.md"
   # Bundled skills: stop re-seeding, then drop every bundled skill not on the keep-list.
+  # media/youtube-content is deliberately NOT on the keep-list: the public youtube-summary skill
+  # (D9) replaces it, and two YouTube skills means the wrong one gets picked.
   as_h "$H" skills opt-out -y >/dev/null 2>&1 || log "skills opt-out failed (continuing)"
   ( cd /opt/hermes/skills && find . -name SKILL.md | sed 's|/SKILL.md$||; s|^\./||' ) | while read -r s; do
     grep -qxF "$s" "$K/seed/bundled-keep.txt" || rm -rf "${D:?}/skills/$s"
   done
+  # Public skills repo (D9). Best effort: a boot without network must still finish, so this
+  # only runs when it is not there yet.
+  if [ ! -d "$D/skills/youtube-summary" ]; then
+    as_h "$H" skills install Wendy-Nam/hermes-skills-kr/youtube-summary --yes >/dev/null 2>&1 \
+      || log "youtube-summary install failed (continuing; the skill repo may be unreachable)"
+  fi
 fi
 
 # Vault templates: only where the vault does not exist yet (never touch a user's notes).
