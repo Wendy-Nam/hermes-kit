@@ -1,6 +1,9 @@
 .env
 *.env
 !*.env.example
+# versions.env holds build args (base image digest, rtk, kit version) and CI reads it — must be committed.
+# The comment sits on its own line: a trailing # is part of the pattern, not a comment.
+!versions.env
 __pycache__/
 *.pyc
 .omc/

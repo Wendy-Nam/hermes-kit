@@ -9,6 +9,7 @@ say() { echo "secret-scan: $*"; bad=1; }
 roots="/opt/kit /etc/cont-init.d/10-kit-seed"
 
 # 1. files that must never ship
+# versions.env is build metadata (image digest, version numbers), not a secret file — it is committed on purpose.
 f=$(find $roots -type f \( -name ".env" -o -name "*.env" -o -name "auth.json" -o -name "*.db" -o -name "*.bak*" -o -name "*.pem" -o -name "id_*" \) 2>/dev/null | grep -v "/opt/kit/versions.env" || true)
 [ -z "$f" ] || say "forbidden files: $f"
 
