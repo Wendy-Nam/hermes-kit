@@ -24,29 +24,32 @@
 - 보이스 패치 5종 + 코어 패치 7종(budget-caps는 업스트림용 import 폴백 추가, compression-fix는 source drift로 제외) — 빌드 시 앵커 불일치면 실패
 - rtk 0.50.0(체크섬 검증) + rtk 공식 Hermes 플러그인(`rtk init --agent hermes`)
 - 볼트 템플릿 work/personal + Dataview·Tasks·TaskNotes(버전 고정)
-- 첫 부팅 시드: config **오버레이 병합**(공식 훅이 config를 먼저 만들기 때문), SOUL 교체, 번들 스킬 keep-list 14개로 정리, 볼트 생성
+- 첫 부팅 시드: config **오버레이 병합**(공식 훅이 config를 먼저 만들기 때문), SOUL 교체, 번들 스킬 keep-list 13개로 정리, 볼트 생성, **공개 스킬 `youtube-summary` 설치**(D9, 네트워크 실패해도 부팅 계속)
 - 검증: `scripts/boot-test.sh`(새 볼륨 2회 부팅 → 시드·멱등) 통과, `scripts/secret-scan.sh`(심은 키·개인경로·/opt/data 오염 검출 확인 후) clean
-- CI: `.github/workflows/build.yml` — 테스트→빌드→보이스 verify→비밀 스캔→부팅 테스트, **태그 푸시 때만** GHCR 게시
+- CI: `.github/workflows/build.yml` — 테스트→빌드→보이스 verify→비밀 스캔→부팅 테스트, **태그 푸시 때만** GHCR 게시. **2026-09-26 `61abdc5` 기준 전 단계 녹색.**
 
-**공개 스킬 레포** — `youtube-summary`: 개인 의존 제거(경로·Apify 장부·proxynet), Apify 토큰 헤더 전송, `--fast` 400 폴백 버그 수정, 클릭 타임스탬프 링크(`[mm:ss]`·구간 → `youtu.be/ID?t=초`, `<>`로 디스코드 미리보기 방지), 한국어 출력 형식 문서, 테스트 9개, Hermes skills-guard **SAFE**, `hermes skills install Wendy-Nam/hermes-skills-kr/youtube-summary` 실설치 확인.
+**공개 스킬 레포** — `youtube-summary`: 개인 의존 제거(경로·Apify 장부·proxynet), Apify 토큰 헤더 전송, `--fast` 400 폴백 버그 수정, 클릭 타임스탬프 링크(`[mm:ss]`·구간 → `youtu.be/ID?t=초`, `<>`로 디스코드 미리보기 방지), 한국어 출력 형식 문서, Hermes skills-guard **SAFE**, `hermes skills install Wendy-Nam/hermes-skills-kr/youtube-summary` 실설치 확인(경로 = 평면 `/opt/data/skills/youtube-summary`), 전면 리뷰 반영(§4) 후 **테스트 21개 통과**(`a2cd19f`).
 
-## 4. 진행 중 — youtube-summary 전면 리뷰 (서아 님 요청, 미완)
-독립 리뷰어 에이전트를 돌리던 중 세션 종료. **다음 세션에서 리뷰를 다시 돌리고** 아래 자체 발견과 합쳐 수정할 것.
-1. **(high) 프록시 자격증명 불일치**: `yt.py::_residential()`은 `.env`까지 읽어 True가 되는데, `fetch_transcript.py`는 `os.environ`만 읽음 → `.env`에만 Webshare를 넣으면 프록시 없이 요청해 IP 차단. 수정: yt.py가 `_env()`로 읽은 값을 하위 프로세스 env로 넘기기.
-2. **(high) 자막 API 타임스탬프 형식**: `fetch_transcript.py --text-only --timestamps`는 `m:ss 텍스트`(대괄호 없음) → Gemini 텍스트 프롬프트("줄 앞 [mm:ss]")·링크 변환과 불일치. 수정: `[m:ss]` 출력.
-3. **(medium) 긴 영상**: Apify 경로는 분을 100 이상으로 찍을 수 있음(`[100:05]`) → 링크 정규식 `\d{1,2}` 미매치. 수정: 시간 단위 포맷 또는 정규식 `\d{1,3}`.
-4. **(medium) `yt.py` 인자**: URL 없이 실행하면 `sys.argv[1]` IndexError 트레이스백. 플래그가 URL보다 앞이면 오동작.
-5. **(medium) `--raw`인데 Apify 실패 시** `gemini_video()` 요약을 출력 → "원문만" 계약 위반.
-6. **(low)** `transcript_api()`는 `sys.executable`로 실행 → `youtube-transcript-api` 미설치면 조용히 실패(폴백은 됨). SKILL.md에 설치 안내 한 줄 필요. `_vid()` 실패 시 파일명 `yt-video.txt` 충돌.
+## 4. youtube-summary 리뷰 — **완료** (2026-09-26, `a2cd19f`)
+
+독립 리뷰어 에이전트 + 자체 발견을 합쳐 전부 수정·푸시. **사용자에게 틀린 답을 주던 것들이었다**(에러가 아니라 조용히 잘못된 출력).
+
+수정 내역
+- **(high) 프록시 자격증명 전달 단절** — `yt.py::_residential()`은 `.env`를 읽는데 `fetch_transcript.py`는 `os.environ`만 봤다. `.env`에만 Webshare를 넣으면 프록시 없이 요청해 VPS IP로 차단. → `_child_env()`가 읽어 둔 값을 `env=`로 자식에 전달. `_residential()`은 `fetch_transcript.py`와 **같은 변수 목록**(`HTTPS_PROXY` 누락도 같이 해결).
+- **(high) `--raw` 계약 위반** — 자막을 못 얻으면 `gemini_video()`로 넘어가 **요약을 출력**했다. "정확한 인용용 원문만"을 요청한 사용자에게 생성된 요약이 인용으로 제공되는 최악의 케이스. → `--raw`는 절대 요약으로 대체하지 않고 exit 1 + 사유 출력. `--raw --no-apify` 무음 실패(0바이트)도 해결.
+- **(high) 자막 타임스탬프 형식 불일치** — 자막 API는 `0:05`(대괄호 없음), Apify는 `[00:05]`, Gemini 프롬프트는 "줄 앞 `[mm:ss]`"라 주장. → `format_tag()`/`_stamp()` 하나로 3경로 통일, 분 0 패딩, 1시간 넘으면 `[h:mm:ss]`(→ `[100:05]` 소멸), 링크 정규식 `_TS`는 3자리 분 허용.
+- **(medium) 인자 파싱** — URL 없으면 `IndexError` 트레이스백, 플래그가 URL 앞이면 플래그를 URL로 인식. → `_parse()` + 사용법 오류(exit 2). `--prompt` 뒤 값이 URL로 잡히던 것까지 테스트로 막음.
+- **(medium) 파일명 충돌** — URL에서 ID를 못 뽑으면 **전부** `yt-video.txt` → 서로 다른 영상의 자막이 서로 덮어씀. → URL 해시 폴백.
+- **(low)** `youtube-transcript-api` 미설치 시 조용히 실패 → stderr 알림 + SKILL.md 설치 안내. `.env`/자막 파일 미닫음(ResourceWarning) → `with` 블록.
+- yt.py가 **import 시점에 폴백 체인 전체를 실행**해 단위 테스트가 불가능했다 → `main()` + `__main__` 가드.
+- 테스트 9 → **21개**. 각 수정에 회귀 테스트. skills-guard SAFE 유지.
 
 ## 5. 다음 할 일 (순서)
-1. youtube-summary 리뷰 마무리(§4) → 푸시.
-2. **Phase 1 마무리**: 키트 CI 녹색 확인(main 푸시 시 자동 실행) → **GHCR 공개 게시는 서아 님 확인 후** `v0.21.2-k1` 태그 푸시 → GitHub 패키지 설정에서 visibility **Public** 수동 전환.
-3. 키트 반영: `seed/bundled-keep.txt`에서 `media/youtube-content` 제거 + 시드 훅에서 `hermes skills install Wendy-Nam/hermes-skills-kr/youtube-summary --yes`(부팅 시 네트워크 실패해도 계속) → boot-test 재실행.
-4. **Phase 2 `/setup` 플러그인**(Task 5~9): `.env` 저장소·키 검증기·팩 정의·주인 등록+초대링크+`PATCH /applications/@me`(인텐트·권한 자동)·모달 UI. **명령은 반드시 길드 전용 등록**(S2 교훈).
-5. 스파이크 잔여: S11(볼트 2개·채널별 프로필 — **테스트용 LLM 선택 대기**), S12(CLI OAuth 중계 — 서아 님 클릭 필요), S6(Composio 키), S9(Hostinger 화면).
-6. 이후: Phase 4 Syncthing·대화 가져오기, Phase 5 compose(freellmapi는 별도 심화팩 compose), Phase 6 리허설·매뉴얼 v2, Phase 7 `/doctor`·업데이트 알림·백업.
-7. 보류: 카톡·팀즈 스킬(서아 님 지시로 키트 이후), 텔레그램 `/setup`(v1.1, 미니앱 폼 안), 아침 브리핑·이메일 다이제스트(만족도 낮음), CLI 워커(2주 실측 후).
+1. **GHCR 공개 게시(서아 님 확인 후)**: `v0.21.2-k1` 태그 푸시 → GitHub 패키지 설정에서 visibility **Public** 수동 전환. 키트 CI는 **녹색 확인 완료**(`61abdc5`, 전 단계 success).
+2. **Phase 2 `/setup` 플러그인**(Task 5~9): `.env` 저장소·키 검증기·팩 정의·주인 등록+초대링크+`PATCH /applications/@me`(인텐트·권한 자동)·모달 UI. **명령은 반드시 길드 전용 등록**(S2 교훈).
+3. 스파이크 잔여: S11(볼트 2개·채널별 프로필 — **테스트용 LLM 선택 대기**), S12(CLI OAuth 중계 — 서아 님 클릭 필요), S6(Composio 키), S9(Hostinger 화면).
+4. 이후: Phase 4 Syncthing·대화 가져오기, Phase 5 compose(freellmapi는 별도 심화팩 compose), Phase 6 리허설·매뉴얼 v2, Phase 7 `/doctor`·업데이트 알림·백업.
+5. 보류: 카톡·팀즈 스킬(서아 님 지시로 키트 이후), 텔레그램 `/setup`(v1.1, 미니앱 폼 안), 아침 브리핑·이메일 다이제스트(만족도 낮음), CLI 워커(2주 실측 후).
 
 ## 6. 함정 (이번에 실제로 밟은 것)
 - 빌드 중 Hermes import가 `/opt/data`에 root 파일을 남기면 **모든 새 볼륨의 부팅이 깨짐** → 빌드 검증은 임시 HERMES_HOME에서, 가드로 차단 중.
@@ -57,6 +60,9 @@
 - `hermes skills install <이름>`은 **남의 동명 스킬**을 잡음 → 항상 `owner/repo/skill` 전체 이름.
 - rtk 절감 통계는 터미널 HOME(`/opt/data/home`)의 DB에 있음(`HOME=/opt/data/home rtk gain`). 운영 rtk는 9/20 이후 정상(500건·72%).
 - freellmapi DB는 캐시 토큰을 저장하지 않음 → 캐시 지표는 Hermes `state.db`의 `session_model_usage`에서. 운영 캐시 적중 하락(9/24~)은 트래픽이 deepseek→kilo 무료 모델로 옮겨 간 탓(압축 무관).
+- **`.gitignore`의 `*.env`가 `versions.env`까지 삼켰다** → CI가 매번 `./versions.env: No such file or directory`로 8초 만에 실패. 되돌리려면 `!versions.env`이 필요한데, **주석은 반드시 별도 줄에** — gitignore에서 줄 끝 `#`는 주석이 아니라 패턴의 일부라 `!versions.env   # 메모`는 아무것도 예외 처리하지 않는다(조용히).
+- 스크립트를 import해서 단위 테스트하려고 하면, 그게 불가능한 이유(import 시점 부수효과)를 먼저 확인할 것 — `yt.py`가 폴백 체인 전체를 최상위에서 실행해서 테스트가 불가능했다.
+- macOS에서 `~/Documents` 아래 폴더가 쓰기는 되는데 읽기가 EPERM이 될 수 있음(TCC). 읽기가 막히면 GitHub에서 클론해 작업 후 푸시 — 원본 폴더 상태는 건드리지 않는다.
 
 ## 7. 운영 서버에 한 변경 (전부)
 - `/opt/data/skills/media/youtube-content/scripts/gemini_video.py`: `--fast` 400 폴백 2줄 추가(서아 님 승인). 롤백: 같은 폴더 `gemini_video.py.bak-20260926-064043-fast400`으로 되돌리기.
