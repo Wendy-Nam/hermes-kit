@@ -1,0 +1,11 @@
+[
+  {"id": "job",   "title": "💼 구직",       "features": ["proxy"],
+   "skills_dir": "kits/job",   "installer": "job-hunt"},
+  {"id": "sales", "title": "📈 세일즈",     "features": ["scrape", "google"], "skills_dir": "kits/sales"},
+  {"id": "mkt",   "title": "📣 마케팅",     "features": ["scrape"],           "skills_dir": "kits/mkt"},
+  {"id": "pm",    "title": "🧭 기획·PM",    "features": ["google"],           "skills_dir": "kits/pm"},
+  {"id": "dev",   "title": "🛠 바이브코딩", "features": [],                   "skills_dir": "kits/dev"},
+  {"id": "voice", "title": "🎙 음성 비서",  "features": ["voice"],            "skills_dir": null},
+  {"id": "messenger", "title": "💬 카톡·팀즈 읽기", "features": [],
+   "skills_dir": "packs/messenger", "installer": "messenger", "consent": true}
+]

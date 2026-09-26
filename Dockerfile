@@ -54,5 +54,6 @@ for vault in ("work", "personal"):
 EOF
 
 COPY bin /opt/kit/bin
+COPY plugins /opt/kit/plugins
 COPY rootfs/etc/cont-init.d/10-kit-seed /etc/cont-init.d/10-kit-seed
 RUN chmod 0755 /etc/cont-init.d/10-kit-seed /opt/kit/bin/*.py && echo "${KIT_VERSION}" > /opt/kit/VERSION && rtk --version

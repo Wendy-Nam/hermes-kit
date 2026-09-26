@@ -1,0 +1,45 @@
+[
+  {"id": "base", "title": "기본 — 영상 요약", "required": true, "features": [],
+   "keys": [{"env": "GEMINI_API_KEY", "label": "Gemini API 키", "validator": "gemini",
+             "url": "https://aistudio.google.com/apikey", "hint": "AIza로 시작합니다"}],
+   "config": {}, "env": {}},
+
+  {"id": "sub-opencode-go", "title": "⚡ 보조 모델: OpenCode Go", "features": [],
+   "required_one_of": "sub",
+   "keys": [{"env": "OPENCODE_GO_API_KEY", "label": "OpenCode Go API 키", "validator": "opencode_go",
+             "url": "https://opencode.ai/go", "hint": "구독 후 발급되는 키"}],
+   "config": {"delegation.provider": "opencode-go"}, "env": {}},
+
+  {"id": "sub-commandcode", "title": "⚡ 보조 모델: Command Code GOAT", "features": [],
+   "required_one_of": "sub",
+   "keys": [{"env": "COMMANDCODE_API_KEY", "label": "Command Code API 키", "validator": "commandcode",
+             "url": "https://commandcode.ai/pricing", "hint": "GOAT 플랜의 API 키"}],
+   "config": {"providers.commandcode.api": "https://api.commandcode.ai/provider/v1",
+              "delegation.provider": "commandcode"},
+   "env": {"COMMANDCODE_API_KEY": "${COMMANDCODE_API_KEY}"}},
+
+  {"id": "voice", "title": "🎙 음성 비서 (한국어)", "features": ["voice"],
+   "keys": [{"env": "GROQ_API_KEY", "label": "Groq API 키", "validator": "groq",
+             "url": "https://console.groq.com/keys", "hint": "gsk_로 시작합니다 · 한국어 음성 인식"}],
+   "config": {"stt.enabled": "true", "stt.provider": "groq", "stt.language": "ko"},
+   "env": {}},
+
+  {"id": "proxy", "title": "🛡 차단 우회 (원티드 등)", "features": ["proxy"],
+   "keys": [{"env": "WEBSHARE_PROXY_USERNAME", "label": "Webshare 프록시 사용자명", "validator": "webshare",
+             "url": "https://dashboard.webshare.io/userapi/keys", "hint": "무료 티어도 됩니다"},
+            {"env": "WEBSHARE_PROXY_PASSWORD", "label": "Webshare 프록시 비밀번호", "validator": "webshare",
+             "url": "https://dashboard.webshare.io/userapi/keys", "hint": "같은 화면의 password"}],
+   "config": {}, "env": {}},
+
+  {"id": "scrape", "title": "🕸 SNS·플랫폼 수집", "features": ["scrape"],
+   "keys": [{"env": "APIFY_TOKEN", "label": "Apify 토큰", "validator": "apify",
+             "url": "https://console.apify.com/settings/integrations", "hint": "apify_api_로 시작 · 무료 크레딧 월 $5"}],
+   "config": {}, "env": {}},
+
+  {"id": "google", "title": "🔗 구글 연동 (Gmail·캘린더)", "features": ["google"],
+   "keys": [{"env": "COMPOSIO_API_KEY", "label": "Composio API 키", "validator": "composio",
+             "url": "https://dashboard.composio.dev/", "hint": "발급 후 Regenerate를 1번 눌러야 합니다"}],
+   "config": {"mcp_servers.composio.url": "https://connect.composio.dev/mcp",
+              "mcp_servers.composio.enabled": "true"},
+   "env": {}}
+]

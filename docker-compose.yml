@@ -1,0 +1,32 @@
+# hermes-kit — 이것을 복사해서 Hostinger Docker Manager의 Compose 칸에 붙여넣으세요.
+#
+# 채워야 하는 값은 두 개뿐입니다 (Hostinger가 환경변수 칸으로 띄워 줍니다):
+#   DISCORD_BOT_TOKEN  — Discord Developer Portal에서 만든 봇의 토큰
+#   KIT_ACCESS_CODE    — 강사가 준 기수 코드 (지정 배제용)
+#
+# 나머지 키(Gemini·Groq·Webshare 등)는 디스코드에서 /setup 으로 입력합니다.
+# 채팅창에 키를 붙여넣지 마세요 — 세션 기록에 남습니다.
+services:
+  hermes:
+    image: ghcr.io/wendy-nam/hermes-kit:0.21.2-k1
+    restart: unless-stopped
+    volumes:
+      - hermes-data:/opt/data
+      - vaults:/opt/data/vaults                 # 볼트(work, personal)만 별도 볼륨 → syncthing과 공유
+      - syncthing-config:/opt/syncthing-config:ro  # 플러그인이 config.xml에서 REST API 키를 읽는다
+    environment:
+      DISCORD_BOT_TOKEN: ${DISCORD_BOT_TOKEN}
+      KIT_ACCESS_CODE: ${KIT_ACCESS_CODE:-}
+      TZ: Asia/Seoul
+    command: ["gateway", "run"]
+
+  syncthing:
+    image: syncthing/syncthing:v1.27.10
+    restart: unless-stopped
+    volumes:
+      - vaults:/var/syncthing/vaults           # hermes 데이터 전체(.env 포함)는 절대 마운트하지 않는다
+      - syncthing-config:/var/syncthing/config
+    ports: ["22000:22000/tcp", "22000:22000/udp", "127.0.0.1:8384:8384"]
+
+volumes: {hermes-data: {}, vaults: {}, syncthing-config: {}}
+networks: {default: {name: hermes-kit}}   # 심화팩(freellmapi)이 external로 합류

@@ -14,7 +14,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: unit tests
-        run: python3 -m pip install -q pyyaml && python3 -m unittest discover -s tests -v
+        run: |
+          python3 -m pip install -q pyyaml
+          python3 -m unittest discover -s tests -v
+          cd plugins/kit-setup && python3 -m unittest discover -s tests -v
       - name: build (patch anchors fail the build on base-version drift)
         run: |
           set -a; . ./versions.env; set +a

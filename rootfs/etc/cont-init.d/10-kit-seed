@@ -39,6 +39,15 @@ for v in work personal; do
   [ -e "$D/vaults/$v/.obsidian" ] || { as_h mkdir -p "$D/vaults/$v"; as_h cp -r "$K/seed/vaults/$v/." "$D/vaults/$v/"; }
 done
 
+# kit-setup: the /setup Discord command (keys via modal, verified, never through an LLM).
+# Copied per kit version — it is kit code, unlike rtk's own plugin below.
+if [ -d "$K/plugins/kit-setup" ]; then
+  as_h mkdir -p "$D/plugins/kit-setup"
+  as_h cp -r "$K/plugins/kit-setup/." "$D/plugins/kit-setup/"
+  as_h find "$D/plugins/kit-setup" -name __pycache__ -type d -exec rm -rf {} + 2>/dev/null || true
+  log "kit-setup plugin installed"
+fi
+
 # rtk's own Hermes plugin (accepts rewrite exit codes 0 and 3, fails open); refreshed per kit version.
 as_h rtk init --agent hermes >/dev/null && log "rtk hermes plugin installed"
 

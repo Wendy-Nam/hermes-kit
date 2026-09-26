@@ -1,0 +1,5 @@
+name: kit-setup
+version: 0.1.0
+description: "Discord /setup: key entry through modals, verified and stored without an LLM in the loop."
+author: hermes-kit
+kind: standalone
