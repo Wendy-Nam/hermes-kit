@@ -669,6 +669,75 @@ class Entrypoints(unittest.TestCase):
         self.assertIn("guild.owner_id", inspect.getsource(discord_ui.setup_command))
 
 
+class Disconnect(unittest.TestCase):
+    """연결 해제 — the reverse of /setup. Two things must hold: keys really go, and settings come back."""
+
+    def setUp(self):
+        import disconnect
+        self.dc = disconnect
+        self.data = Path(tempfile.mkdtemp())
+        self.env_file = self.data / ".env"
+        env_store.set_env(self.env_file, {"GEMINI_API_KEY": "AIzaREAL", "DISCORD_BOT_TOKEN": "keepme",
+                                          "GROQ_API_KEY": "gskREAL"})
+
+    def _flatten(self):
+        spec = importlib.util.spec_from_file_location("du_flat", HERE / "discord_ui.py")
+        m = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(m)
+        return m._flatten({"stt": {"provider": "none"}, "agent": {"max_turns": 20}})
+
+    def test_plan_lists_only_keys_that_are_actually_present(self):
+        ps = packs.load_packs(v.VALIDATORS)
+        keys, settings = self.dc.plan(self.data, self.env_file, ps)
+        self.assertIn("GEMINI_API_KEY", keys)
+        self.assertNotIn("DISCORD_BOT_TOKEN", keys)   # owned by compose, not by a pack
+
+    def test_remove_keys_keeps_everything_else_and_stays_600(self):
+        removed = self.dc.remove_keys(self.env_file, ["GEMINI_API_KEY", "GROQ_API_KEY"])
+        self.assertEqual(sorted(removed), ["GEMINI_API_KEY", "GROQ_API_KEY"])
+        self.assertEqual(env_store.get_env(self.env_file), {"DISCORD_BOT_TOKEN": "keepme"})
+        self.assertEqual(stat.S_IMODE(os.stat(self.env_file).st_mode), 0o600)
+
+    def test_drop_env_keeps_comments_and_unrelated_lines(self):
+        self.env_file.write_text("# keep me\nDISCORD_BOT_TOKEN=t\nGROQ_API_KEY=g\n")
+        os.chmod(self.env_file, 0o600)
+        self.dc.remove_keys(self.env_file, ["GROQ_API_KEY"])
+        self.assertIn("# keep me", self.env_file.read_text())
+        self.assertIn("DISCORD_BOT_TOKEN=t", self.env_file.read_text())
+        self.assertNotIn("GROQ", self.env_file.read_text())
+
+    def test_drop_env_on_a_missing_file_is_a_no_op(self):
+        self.assertEqual(self.dc.remove_keys(self.data / "nope.env", ["A"]), [])
+
+    def test_snapshot_records_the_pre_apply_value(self):
+        self.dc.snapshot(self.data, {"stt.provider": "groq", "agent.max_turns": 5}, self._flatten())
+        snap = json.loads((self.data / ".kit-config-snapshot.json").read_text())
+        self.assertEqual(snap["stt.provider"], "none")
+        self.assertEqual(snap["agent.max_turns"], 20)
+
+    def test_a_second_apply_does_not_clobber_the_baseline(self):
+        """The first apply is the baseline; a later one must not overwrite what we restore to."""
+        self.dc.snapshot(self.data, {"stt.provider": "groq"}, {"stt.provider": "none"})
+        self.dc.snapshot(self.data, {"stt.provider": "groq"}, {"stt.provider": "groq"})
+        snap = json.loads((self.data / ".kit-config-snapshot.json").read_text())
+        self.assertEqual(snap["stt.provider"], "none")
+
+    def test_revert_restores_every_snapshotted_key(self):
+        self.dc.snapshot(self.data, {"stt.provider": "groq"}, {"stt.provider": "none"})
+        applied = {}
+        done = self.dc.revert_config(self.data, lambda k, v: applied.update({k: v}))
+        self.assertEqual(done, ["stt.provider"])
+        self.assertEqual(applied, {"stt.provider": "none"})
+
+    def test_revert_with_nothing_snapshotted_is_a_no_op(self):
+        self.assertEqual(self.dc.revert_config(self.data, lambda k, v: None), [])
+
+    def test_forget_clears_the_snapshot(self):
+        self.dc.snapshot(self.data, {"a": 1}, {"a": 0})
+        self.dc.forget(self.data)
+        self.assertFalse((self.data / ".kit-config-snapshot.json").exists())
+
+
 if __name__ == "__main__":
     unittest.main()
 

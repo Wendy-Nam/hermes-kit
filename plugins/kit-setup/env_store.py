@@ -47,6 +47,37 @@ def set_env(path: Path, updates: dict[str, str]) -> None:
         raise
 
 
+def drop_env(path: Path, names) -> list[str]:
+    """Remove keys from .env, leaving every other line byte-identical (comments included).
+
+    Rewritten rather than edited in place, and atomically like set_env — a disconnect that
+    dies halfway must not leave a truncated credentials file behind.
+    """
+    path = Path(path)
+    if not path.exists():
+        return []
+    want = set(names)
+    lines, removed = [], []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        s = line.strip()
+        if s and not s.startswith("#") and "=" in s and s.split("=", 1)[0].strip() in want:
+            removed.append(s.split("=", 1)[0].strip())
+            continue
+        lines.append(line)
+    if not removed:
+        return []
+    fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=".env.")
+    try:
+        with os.fdopen(fd, "w") as f:
+            f.write("\n".join(lines) + "\n" if lines else "")
+        os.chmod(tmp, 0o600)
+        os.replace(tmp, path)
+    except BaseException:
+        Path(tmp).unlink(missing_ok=True)
+        raise
+    return removed
+
+
 def is_secure(path: Path) -> bool:
     """True when the file exists and is not group/other readable."""
     p = Path(path)

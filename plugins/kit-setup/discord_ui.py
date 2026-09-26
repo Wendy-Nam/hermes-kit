@@ -45,6 +45,34 @@ def _env():
     return get_env(ENV_FILE)
 
 
+def _read_config() -> dict:
+    """The current config, flattened to "a.b.c" -> value.
+
+    Read straight from config.yaml rather than shelling out per key: this runs on every pack
+    apply, and one `hermes config get` per setting is a round trip nobody needs.
+    """
+    import yaml
+
+    try:
+        doc = yaml.safe_load((DATA / "config.yaml").read_text(encoding="utf-8")) or {}
+    except OSError:
+        return {}
+    except Exception:
+        return {}          # a malformed config must not block a pack apply
+    return _flatten(doc) if isinstance(doc, dict) else {}
+
+
+def _flatten(doc, prefix=()):
+    out = {}
+    for k, v in doc.items():
+        key = prefix + (str(k),)
+        if isinstance(v, dict):
+            out.update(_flatten(v, key))
+        else:
+            out[".".join(key)] = v
+    return out
+
+
 def _write(values: dict, config: dict) -> list[str]:
     """Persist keys, then config. Returns a line per config key, naming any that failed.
 
@@ -54,6 +82,17 @@ def _write(values: dict, config: dict) -> list[str]:
     from env_store import set_env
 
     set_env(ENV_FILE, values)
+    # Record what these settings look like *before* changing them, so /setup's "연결 해제"
+    # can put them back. Without this a disconnect could only delete the keys and would leave
+    # `stt.provider: groq` behind, looking configured with no credentials to run on.
+    try:
+        import disconnect
+        # Same directory as .env, not the module-level DATA: those can differ under test, and
+        # a snapshot that lands next to the wrong .env cannot restore anything.
+        disconnect.snapshot(ENV_FILE.parent, config, _read_config())
+    except Exception:
+        pass    # a missing snapshot only costs the ability to revert later
+
     lines = []
     for k, v in config.items():
         if "${" in str(v):       # a value that refers back to an env var keeps that reference
