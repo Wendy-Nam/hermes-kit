@@ -1,0 +1,20 @@
+# Isolated test project on the user's VPS. Never mounts the production project's data.
+# Teardown: docker compose -p hermes-kit-test down -v
+name: hermes-kit-test
+services:
+  hermes:
+    build: .
+    image: hermes-kit:spike
+    container_name: hermes-kit-test
+    restart: "no"
+    mem_limit: 2500m
+    cpus: 1.0
+    env_file: .env          # DISCORD_BOT_TOKEN only (test bot)
+    environment:
+      TZ: Asia/Seoul
+    volumes:
+      - data:/opt/data
+      - ./plugins/kitspike:/opt/data/plugins/kitspike:ro
+    command: ["gateway", "run"]
+volumes:
+  data: {}

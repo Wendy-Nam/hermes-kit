@@ -1,0 +1,5 @@
+name: kitspike
+version: 0.0.1
+description: "hermes-kit Phase 0 spike (S2 modal via platform handler, S3 owner auto-approve). Throwaway."
+author: hermes-kit
+kind: standalone
