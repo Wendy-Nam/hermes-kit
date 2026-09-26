@@ -98,7 +98,14 @@
 ## 7. 운영 서버에 한 변경 (전부)
 - `/opt/data/skills/media/youtube-content/scripts/gemini_video.py`: `--fast` 400 폴백 2줄 추가(서아 님 승인). 롤백: 같은 폴더 `gemini_video.py.bak-20260926-064043-fast400`으로 되돌리기.
 - **OmniRoute 병행 배포(2026-09-26, 서아 님 승인)**: 호스트 `/docker/omniroute`(compose 프로젝트 `omniroute`), 이미지 `diegosouzapw/omniroute:3.8.50@sha256:085c57ad…`, 메모리 2GB 상한, `REQUIRE_API_KEY=true`, 포트 `127.0.0.1:20128`만(대시보드는 `ssh -L 20128:127.0.0.1:20128 vps`), 네트워크 `hermes-agent-ywj7_default`(Hermes에서 `http://omniroute:20128`). 비밀값은 `/docker/omniroute/.env`(600). **Hermes·freellmapi 설정은 미변경.** 롤백: `cd /docker/omniroute && docker compose down -v`.
-- **OmniRoute 키 이전(2026-09-26, 2단계 완료)**: freellmapi 활성 키 39개를 컨테이너 내부 복호화 → 호스트 파이프 → OmniRoute API로 이전(값 비출력). 결과: 공식 프로바이더 27(Cloudflare 포함) + OpenAI 호환 노드 11 = **38 연결, 일괄 테스트 37 통과**(speechify는 `/models` 없음 → 모델 ID 지정 검증 필요). Cloudflare는 freellmapi의 `accountId:token`을 서버 안에서 분리해 `cloudflare-ai` + `providerSpecificData.accountId`로 이전. **추가 이전(같은 날)**: freellmapi에서 꺼져 있던 키도 전부(키 자체는 healthy — 9/23 점검의 '만성 실패'는 Hermes 요청 크기 탓이 큼, 나머지는 수동 off) + 커스텀 **Nous API 키 → `nous-research`**(서아 님 새 발급 불필요) + zhipu(대시보드 표기는 Z.ai지만 실제 호출 주소가 `open.bigmodel.cn` → 그 주소로 노드). **합계 51 연결, 48 검증 통과.** 실패: `ovh`·`aihorde`(freellmapi에서 '키 불필요' 익명 서비스 — 삭제 권장, 서아 님 확인 대기), `speechify`(`/models` 없음). 미이전: `router9`(주소 기록 없음; OmniRoute `9router`는 로컬 npm 프록시로 다른 것). 익스포트 전체 대상은 `EXPORT_ALL=1`. 이전 전 원래 미이전 항목: zhipu(호스트 미확인; OmniRoute glm/zai는 국제판 `api.z.ai`). 연결 이름 `fl-<platform>`. 스크립트 `/docker/omniroute/migrate/{fl_export.mjs,om_import.py,om_testall.py}`(600, 멱등 — 재실행 시 기존 이름 건너뜀). 함정: 노드 생성은 `apiType:"chat"` 필수(스키마상 optional인데 superRefine에서 요구), prefix `github`은 Copilot용 예약 → `github-models`, freellmapi 복호화 전 `initEncryptionKey()` 필요, ESM 스크립트는 `/app/server` 안에서 실행해야 `better-sqlite3` 해석. **freellmapi·Hermes 미변경.**
+- **OmniRoute 키 이전(2026-09-26, 2단계 완료)**: freellmapi 활성 키 39개를 컨테이너 내부 복호화 → 호스트 파이프 → OmniRoute API로 이전(값 비출력). 결과: 공식 프로바이더 27(Cloudflare 포함) + OpenAI 호환 노드 11 = **38 연결, 일괄 테스트 37 통과**(speechify는 `/models` 없음 → 모델 ID 지정 검증 필요). Cloudflare는 freellmapi의 `accountId:token`을 서버 안에서 분리해 `cloudflare-ai` + `providerSpecificData.accountId`로 이전. **추가 이전(같은 날)**: freellmapi에서 꺼져 있던 키도 전부(키 자체는 healthy — 9/23 점검의 '만성 실패'는 Hermes 요청 크기 탓이 큼, 나머지는 수동 off) + 커스텀 **Nous API 키 → `nous-research`**(**정정**: `/models`만 통과하고 채팅은 401 — freellmapi의 '커스텀 401 ×152/7일'이 이 키. Hermes `.env`의 `NOUS_API_KEY`도 채팅 401. Hermes는 Nous를 **OAuth 로그인**으로 씀 → Nous는 Hermes 직접 호출 유지, OmniRoute 연결은 비활성) + zhipu(대시보드 표기는 Z.ai지만 실제 호출 주소가 `open.bigmodel.cn` → 그 주소로 노드). **합계 51 연결, 48 검증 통과.** 실패: `ovh`·`aihorde`(freellmapi에서 '키 불필요' 익명 서비스 — 삭제 권장, 서아 님 확인 대기), `speechify`(`/models` 없음). 미이전: `router9`(주소 기록 없음; OmniRoute `9router`는 로컬 npm 프록시로 다른 것). 익스포트 전체 대상은 `EXPORT_ALL=1`. 이전 전 원래 미이전 항목: zhipu(호스트 미확인; OmniRoute glm/zai는 국제판 `api.z.ai`). 연결 이름 `fl-<platform>`. 스크립트 `/docker/omniroute/migrate/{fl_export.mjs,om_import.py,om_testall.py}`(600, 멱등 — 재실행 시 기존 이름 건너뜀). 함정: 노드 생성은 `apiType:"chat"` 필수(스키마상 optional인데 superRefine에서 요구), prefix `github`은 Copilot용 예약 → `github-models`, freellmapi 복호화 전 `initEncryptionKey()` 필요, ESM 스크립트는 `/app/server` 안에서 실행해야 `better-sqlite3` 해석. **freellmapi·Hermes 미변경.**
+- **OmniRoute 3단계(A) 완료(2026-09-26, 서아 님 승인)** — Hermes는 여전히 freellmapi, 아래는 OmniRoute만:
+  - 이미지 `next`(3.8.51 프리릴리스, 9/24) digest 고정 + 메모리 상한 3GB(2GB는 첫 동기화 때 1.9GB 도달). DB 마이그레이션 13개 적용 → 3.8.50 롤백은 `docker-compose.yml.bak-3850-20260926-123237` + `backups/data-pre-3851-20260926-123237.tgz` 둘 다 복원.
+  - 스킬 주입 끔(`skillsEnabled`, 기본 켜짐), 의미 응답 캐시 끔(`semanticCacheEnabled`, temperature 0 요청에 '비슷한' 옛 답 반환). 메모리 추출·작업유형 라우팅·백그라운드 강등·시스템 프롬프트 주입은 원래 꺼져 있음 확인.
+  - 모든 연결 `autoSync=true`(24시간마다 각 업체 `/models`에서 카탈로그 갱신, `MODEL_SYNC_INTERVAL_HOURS`) + 1회 동기화 58/62(실패 4개는 `/models` 미제공 → 내장 목록). `/v1/models` 전체 목록은 `catalog_build_timeout`(8천 개+) → 연결별 `GET /api/providers/<id>/models` 사용.
+  - `fl-ovh`·`fl-aihorde` 삭제, Cline·Nous 연결 비활성. 서아 님이 대시보드에서 추가한 연결 14개(Claude·Antigravity×2·Copilot·웹세션 gemini/deepseek/zai·lmarena·Devin 등)는 **콤보에 넣지 않음**(구독·웹세션 계정의 자동화 사용 위험). **Codex는 아직 미연결.**
+  - 콤보 13개 + 별칭 7개(`migrate/om_combos.py`, 설계는 §11) — 실호출 14/14 정상. `upstage/solar-pro4`는 Upstage `/models`에 없어 사용자 모델로 등록.
+  - Hermes용 추론 키 `/docker/omniroute/hermes-api-key`(600, 출력 안 함). 스크립트 `migrate/{om_setup,om_combos,om_fix,om_fix2,om_models,om_calltest,om_api}.py`.
 - 테스트 컨테이너 `hermes-kit-test`는 메모리 확보를 위해 정지 상태(`docker start hermes-kit-test`로 재개).
 - 그 외 변경 없음(rtk 수정 제안은 불필요로 판명되어 미적용).
 
@@ -129,3 +136,28 @@ ssh vps 'cd /docker/hermes-kit-test && docker compose down -v; docker volume rm 
 - **CLI 계정 프로바이더(Cline·Antigravity·Antigravity CLI)**: OmniRoute가 스스로 '프록시 사용 미승인, 장시간 자율 에이전트 사용 비권장, 계정 제한·차단 가능' 경고를 띄움. 코드 확인: Antigravity executor가 공식 클라이언트 프로필로 헤더·User-Agent를 만들고 '비공식 트래픽을 드러내는 프록시/지문 헤더 제거'(`scrubProxyAndFingerprintHeaders`). Hermes는 경고가 말하는 바로 그 사용 방식 → **연결 비권장**, 쓰더라도 보조 계정·저용량 보조 콤보만. 탐지 우회 설정은 손대지 않음. CLI 워커 은퇴는 API 키 콤보로 가능.
 - **이전 다음 단계**: 2) freellmapi 키 복호화→호스트 파이프→OmniRoute import(값 비출력) + 프로바이더별 실호출 검증 3) 콤보(대화·보조·private·비전, unfiltered 제외) 4) Hermes 보조·위임 연결 전환(승인 후), freellmapi 1주 유지.
 - 재평가 조건: OmniRoute가 thought_signature 왕복을 고친 안정 릴리스를 내면 같은 테스트(`scratchpad`의 `omnitest.py --loop`)로 재확인.
+
+## 11. freellmapi 설계 → OmniRoute 대응 (2026-09-26 운영 전수 조사)
+| 원래 설계 | OmniRoute |
+|---|---|
+| 용도별 프로필(`auto:fast/private/ops-fast/compress/vision/coding/coding-worker/public/commandcode/ultrabrain/writing/visual-engineering`) | 같은 순서의 콤보 `hermes-<이름>`(콤보 이름에 `:` 불가). 메인 모델명 `solar-pro4`는 **같은 이름 콤보** → 크론·omh의 `solar-pro4`는 그대로 |
+| private 풀 = 학습 안 하는 곳(Mistral 학습 끔, Cloudflare) | `hermes-private` + `allowedProviders: [mistral, cloudflare-ai]`, xkiro 제외 |
+| 세션 고정 `X-Session-Id`(session-sticky) | OmniRoute가 헤더를 기본 인식 + 콤보 세션 고정 기본 켜짐. 플러그인 게이트에 omniroute 추가(전환 스크립트) |
+| 난이도 상향 → `auto:commandcode`(7일 105회) | `hermes-commandcode`. 모델명만 바꾸는 방식이라 **메인과 같은 단계에서만** 전환 |
+| 무손실 압축(9/23 standard→lossless) | 전역 압축 끔으로 시작(Hermes rtk·tool_output 상한이 이미 있음). 전환 후 캐시 2회 테스트 뒤 대화 콤보만 `lite` 검토 |
+| 컨텍스트 핸드오프 끔(Hermes는 매 턴 전체 이력 재전송) | `context-relay` 전략 안 씀(모든 콤보 `priority`) |
+| E6-3 예비 모델(qwen3.8-max:free, cf gpt-oss-120b ×0.7) | 콤보 맨 뒤 |
+| 키별 모델 범위(OpenRouter `:free`만 등) | 콤보에 명시한 모델만. Gemini 계열은 단발 콤보(vision·ops-fast)에만 — 여러 턴 도구 루프에서 서명 유실 |
+| 폴백 예산 9초·첫 토큰 제한·끊김 취소 패치(로컬 커밋 21개) | OmniRoute 기본값(재시도 1, 2초 간격). 문제 보이면 콤보 `timeoutMs`·`targetTimeoutMs` |
+| 직접 폴백(nous OAuth, gemini) | **유지** — OmniRoute 장애 시에도 Hermes가 답함 |
+| `context_lengths` solar-pro4 131072 | 콤보 `context_length` + Hermes 키를 OmniRoute 주소로 추가 |
+| 피크 시간 보정·작업유형 가중치·탐색 끔 | 옮기지 않음(상태·쿼터 점수로 대체) |
+| unfiltered 풀 | 옮기지 않음(결정됨, 사용처 없음) |
+
+**omh 활용도**: 위임 카테고리 체인(`.omh/routing/model-chains.json`, 12개)이 `auto:*` 프로필을 가리키지만 실제 위임 경로 기록은 9/4 이후 20건, **최근 7일 0건**. 전환 스크립트가 `model-providers.json`(21개)·`model-chains.json`(20단계)을 함께 바꿈.
+
+**B단계(Hermes 전환, 미실행 — 승인 필요)**: `/docker/omniroute/migrate/hermes_to_omniroute.py --scope aux|all [--apply]`
+- `aux`: 설정 7개의 보조·위임·폴백(35경로) + 크론 17개 + omh 경로 + 모든 `.env`에 `OMNIROUTE_API_KEY`. 메인 대화는 freellmapi 유지.
+- `all`: + 메인 모델 6개(work는 Nous 직접이라 제외) + session-sticky 2파일.
+- 파일마다 `.bak-omniroute-<ts>` 백업, 적용 후 `docker restart hermes-agent-ywj7-hermes-agent-1`. 롤백 = 백업 복사 + 재시작.
+- 확인할 것: coder 프로필 `api_mode: codex_responses`가 OmniRoute `/v1/responses`로 도는지, 전환 후 캐시 적중률(Hermes 세션 DB `cached_input_tokens`).
