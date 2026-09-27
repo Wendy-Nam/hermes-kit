@@ -2,7 +2,8 @@
 Files in /docker/omniroute/migrate: models.txt (om_models.py), fl_catalog.json (fl_catalog.mjs), hermes-tools.json.
 usage:
   om_pool.py plan            -> candidates.json (+ counts)            no network
-  om_pool.py probe           -> probe.json  (Hermes 25-tool call / vision / plain call per unique model, hermes key)
+  om_pool.py probe [pfx...]  -> probe.json  (Hermes 25-tool call / vision / plain call per unique model, hermes key;
+                                             optional provider prefixes limit the run, e.g. `probe zai-web lmarena`)
   om_pool.py apply [--dry]   -> PUT every combo = head + subscription tier + probed pool + reserve   (stdin: admin pw)
 Order per combo: curated head (proven 2026-09-26) -> subscription/web accounts (only where volume is low and data is
 not private) -> free pool sorted by the premium catalog's intelligence (or speed) rank -> E6-3 reserve last.
@@ -15,29 +16,34 @@ phase = sys.argv[1]
 CF_, MI = "cloudflare-ai/@cf/", "mistral/"
 RES_CF, RES_XK = CF_ + "openai/gpt-oss-120b", "xkiro/qwen/qwen3.8-max:free"
 MIN8, MIN14 = MI + "ministral-8b-latest", MI + "ministral-14b-latest"
-# freellmapi platform -> OmniRoute prefix (om_import.py mapping; custom/navy/aihorde/ovh/router9 are not pooled)
-PFX = {"agnes": "agnes", "aion": "aion", "anyapi": "anyapi", "bai": "bai", "groq": "groq", "kilo": "kilo-gateway", "llm7": "llm7",
+# freellmapi platform -> OmniRoute prefix (om_import.py mapping; custom/navy/router9 are not pooled).
+# kilo/ovh are keyless nodes: the built-ins demand a key and a bad key makes both upstreams refuse (2026-09-27)
+PFX = {"agnes": "agnes", "aion": "aion", "anyapi": "anyapi", "bai": "bai", "groq": "groq", "kilo": "kilo-anon", "llm7": "llm7",
        "longcat": "longcat", "mistral": "mistral", "nara": "nara", "nvidia": "nvidia", "opencode": "opencode-zen",
-       "openrouter": "openrouter", "orcarouter": "orcarouter", "reka": "reka", "routeway": "routeway", "sealion": "sealion",
+       "openrouter": "openrouter", "orcarouter": "orcarouter", "reka": "reka", "routeway": "routeway", "sealion": "sealion", "ovh": "ovh-anon", "aihorde": "aihorde",
        "siliconflow": "siliconflow", "cohere": "cohere", "electronhub": "electronhub", "google": "gemini", "logfare": "logfare",
        "pollinations": "pollinations", "airforce": "api-airforce", "ainative": "ainative", "bazaarlink": "bazaarlink",
        "cerebras": "cerebras", "huggingface": "huggingface", "ollama": "ollama-cloud", "requesty": "requesty",
        "unorouter": "unorouter", "cloudflare": "cloudflare-ai", "blaze": "blaze", "clod": "clod", "dreamprompting": "dreamprompting",
        "experiential": "experiential", "lucidity": "lucidity", "moondream": "moondream", "septor": "septor", "waterfall": "waterfall",
        "xkiro": "xkiro", "github": "github-models", "sail": "sail", "zhipu": "zhipu"}
-# auggie/devin-cli need their CLI inside the container, zai-web needs Playwright Chromium: left out (2026-09-27 probe)
-SUB_MAIN = ["claude/claude-sonnet-5", "github/claude-sonnet-4.6", "github/gpt-5-mini", "antigravity/claude-sonnet-4-6",
-            "agy/claude-sonnet-4-6", "deepseek-web/deepseek-v4-pro", "github/grok-4.6", "github/claude-haiku-4.5"]
+# auggie/devin-cli need their CLI inside the container: left out. zai-web needs Playwright Chromium -> the `-web` image
+CLINE_FREE = ["cline/nvidia/nemotron-3-ultra-550b-a55b:free", "cline/poolside/laguna-m.1:free", "cline/google/gemma-4-31b-it:free"]
+NOUS_FREE = ["nous-research/upstage/solar-pro4:free", "nous-research/meituan/longcat-2.0:free", "nous-research/stepfun/step-3.7-flash:free",
+             "nous-research/poolside/laguna-s-2.1:free", "nous-research/inclusionai/ling-3.0-flash-fin:free"]   # key must be valid (401 today)
+SUB_MAIN = NOUS_FREE[:1] + ["claude/claude-sonnet-5", "github/claude-sonnet-4.6", "github/gpt-5-mini", "antigravity/claude-sonnet-4-6",
+            "agy/claude-sonnet-4-6", "deepseek-web/deepseek-v4-pro", "zai-web/glm-5.3", "github/grok-4.6", "github/claude-haiku-4.5"] + CLINE_FREE + NOUS_FREE[1:]
 SUB_SMART = ["claude/claude-sonnet-5", "github/claude-sonnet-4.6", "antigravity/claude-sonnet-4-6", "agy/claude-sonnet-4-6",
-             "deepseek-web/deepseek-v4-pro", "github/gpt-5-mini", "github/grok-4.6", "github/gpt-5.4-mini", "antigravity/gpt-oss-120b-medium"]
+             "deepseek-web/deepseek-v4-pro", "zai-web/glm-5.3", "github/gpt-5-mini", "github/grok-4.6", "github/gpt-5.4-mini",
+             "antigravity/gpt-oss-120b-medium"] + CLINE_FREE + NOUS_FREE
 SUB_BRAIN = ["claude/claude-opus-5-5", "claude/claude-opus-5", "antigravity/claude-opus-4-6-thinking", "agy/claude-opus-4-6-thinking",
              "github/claude-opus-4.6", "deepseek-web/deepseek-v4-pro-think"]
 # public profile answers other people: no paid-subscription quota, but lmarena/web sessions are fine there
-SUB_PUBLIC = ["deepseek-web/deepseek-v4-flash", "lmarena/claude-sonnet-5", "lmarena/gpt-5.5-instant", "lmarena/qwen3.7-max", "lmarena/kimi-k2.6", "lmarena/glm-5.1",
+SUB_PUBLIC = NOUS_FREE + CLINE_FREE[:1] + ["deepseek-web/deepseek-v4-flash", "zai-web/glm-5.3-flash", "lmarena/claude-sonnet-5", "lmarena/gpt-5.5-instant", "lmarena/qwen3.7-max", "lmarena/kimi-k2.6", "lmarena/glm-5.1",
               "lmarena/deepseek-v4-pro-thinking", "lmarena/mistral-large-3", "lmarena/minimax-m3"]
 SUB_VISION = ["claude/claude-sonnet-5", "github/gpt-5-mini", "agy/gemini-3.8-flash-medium", "antigravity/claude-sonnet-4-6"]
 # free routes that log prompts for training / publish arena chats: public profile only
-TRAINS = {"kilo-gateway", "lmarena"}
+TRAINS = {"kilo-gateway", "kilo-anon", "lmarena", "aihorde"}   # aihorde: volunteer workers see the prompt
 
 # name: (kind, sort, min_ctx, head, subscription tier, pool platforms (None=all, []=none), reserve, cap, extra)
 C = {
@@ -162,6 +168,9 @@ def probe():
         for m in c["head"] + c["sub"] + c["pool"] + c["reserve"]:
             if not (old.get(m, {}).get(c["kind"]) or {}).get("ok"):   # incremental: passed (model, kind) pairs are kept
                 need.setdefault(m, set()).add(c["kind"])
+    only = set(sys.argv[2:])
+    if only:
+        need = {m: k for m, k in need.items() if m.split("/", 1)[0] in only}
     key = open("/docker/omniroute/hermes-api-key").read().strip()
     tools = json.load(open(f"{MIG}/hermes-tools.json"))
     img = png_red()

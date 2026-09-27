@@ -181,3 +181,12 @@ ssh vps 'cd /docker/hermes-kit-test && docker compose down -v; docker volume rm 
 - **키트 전환**: 심화팩 freellmapi → OmniRoute(`advanced/docker-compose.omniroute.yml`, 수강생 입력은 `KIT_OMNIROUTE_PASSWORD` 하나, 서명 비밀값은 첫 기동 때 볼륨에 생성, `/healthz`), `/doctor` 점검 대상·팩 복사 대상(`omniroute/`) 변경, 테스트 통과. 설계 문서 Task 12·D7 재작성, D10(압축 계층) 추가. 수강생 기본에서 구독·웹 세션·CLI 계정 프로바이더와 kilo·lmarena 제외. 프리미엄 카탈로그 원본은 팩에 넣지 않음(라이선스 재배포 여부 미확인).
 - **압축 계층(운영·키트 공통, §D10)**: 셸 출력 = rtk 플러그인, 도구 결과 = Hermes `tool_output`/`tool_budget`, 대화 길이 = Hermes 압축(`hermes-compress`), OmniRoute는 압축 전역 off·Caveman off(라우팅·세션 고정·캐시 보존만). 전환으로 freellmapi `lossless` 압축(dedup·toolfilter·jsoncompact)이 빠짐 — toolfilter는 Hermes `tool_output`과 중복이라 손실 작음. 1주 뒤 Hermes `session_model_usage`로 입력 토큰 추이 비교.
 - 선택: OmniRoute `-web` 이미지(`next-web`)면 Chromium이 들어 있어 zai-web·gemini-web 등 웹 세션 프로바이더가 동작(약 +300MB).
+
+## 14. 메인 전환 완료 · omh 수정 · 연결 되살리기 (2026-09-27)
+- **메인 전환(서아 님 직접 실행)** 확인: 기본 설정으로 `hermes -z` → `omniroute/solar-pro4`, coder 프로필 → `hermes-coding`, 도구 사용·성공. 중국어 답변 1회는 solar-pro4 일회성(OmniRoute·freellmapi 각 2회 재시험 모두 한국어). 전환 후 freellmapi 요청은 비교 시험 4건뿐.
+- **omh 버그 2개(전환 스크립트 탓) 수정**: ① `model-chains.json`만 `hermes-*`로 바뀌고 `model-providers.json` 키가 옛 `auto:*` → 새 이름 11개 추가 ② omh는 모델 이름 토큰 `^[A-Za-z0-9][A-Za-z0-9._/:-]{0,127}$` 위반 시 **파일 전체 무시** — `cloudflare-ai/@cf/...`의 `@` 때문에 1단계 이후 omh 위임 경로가 꺼져 있었음 → `hermes-fast`로 교체. omh 로더로 검증(경로 35, 카테고리 12 applied), `deep` 위임 E2E 성공. 스크립트는 비토큰 모델이면 쓰기 전에 중단.
+- **OmniRoute 이미지 `next-web`**(서아 님 실행, 같은 3.8.51 + Chromium/Playwright, 메모리 상한 4g). 롤백 `docker-compose.yml.bak-pre-web`(DB 변경 없음).
+- **웹 쿠키 프로바이더**: 공식 문서상 **도구 호출 미지원**. `next-web`에서도 zai-web(502·시간 초과)·lmarena(403/429) 실패. deepseek-web만 여러 턴 도구 루프 통과. 쿠키 추출은 서아 님이 직접(DevTools → Network → 채팅 요청의 Request Headers `Cookie` 전체 복사, Cookie 저장소 값 금지 — OmniRoute WEB-COOKIE-GUIDE).
+- **연결 되살리기(서아 님 요청)**: Cline·Nous 재활성(`:free`만 사용), aihorde는 공식 익명 키(`0000000000`), kilo·ovh는 **키 없는 OpenAI 호환 노드**(`kilo-anon`, `ovh-anon`) — 기본 프로바이더는 키 필수인데 잘못된 키면 업체가 거부. 작동: Cline `nemotron-3-ultra:free`(여러 턴 통과), kilo 익명 7개, ovh 익명 4개(느림), aihorde. **Nous는 두 키 모두 채팅 401 → 서아 님이 Nous 포털에서 새 API 키 발급 후 대시보드에서 `hermes-nous` 연결 키 교체**(주간 갱신이 자동으로 `:free` 5개를 넣음). kilo·lmarena·aihorde는 `hermes-public`만(학습·공개·자원봉사 워커가 프롬프트 열람).
+- 구독 계정 여러 턴 도구 루프: claude-sonnet-5 · antigravity claude-sonnet-4-6 · deepseek-web · cline nemotron 모두 통과. 최종 콤보 14~30개(통과 79/252). 대표 콤보 4개 루프 통과.
+- **Codex**: OmniRoute는 기기 인증을 **브라우저가 수행**(서버 IP는 auth.openai.com 차단) → 서아 님이 대시보드에서 직접 로그인. 로그인 후 `om_pool.py`에 codex 모델을 구독 계층으로 추가·시험.
