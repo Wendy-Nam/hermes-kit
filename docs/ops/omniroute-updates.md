@@ -1,13 +1,13 @@
 # OmniRoute 업데이트
 
-학생용 심화 Compose는 `diegosouzapw/omniroute:next`를 기본으로 사용한다. 특정 이미지 digest로 고정하지 않으며, `pull_policy: always`로 설치·재배포 때 최신 이미지를 확인한다. `docker restart`만으로 새 이미지를 설치하지는 않는다.
+학생용 심화 Compose는 `ghcr.io/wendy-nam/hermes-kit:omniroute-rtk-json-1`을 기본으로 사용한다. `next-web` 기반 이미지를 digest로 고정하고 [Hermes JSON RTK 어댑터](../../advanced/omniroute-rtk-envelope/README.md)를 포함한다. `pull_policy: always`로 설치·재배포 때 최신 이미지를 확인한다. `docker restart`만으로 새 이미지를 설치하지는 않는다.
 
 공식 채널은 다음과 같다.
 
 | 채널 | 내용 |
 |---|---|
 | `latest` | 가장 최근에 게시된 안정판 |
-| `next` | 활성 release 브랜치의 프리릴리스 빌드 — 키트 기본값 |
+| `next` | 활성 release 브랜치의 프리릴리스 빌드 — upstream 채널 |
 | `main` | main 개발 브랜치 빌드 |
 | `next-web` | 브라우저가 필요한 웹 세션 제공자용 next 이미지 |
 
@@ -28,6 +28,6 @@ docker compose -f advanced/docker-compose.omniroute.yml up -d omniroute
 
 문제가 생기면 `KIT_OMNIROUTE_IMAGE`를 기록해 둔 이전 이미지 digest로 지정하여 재배포한다. 데이터 형식이 변경된 업데이트라면 이전 이미지와 함께 업데이트 전 데이터 백업도 복원해야 한다. 자동 업데이트 크론은 설치하지 않는다.
 
-2026-09-27 검증 기준은 3.8.51 이미지였으며, 이후 `next`에 올라오는 모든 빌드가 검증된 것은 아니다.
+기반 이미지 갱신은 어댑터 호환성·세 가지 API 형식 검증 후 배포한다. upstream의 모든 새 빌드를 즉시 자동 설치하지 않는다. 어댑터는 RTK를 자동 활성화하지 않으며, 기존 압축 프로필을 보존한다.
 
 출처: [공식 Docker 가이드](https://github.com/diegosouzapw/OmniRoute/blob/release/v3.8.51/docs/guides/DOCKER_GUIDE.md).

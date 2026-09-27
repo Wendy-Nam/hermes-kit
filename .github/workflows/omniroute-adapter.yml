@@ -1,0 +1,39 @@
+name: omniroute-adapter
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - advanced/omniroute-rtk-envelope/**
+      - .github/workflows/omniroute-adapter.yml
+permissions:
+  contents: read
+  packages: write
+jobs:
+  adapter:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: envelope preservation and patch compatibility
+        run: node --test advanced/omniroute-rtk-envelope/test.cjs
+      - name: build isolated public adapter
+        run: docker build --label org.opencontainers.image.source=https://github.com/Wendy-Nam/hermes-kit -t omniroute-adapter:ci advanced/omniroute-rtk-envelope
+      - name: actual RTK runtime across all three API formats
+        run: docker run --rm --network none -v "$PWD/advanced/omniroute-rtk-envelope/runtime-test.cjs:/tmp/runtime-test.cjs:ro" --entrypoint node omniroute-adapter:ci /tmp/runtime-test.cjs
+      - name: adapter contains only public code
+        run: |
+          test "$(docker inspect omniroute-adapter:ci --format '{{.Config.User}}')" = node
+          docker run --rm --network none --entrypoint cat omniroute-adapter:ci /app/hermes-rtk-envelope.cjs > /tmp/shipped-envelope.cjs
+          cmp advanced/omniroute-rtk-envelope/envelope.cjs /tmp/shipped-envelope.cjs
+          ! grep -Eq 'sk-[A-Za-z0-9_-]{20,}|ghp_[A-Za-z0-9]{30,}|Bearer eyJ|187\.127\.124\.238|hermes-self|hermes-snow-search' /tmp/shipped-envelope.cjs
+      - name: publish separately from Hermes runtime tags
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          printf '%s' "$GH_TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          image=ghcr.io/wendy-nam/hermes-kit:omniroute-rtk-json-1
+          docker tag omniroute-adapter:ci "$image"
+          docker push "$image"
