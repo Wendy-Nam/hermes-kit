@@ -1,0 +1,9 @@
+{
+  "schema_version": "kit-component/v1",
+  "id": "g2b-sanctioned-supplier",
+  "version": "1.20260919.0",
+  "files": {
+    "SKILL.md": "bcee93b36a15b1a1ed699dcbf736ec7a7d5c3fe2e791c3e5393659855fc27b9d",
+    "scripts/g2b_sanctioned_supplier.py": "a64442ebe7373502ee9785ead6b0bb8ba7b23c6936c3f4543d6380d2405ae2b4"
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "schema_version": "kit-component/v1",
+  "id": "nts-tax-delinquency",
+  "version": "1.20260919.0",
+  "files": {
+    "SKILL.md": "2d98c831ae5d1124c90099b0d1934730eab2c1e39ea292b3cafe1bf542ecbd61",
+    "scripts/nts_tax_delinquency.py": "c63ba5a052a252c486fe4c4d64919147af65b44fc49772286b20dde54475aacf"
+  }
+}

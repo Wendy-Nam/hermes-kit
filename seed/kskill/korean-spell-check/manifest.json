@@ -1,0 +1,9 @@
+{
+  "schema_version": "kit-component/v1",
+  "id": "korean-spell-check",
+  "version": "1.20260919.0",
+  "files": {
+    "SKILL.md": "ff40b6a364016b731193434f06da3f3d4ffaa2f12d7f117d7822e8bf9b25bbc1",
+    "scripts/korean_spell_check.py": "6e327a5be99cd0b357695bcf1a4a8fff11f0ad4f64f74570ea756a69b27668bd"
+  }
+}

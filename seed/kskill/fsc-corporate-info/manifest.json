@@ -1,0 +1,9 @@
+{
+  "schema_version": "kit-component/v1",
+  "id": "fsc-corporate-info",
+  "version": "1.20260919.0",
+  "files": {
+    "SKILL.md": "92b9643b496c26d62de7c498f386ff56174364fdc3449a55ebd06c2e4e8857b4",
+    "scripts/fsc_corporate_info.py": "e354776b30a83c58ea9448d1e5ef989226239ddc61064f596823ceae9d0e7a38"
+  }
+}

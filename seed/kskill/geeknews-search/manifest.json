@@ -1,0 +1,9 @@
+{
+  "schema_version": "kit-component/v1",
+  "id": "geeknews-search",
+  "version": "1.20260919.0",
+  "files": {
+    "SKILL.md": "a04feb920ac74215816c2bcd6d0fc609bdaca4431a1b27bf0005f497d5180858",
+    "scripts/geeknews_search.py": "32b6b38bf42e2c3268fadf7105f84a0be38ec806ef7e92cf15e8db0f6e8d592c"
+  }
+}

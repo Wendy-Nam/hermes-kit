@@ -1,0 +1,8 @@
+{
+  "schema_version": "kit-component/v1",
+  "id": "kr-whois-lookup",
+  "version": "1.20260919.0",
+  "files": {
+    "SKILL.md": "7a1d71b161f8526fe7ddba15c5528e9296761067e7d6ed88d7e008a4d7a6bf60"
+  }
+}

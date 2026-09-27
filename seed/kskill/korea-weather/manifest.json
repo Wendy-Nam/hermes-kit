@@ -1,0 +1,8 @@
+{
+  "schema_version": "kit-component/v1",
+  "id": "korea-weather",
+  "version": "1.20260919.0",
+  "files": {
+    "SKILL.md": "4fed54d6fc5ed0544e2a82691b53f0b65fc0e68308bf7322fe69ae008af884cb"
+  }
+}

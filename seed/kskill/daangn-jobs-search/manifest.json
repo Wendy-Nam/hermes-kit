@@ -1,0 +1,11 @@
+{
+  "schema_version": "kit-component/v1",
+  "id": "daangn-jobs-search",
+  "version": "1.20260919.0",
+  "files": {
+    "SKILL.md": "a989eaba95259363d266efa44d6c94850b40c1aa9984577208175c2f2a2a8221",
+    "references/DISCLAIMER.md": "2412b0ded954221a6a966bafe1be653d7b290a92d11bf2f8213643a4711a90f1",
+    "references/TRADEMARK-LEGAL-STATEMENT.md": "287fd2be82c1cf6d431fcc28b83848321f3be94950216237887ff5bd8c635c59",
+    "scripts/daangn_jobs.py": "92228cf2b18092a07efbb20b0986c06fa4f22dcfbca91393620ae2bcb51bed38"
+  }
+}

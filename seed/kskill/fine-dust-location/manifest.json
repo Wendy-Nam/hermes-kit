@@ -1,0 +1,9 @@
+{
+  "schema_version": "kit-component/v1",
+  "id": "fine-dust-location",
+  "version": "1.20260919.0",
+  "files": {
+    "SKILL.md": "7f6b3f7eb2a01138942cdd6235b1de9a0ee25d3fead25ec996c9d80eb70eede5",
+    "scripts/fine_dust.py": "40f91291ae0569e53bcbf852ea5a8e3d2d99adb1bd3249f8308f10f9a528f01c"
+  }
+}

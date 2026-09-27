@@ -1,0 +1,14 @@
+{
+  "schema_version": "kit-component/v1",
+  "id": "naver-blog-research",
+  "version": "1.20260919.0",
+  "files": {
+    "SKILL.md": "8ae89d847418934844e64ba2955480f416961c814f85d6461ff5f2207d9720e0",
+    "references/DISCLAIMER.md": "d6f62d23d1b7802bb4d5c71e21c5c9af51cb84c1c96daa9ee5a4be3911002e5b",
+    "references/TRADEMARK-LEGAL-STATEMENT.md": "f0388e17cf25522296a174eda3e68571c045539f63ed52e7884f342cd668d7fe",
+    "scripts/_naver_http.py": "79dd10876df3d124321e701b7c436ebf4bc10befadde5569fb439eac4330d30f",
+    "scripts/naver_download_images.py": "aa179595d4372d307ae4e2765efe29d26bc6fbe461fb450b84afbe8349dd62b2",
+    "scripts/naver_read.py": "1966a35ed5880e5241512979b2c6aa4221966bb71fb4abaa621af4a9d0a47bdf",
+    "scripts/naver_search.py": "6fa58439132e5776b7a00b138121e7e6e98f5675596562a937ce462620734505"
+  }
+}

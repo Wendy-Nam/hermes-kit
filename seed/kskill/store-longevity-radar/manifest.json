@@ -1,0 +1,10 @@
+{
+  "schema_version": "kit-component/v1",
+  "id": "store-longevity-radar",
+  "version": "1.20260919.0",
+  "files": {
+    "SKILL.md": "984bf528463e8a8b13201a53e974cc7d8cb5be9b7b0d4fdf9da01dbad5cfa9e4",
+    "scripts/store_longevity_download.py": "ed56c29f51000936af431bddcb47d33110ac8ff48e83b286f6e937545f3f1f78",
+    "scripts/store_longevity_radar.py": "5cb3b93afc7cf726a0f4983474ace5f68333161d1ee89d81dd93d51d7a8ab5a1"
+  }
+}

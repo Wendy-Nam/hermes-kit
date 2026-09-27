@@ -1,0 +1,10 @@
+{
+  "schema_version": "kit-component/v1",
+  "id": "naver-shopping-search",
+  "version": "1.20260919.0",
+  "files": {
+    "SKILL.md": "23509e991d55f5fd4d512226cadc29d20e8d8de38788b2a303193018b9ad3cd8",
+    "references/DISCLAIMER.md": "05c900dd3146520aa6329575194e6111686696049a12f9bd6db925c4d7f207d2",
+    "references/TRADEMARK-LEGAL-STATEMENT.md": "5a3cf701c46f5a1e2bb7f6fd869a66f6fa27992e1c1b80803b22906669b05fbb"
+  }
+}

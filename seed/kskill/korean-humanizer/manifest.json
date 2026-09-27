@@ -1,0 +1,9 @@
+{
+  "schema_version": "kit-component/v1",
+  "id": "korean-humanizer",
+  "version": "1.20260919.0",
+  "files": {
+    "SKILL.md": "48ffc4e88c79c510fcbbf4a7a832365fc6b2c3e68c74ea60d1fac6d395079b16",
+    "references/ai-tell-taxonomy.md": "d6feaf0ccda3818b29d59931b7b80baeec8178d5f3fe807eaad949804f5117d6"
+  }
+}

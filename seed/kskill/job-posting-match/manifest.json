@@ -1,0 +1,11 @@
+{
+  "schema_version": "kit-component/v1",
+  "id": "job-posting-match",
+  "version": "1.20260919.0",
+  "files": {
+    "SKILL.md": "ee70d9d14f8e24181aa862e81f410459c6ac4ac8e76ec71720e5a83c0a04396d",
+    "references/DISCLAIMER.md": "33b314161be69ffac2ed9d98399076a4546ce4084b75b7adde72beb1872ed122",
+    "references/TRADEMARK-LEGAL-STATEMENT.md": "4e69f0356e79badb62f76b2b547765d0884317cdd71f7cf98394284df36f249d",
+    "scripts/job_posting_match.py": "04b10a9e4dbe0879bc8bd587f05f211b72da25d03f80efdafdeff970e3f270ec"
+  }
+}
