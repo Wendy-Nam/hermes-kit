@@ -28,4 +28,4 @@
 
 `maintenance.install_all(data_dir)`는 두 작업의 `(ok, message)` 목록을 반환합니다. `ok=false`는 메시지로 **이미 등록**과 **등록 실패**를 구별합니다. Hermes 공식 `create_job_with_scheduler_registration` API를 사용하며, 정식 `script`, `no_agent`, 정규화된 스케줄과 다음 실행 시각을 저장합니다. 등록 API가 없거나 실패하면 raw `jobs.json` 쓰기로 우회하지 않습니다. 운영자가 중지한 작업은 자동으로 다시 활성화하지 않습니다.
 
-업데이트 검사는 `/opt/kit/RELEASE_VERSION`(예: `0.21.2-k1`)을 사용하며, 대체 경로는 `/opt/data/.kit-release-version`입니다. 신규 릴리스가 있을 때만 메시지를 출력하고 조회 실패는 오류로 남깁니다. 자동 업데이트는 하지 않습니다.
+업데이트 검사는 `/opt/kit/RELEASE_VERSION`(예: `0.21.2-k1`)을 사용하며, 대체 경로는 `/opt/data/.kit-release-version`입니다. 공개 GHCR의 `latest`와 동일한 이미지인 버전 태그를 익명으로 조회합니다. 소스 저장소의 접근 권한이나 GitHub 토큰이 필요하지 않습니다. 신규 버전이 있을 때만 메시지를 출력하고 조회 실패는 오류로 남깁니다. 자동 업데이트는 하지 않습니다.

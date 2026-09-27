@@ -18,6 +18,18 @@ jobs:
           python3 -m pip install -q pyyaml
           python3 -m unittest discover -s tests -v
           cd plugins/kit-setup && python3 -m unittest discover -s tests -v
+      - name: student Compose versions and companion image exist
+        run: |
+          python3 - <<'PYCODE'
+          import yaml
+          from pathlib import Path
+          versions = dict(line.split("=", 1) for line in Path("versions.env").read_text().splitlines() if "=" in line and not line.startswith("#"))
+          services = yaml.safe_load(Path("docker-compose.yml").read_text())["services"]
+          expected = f"ghcr.io/wendy-nam/hermes-kit:{versions['HERMES_VERSION']}-k{versions['KIT_VERSION']}"
+          assert services["hermes"]["image"] == expected, "Compose and release version differ"
+          Path("/tmp/kit-companion-image").write_text(services["syncthing"]["image"])
+          PYCODE
+          docker manifest inspect "$(cat /tmp/kit-companion-image)" >/dev/null
       - name: build (patch anchors fail the build on base-version drift)
         run: |
           set -a; . ./versions.env; set +a
