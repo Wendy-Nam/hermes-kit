@@ -31,7 +31,7 @@ COPY patches /opt/kit/patches
 RUN set -eu; PY=/opt/hermes/.venv/bin/python; \
     export HERMES_HOME=/tmp/kit-build-home HOME=/tmp/kit-build-home; mkdir -p /tmp/kit-build-home; \
     sh /opt/kit/patches/voice/apply.sh; \
-    for f in hook-overlap-skip lifecycle-guard-sqlite kanban-interval budget-caps skills-view-cap cron-max-turns skills-compact vision-inbound; do \
+    for f in hook-overlap-skip lifecycle-guard-sqlite kanban-interval budget-caps skills-view-cap cron-max-turns skills-compact vision-inbound skill-context-reuse; do \
       $PY /opt/kit/patches/core/patch-$f.py; \
     done; \
     cd /opt/hermes && $PY -c "import gateway.run, agent.system_prompt, tools.skills_tool, tools.budget_config, cron.scheduler"; \

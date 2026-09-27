@@ -38,6 +38,8 @@ jobs:
         run: |
           docker run --rm --network none --entrypoint /opt/hermes/.venv/bin/python hermes-kit:ci -m unittest discover -s /opt/kit/plugins/kit-setup/tests -v
           docker run --rm --network none -v "$PWD/scripts/setup-smoke.py:/tmp/setup-smoke.py:ro" --entrypoint /opt/hermes/.venv/bin/python hermes-kit:ci /tmp/setup-smoke.py
+      - name: stored skill prompts upgrade without losing student context
+        run: docker run --rm --network none -v "$PWD/scripts/skill-reuse-smoke.py:/tmp/skill-reuse-smoke.py:ro" --entrypoint /opt/hermes/.venv/bin/python hermes-kit:ci /tmp/skill-reuse-smoke.py
       - name: voice patches behave
         run: docker run --rm --entrypoint sh hermes-kit:ci -c "cd /opt/kit/patches/voice && /opt/hermes/.venv/bin/python verify.py --root /opt/hermes"
       - name: secret scan (nothing personal or secret in the public image)
