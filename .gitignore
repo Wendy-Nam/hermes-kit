@@ -8,3 +8,6 @@ __pycache__/
 *.pyc
 .omc/
 **/.omc/
+
+# live experiment leftovers (not part of the student image)
+ops/hermes-self/
