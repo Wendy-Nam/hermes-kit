@@ -276,6 +276,13 @@ class ActionButton(discord.ui.Button):
         self.action=action;self.home=home
     async def callback(self,interaction):
         a=self.action
+        if a=='omh':
+            return await interaction.response.send_message(
+                'OMH 추가 기능은 선택 사항입니다. 작업별 모델을 저장하면 위임 경로 검사와 보정을 켭니다. '
+                '본인이 연결한 제공자만 사용하며 연결 확인을 위해 짧은 테스트 요청 한 번을 보냅니다. '
+                'OmniRoute 자동 콤보는 실제 모델이 바뀔 수 있어 공통 보정을 사용합니다. '
+                '설정 뒤 적용하기로 재시작하세요. 기본 대화 모델은 바꾸지 않습니다.',
+                view=OmhOptionsView(interaction.user.id,self.home),ephemeral=True)
         if a=='model':return await interaction.response.send_modal(ModelModal())
         if a=='sync':return await interaction.response.send_modal(TextActionModal(a,'PC 노트 동기화','내 PC Syncthing 기기 ID',max_length=63))
         if a=='import':return await interaction.response.send_modal(TextActionModal(a,'대화 ZIP 가져오기','personal/Inbox/import의 ZIP 파일명',max_length=180))
@@ -317,7 +324,7 @@ class ActionButton(discord.ui.Button):
                 checked=datetime.fromtimestamp(snapshot['checked_at'],ZoneInfo('Asia/Seoul')).strftime('%m/%d %H:%M KST')
                 msg=('Cline 공개 가격이 0인 후보 · '+checked+'\n'+
                      '\n'.join(candidates)+'\n캐시 가격 미표기는 무료 보장이 아닙니다. 이미지·음악 모델도 포함될 수 있습니다. 대시보드에서 본인 계정을 연결한 뒤 모델의 도구 사용을 별도로 확인하세요. 유료 모델을 자동 대체 경로에 넣지 마세요.')
-            elif a=='omh':
+            elif a=='omh-basic':
                 from upstream_omh import install_upstream_omh
                 from pathlib import Path
                 from config_store import read
@@ -339,8 +346,53 @@ class HomeView(OwnedView):
         self.add_item(PackSelect(packs,self));self.add_item(KitSelect())
         rows=[('model','두뇌 선택',2),('login','ChatGPT 로그인',2),('check','연결 확인',2),('retry','설치 재시도',2),('sync','PC 동기화',2),
               ('import','대화 가져오기',3),('backup','지금 백업',3),('disconnect','연결 해제',3),('proactive','일반 선톡 켜기',3),('stop','선톡 끄기',3),
-              ('omh','OMH 설치',4),('omni','OmniRoute 연결',4),('vision','이미지 연결',4),('cline','Cline 무료 후보',4)]
+              ('omh','OMH 설정',4),('omni','OmniRoute 연결',4),('vision','이미지 연결',4),('cline','Cline 무료 후보',4)]
         for action,label,row in rows:self.add_item(ActionButton(action,label,row,self))
         apply=ApplyButton(self);apply.row=4;self.add_item(apply)
     def refresh(self):
         pass # Every action reports its measured outcome; reopening refreshes persisted state.
+
+class OmhRouteModal(discord.ui.Modal):
+    def __init__(self, category):
+        from omh_options import LABELS, available_providers
+        super().__init__(title=('OMH: '+LABELS[category])[:45])
+        self.category=category
+        providers=available_providers(ENV_FILE.parent)
+        self.provider=discord.ui.TextInput(label='연결한 제공자',placeholder=', '.join(providers)[:100],max_length=100)
+        self.model=discord.ui.TextInput(label='모델 또는 OmniRoute 콤보 ID',max_length=159)
+        self.kind=discord.ui.TextInput(label='고정 모델은 model / 자동 콤보는 combo',default='combo',max_length=5)
+        self.effort=discord.ui.TextInput(label='추론 강도: low / medium / high / xhigh / max',default='medium',max_length=6)
+        for field in (self.provider,self.model,self.kind,self.effort):self.add_item(field)
+    async def on_submit(self,interaction):
+        from omh_options import save_route
+        await interaction.response.defer(ephemeral=True,thinking=True)
+        try:
+            result=await asyncio.to_thread(save_route,ENV_FILE.parent,self.category,
+                str(self.provider).strip(),str(self.model).strip(),str(self.effort).strip(),str(self.kind).strip())
+            message=result['message']
+        except Exception as exc:message=f'설정을 저장하지 못했습니다 ({type(exc).__name__}).'
+        await interaction.followup.send(message[:1800],ephemeral=True)
+
+class OmhCategorySelect(discord.ui.Select):
+    def __init__(self):
+        from omh_options import LABELS
+        super().__init__(placeholder='모델을 지정할 작업 선택',custom_id='kit:omh:category',
+            options=[discord.SelectOption(label=label,value=category) for category,label in LABELS.items()])
+    async def callback(self,interaction):
+        await interaction.response.send_modal(OmhRouteModal(self.values[0]))
+
+class OmhDisableButton(discord.ui.Button):
+    def __init__(self):super().__init__(label='추가 기능 끄기',custom_id='kit:omh:disable')
+    async def callback(self,interaction):
+        from omh_enhancements import disable_enhanced_omh
+        await interaction.response.defer(ephemeral=True,thinking=True)
+        try:result=await asyncio.to_thread(disable_enhanced_omh,ENV_FILE.parent)
+        except Exception as exc:result={'message':f'해제하지 못했습니다 ({type(exc).__name__}). 기존 설정을 확인해 주세요.'}
+        await interaction.followup.send(result['message'][:1800],ephemeral=True)
+
+class OmhOptionsView(OwnedView):
+    def __init__(self,owner_id,home):
+        super().__init__(owner_id,timeout=900)
+        self.add_item(OmhCategorySelect())
+        self.add_item(ActionButton('omh-basic','기본 팩 설치',1,home))
+        self.add_item(OmhDisableButton())

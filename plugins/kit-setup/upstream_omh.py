@@ -65,6 +65,104 @@ def _run(argv, env):
     return result.stdout
 
 
+# Bot-profile homes are independent HERMES_HOME trees the student owns. Upstream
+# setup registers itself into every one of them, so their exact pre-install bytes
+# are snapshotted (large files keep a digest) and restored afterwards: OMH lands
+# in the primary home only, and no profile config, .env or skill is rewritten.
+PROFILE_FILE_LIMIT = 8 * 1024 * 1024
+PROFILE_SNAPSHOT_LIMIT = 128 * 1024 * 1024
+
+
+def _snapshot_profiles(data):
+    root = data / 'profiles'
+    state = {'existed': root.exists(), 'files': {}, 'digests': {}, 'links': {}, 'dirs': set()}
+    if not state['existed']:
+        return state
+    total = 0
+    for current, dirnames, filenames in os.walk(root, followlinks=False):
+        base = Path(current)
+        kept = []
+        for name in sorted(dirnames):
+            path = base / name
+            relative = str(path.relative_to(data))
+            if path.is_symlink():
+                state['links'][relative] = os.readlink(path)
+            else:
+                state['dirs'].add(relative)
+                kept.append(name)
+        dirnames[:] = kept
+        for name in sorted(filenames):
+            path = base / name
+            relative = str(path.relative_to(data))
+            if path.is_symlink():
+                state['links'][relative] = os.readlink(path)
+                continue
+            size = path.stat().st_size
+            if size <= PROFILE_FILE_LIMIT and total + size <= PROFILE_SNAPSHOT_LIMIT:
+                state['files'][relative] = path.read_bytes()
+                total += size
+            else:
+                with path.open('rb') as handle:
+                    state['digests'][relative] = hashlib.sha256(handle.read()).hexdigest()
+    return state
+
+
+def _remove(path):
+    if path.is_symlink() or path.is_file():
+        path.unlink(missing_ok=True)
+    elif path.is_dir():
+        shutil.rmtree(path)
+
+
+def _restore_profiles(data, state):
+    """Delete every profile path upstream created and rewrite the changed bytes."""
+    root = data / 'profiles'
+    recorded = set(state['files']) | set(state['digests']) | set(state['links']) | state['dirs']
+    if root.is_dir() and not root.is_symlink():
+        for current, dirnames, filenames in os.walk(root, topdown=False, followlinks=False):
+            base = Path(current)
+            for name in filenames:
+                path = base / name
+                if str(path.relative_to(data)) not in recorded:
+                    path.unlink(missing_ok=True)
+            for name in dirnames:
+                path = base / name
+                if str(path.relative_to(data)) not in recorded:
+                    _remove(path)
+            relative = str(base.relative_to(data))
+            if base != root and relative not in state['dirs']:
+                _remove(base)
+    if not state['existed']:
+        if root.is_dir() and not root.is_symlink() and not any(root.iterdir()):
+            root.rmdir()
+        return
+    root.mkdir(parents=True, exist_ok=True)
+    for relative in sorted(state['dirs']):
+        (data / relative).mkdir(parents=True, exist_ok=True)
+    for relative, blob in state['files'].items():
+        path = data / relative
+        if path.is_file() and not path.is_symlink() and path.read_bytes() == blob:
+            continue
+        if path.exists() or path.is_symlink():
+            _remove(path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(blob)
+    for relative, target in state['links'].items():
+        path = data / relative
+        if path.is_symlink() and os.readlink(path) == target:
+            continue
+        if path.exists() or path.is_symlink():
+            _remove(path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.symlink_to(target)
+    for relative, digest in state['digests'].items():
+        path = data / relative
+        # Over the byte cap: never rewritten in practice, but a silent loss here
+        # would be unrecoverable, so refuse instead of guessing.
+        if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != digest:
+            raise ValueError('profile file changed during install')
+
+
 def install_upstream_omh(data_dir, *, routing, host_version):
     """Install upstream core + explicit same-model student chain, without personal defaults.
 
@@ -99,7 +197,16 @@ def install_upstream_omh(data_dir, *, routing, host_version):
         before = config.read_bytes()
         tools_dir = data / '.kit-tools'; tools_dir.mkdir(exist_ok=True)
         work = Path(tempfile.mkdtemp(prefix='omh-2.0.5-', dir=tools_dir))
-        env = dict(os.environ, HOME=str(data), HERMES_HOME=str(data), OMH_HOME=str(data / '.omh'))
+        try:
+            snapshot = _snapshot_profiles(data)
+        except Exception as exc:
+            return {'id':'omh','status':'failed','message':f'프로필 보존 준비 실패 ({type(exc).__name__})'}
+        # Upstream setup syncs its registration into every bot-profile home under
+        # profiles/. Those homes belong to the student, so they are snapshotted and
+        # restored byte-for-byte; caches are redirected so HOME stays clean too.
+        env = dict(os.environ, HOME=str(data), HERMES_HOME=str(data), OMH_HOME=str(data / '.omh'),
+                   PIP_CACHE_DIR=str(work / 'pip-cache'), XDG_CACHE_HOME=str(work / 'cache'))
+        result = {'id':'omh','status':'failed','message':'OMH 설치 실패. 기존 설정을 복원했습니다.'}
         try:
             with urllib.request.urlopen(OMH_URL, timeout=60) as response:
                 blob = response.read(64 * 1024 * 1024 + 1)
@@ -128,7 +235,6 @@ def install_upstream_omh(data_dir, *, routing, host_version):
             result = {'id':'omh','status':'installed','message':'OMH 기본 팩 설치 완료. 재시작 후 실제 도구 실행 검증이 필요합니다.'}
             state.setdefault('last_results', {})['omh-upstream'] = result
             _save_state(data,state)
-            return result
         except Exception as exc:
             # Restore activation config; keep failed artifacts in a recovery directory.
             if launcher.is_symlink() and str(launcher.readlink()).startswith(str(work)):
@@ -137,4 +243,13 @@ def install_upstream_omh(data_dir, *, routing, host_version):
             for name, label in (('.omh','omh-state'), ('plugins/omh','omh-plugin')):
                 path = data / name
                 if path.exists(): shutil.move(str(path), str(work / ('failed-' + label)))
-            return {'id':'omh','status':'failed','message':f'OMH 설치 실패 ({type(exc).__name__}). 기존 설정을 복원했습니다.'}
+            result = {'id':'omh','status':'failed','message':f'OMH 설치 실패 ({type(exc).__name__}). 기존 설정을 복원했습니다.'}
+        finally:
+            # Every student profile home must come back exactly as it was, whether
+            # the install succeeded, failed, or only partly wrote.
+            try:
+                _restore_profiles(data, snapshot)
+            except Exception as exc:
+                result = {'id':'omh','status':'failed',
+                          'message':f'프로필 복원 실패 ({type(exc).__name__}). 관리자에게 문의해 주세요.'}
+        return result

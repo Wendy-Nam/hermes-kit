@@ -192,4 +192,42 @@ class UpstreamOmh(unittest.TestCase):
             self.assertFalse((data / 'plugins/omh').exists())
             self.assertTrue(list((data / '.kit-tools').glob('*/failed-omh-plugin')))
 
+    def test_bot_profile_homes_survive_setup_and_rollback(self):
+        import upstream_omh as u
+        for fails in (False, True):
+            with self.subTest(setup_fails=fails), tempfile.TemporaryDirectory() as d:
+                data = Path(d)
+                (data / 'config.yaml').write_text('model: original\n')
+                profile = data / 'profiles/work'
+                skill = profile / 'skills/own/SKILL.md'
+                skill.parent.mkdir(parents=True)
+                (profile / 'config.yaml').write_bytes(b'model: work\n')
+                (profile / '.env').write_bytes(b'WORK=synthetic\n')
+                skill.write_bytes(b'student skill\n')
+                def run(argv, env):
+                    if 'setup' not in argv:
+                        return ''
+                    # Upstream `_sync_hermes_profiles` behaviour: it rewrites each
+                    # profile config and copies its bundle, skins and widget in.
+                    (profile / 'config.yaml').write_bytes(b'model: work\nplugins: [omh]\n')
+                    skill.write_bytes(b'upstream edit\n')
+                    for name in ('plugins/omh/__init__.py', 'skins/omh.yaml', 'tui-widgets/omh.mjs'):
+                        path = profile / name
+                        path.parent.mkdir(parents=True, exist_ok=True)
+                        path.write_bytes(b'upstream\n')
+                    (data / '.omh').mkdir(exist_ok=True)
+                    (data / 'plugins/omh').mkdir(parents=True, exist_ok=True)
+                    if fails:
+                        raise RuntimeError('simulated setup failure')
+                    return json.dumps({'ok': True, 'plugin_distribution': {'import_smoke': True}})
+                with patch.object(u.urllib.request,'urlopen',return_value=io.BytesIO(b'source')), \
+                     patch.object(u,'_source',side_effect=lambda b,p:p), patch.object(u,'_run',side_effect=run):
+                    result = u.install_upstream_omh(data, routing={'model':'x','provider':'openai'}, host_version='0.21.2')
+                self.assertEqual(result['status'], 'failed' if fails else 'installed')
+                self.assertEqual((profile / 'config.yaml').read_bytes(), b'model: work\n')
+                self.assertEqual((profile / '.env').read_bytes(), b'WORK=synthetic\n')
+                self.assertEqual(skill.read_bytes(), b'student skill\n')
+                for name in ('plugins/omh', 'skins', 'tui-widgets'):
+                    self.assertFalse((profile / name).exists(), name)
+
 if __name__ == '__main__': unittest.main()
