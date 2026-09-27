@@ -25,6 +25,8 @@ jobs:
         run: docker run --rm --network none -v "$PWD/advanced/omniroute-rtk-envelope/runtime-test.cjs:/tmp/runtime-test.cjs:ro" --entrypoint node omniroute-adapter:ci /tmp/runtime-test.cjs
       - name: actual context reconciliation preserves overrides and refreshes discovery
         run: docker run --rm --network none -v "$PWD/advanced/omniroute-rtk-envelope/reconcile-runtime-test.cjs:/tmp/reconcile-test.cjs:ro" --entrypoint node omniroute-adapter:ci /tmp/reconcile-test.cjs
+      - name: compression worker loads in its own thread (declared deps present)
+        run: docker run --rm --network none -v "$PWD/advanced/omniroute-rtk-envelope/compression-worker-test.cjs:/tmp/compression-worker-test.cjs:ro" --entrypoint node omniroute-adapter:ci /tmp/compression-worker-test.cjs
       - name: adapter contains only public code
         run: |
           test "$(docker inspect omniroute-adapter:ci --format '{{.Config.User}}')" = node
@@ -36,6 +38,6 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           printf '%s' "$GH_TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
-          image=ghcr.io/wendy-nam/hermes-kit:omniroute-rtk-json-2
+          image=ghcr.io/wendy-nam/hermes-kit:omniroute-rtk-json-3
           docker tag omniroute-adapter:ci "$image"
           docker push "$image"

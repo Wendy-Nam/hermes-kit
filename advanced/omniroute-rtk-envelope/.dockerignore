@@ -4,3 +4,5 @@
 !patch.cjs
 
 !reconcile-patch.cjs
+!worker-deps/package.json
+!worker-deps/package-lock.json
