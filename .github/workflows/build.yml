@@ -5,8 +5,13 @@ on:
     tags: ["v*"]
   pull_request:
   workflow_dispatch:
+    inputs:
+      release:
+        description: "Publish this exact version (e.g. 0.21.2-k7) after every check passes; main only. Leave empty to only verify."
+        required: false
+        default: ""
 permissions:
-  contents: read
+  contents: write   # the dispatched release creates its v* tag after publishing
   packages: write
 jobs:
   image:
@@ -54,11 +59,24 @@ jobs:
         run: sh scripts/secret-scan.sh hermes-kit:ci
       - name: first-boot seed is correct and idempotent
         run: sh scripts/boot-test.sh hermes-kit:ci
-      - name: publish to GHCR (tags only, after every check passed)
-        if: startsWith(github.ref, 'refs/tags/v')
+      - name: publish to GHCR (v* tag, or a dispatched release on main; after every check passed)
+        if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.release != '')
+        env:
+          RELEASE: ${{ inputs.release }}
         run: |
           set -a; . ./versions.env; set +a
+          if [ -n "$RELEASE" ] && [ "$RELEASE" != "$HERMES_VERSION-k$KIT_VERSION" ]; then
+            echo "release input $RELEASE does not match versions.env $HERMES_VERSION-k$KIT_VERSION"; exit 1
+          fi
           owner=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
           img="ghcr.io/$owner/hermes-kit"
           echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
           for t in "$HERMES_VERSION-k$KIT_VERSION" latest; do docker tag hermes-kit:ci "$img:$t"; docker push "$img:$t"; done
+      - name: record the dispatched release as its v* tag
+        if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.release != ''
+        env:
+          RELEASE: ${{ inputs.release }}
+        run: |
+          # A tag pushed with GITHUB_TOKEN does not start another workflow run, so this never publishes twice.
+          git tag "v$RELEASE" "$GITHUB_SHA"
+          git push origin "v$RELEASE"
