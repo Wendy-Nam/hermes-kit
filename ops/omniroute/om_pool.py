@@ -29,19 +29,18 @@ PFX = {"agnes": "agnes", "aion": "aion", "anyapi": "anyapi", "bai": "bai", "groq
        "xkiro": "xkiro", "github": "github-models", "sail": "sail", "zhipu": "zhipu"}
 # auggie/devin-cli need their CLI inside the container: left out. zai-web needs Playwright Chromium -> the `-web` image
 CLINE_FREE = ["cline/nvidia/nemotron-3-ultra-550b-a55b:free", "cline/poolside/laguna-m.1:free", "cline/google/gemma-4-31b-it:free"]
-NOUS_FREE = ["nous-research/upstage/solar-pro4:free", "nous-research/meituan/longcat-2.0:free", "nous-research/stepfun/step-3.7-flash:free",
-             "nous-research/poolside/laguna-s-2.1:free", "nous-research/inclusionai/ling-3.0-flash-fin:free"]   # key must be valid (401 today)
-SUB_MAIN = NOUS_FREE[:1] + ["claude/claude-sonnet-5", "github/claude-sonnet-4.6", "github/gpt-5-mini", "antigravity/claude-sonnet-4-6",
-            "agy/claude-sonnet-4-6", "deepseek-web/deepseek-v4-pro", "zai-web/glm-5.3", "github/grok-4.6", "github/claude-haiku-4.5"] + CLINE_FREE + NOUS_FREE[1:]
-SUB_SMART = ["claude/claude-sonnet-5", "github/claude-sonnet-4.6", "antigravity/claude-sonnet-4-6", "agy/claude-sonnet-4-6",
+# Nous stays a direct Hermes provider: free tier = OAuth only, no API key, and OmniRoute nous-research is key-only
+SUB_MAIN = ["codex/gpt-6-luna", "claude/claude-sonnet-5", "github/claude-sonnet-4.6", "github/gpt-5-mini", "antigravity/claude-sonnet-4-6",
+            "agy/claude-sonnet-4-6", "deepseek-web/deepseek-v4-pro", "zai-web/glm-5.3", "github/grok-4.6", "github/claude-haiku-4.5"] + CLINE_FREE
+SUB_SMART = ["codex/gpt-6-sol", "codex/gpt-5.6-terra", "claude/claude-sonnet-5", "codex/gpt-6-luna", "github/claude-sonnet-4.6", "antigravity/claude-sonnet-4-6", "agy/claude-sonnet-4-6",
              "deepseek-web/deepseek-v4-pro", "zai-web/glm-5.3", "github/gpt-5-mini", "github/grok-4.6", "github/gpt-5.4-mini",
-             "antigravity/gpt-oss-120b-medium"] + CLINE_FREE + NOUS_FREE
-SUB_BRAIN = ["claude/claude-opus-5-5", "claude/claude-opus-5", "antigravity/claude-opus-4-6-thinking", "agy/claude-opus-4-6-thinking",
+             "antigravity/gpt-oss-120b-medium"] + CLINE_FREE
+SUB_BRAIN = ["codex/gpt-6-astra", "codex/gpt-6-sol", "claude/claude-opus-5-5", "claude/claude-opus-5", "antigravity/claude-opus-4-6-thinking", "agy/claude-opus-4-6-thinking",
              "github/claude-opus-4.6", "deepseek-web/deepseek-v4-pro-think"]
 # public profile answers other people: no paid-subscription quota, but lmarena/web sessions are fine there
-SUB_PUBLIC = NOUS_FREE + CLINE_FREE[:1] + ["deepseek-web/deepseek-v4-flash", "zai-web/glm-5.3-flash", "lmarena/claude-sonnet-5", "lmarena/gpt-5.5-instant", "lmarena/qwen3.7-max", "lmarena/kimi-k2.6", "lmarena/glm-5.1",
+SUB_PUBLIC = CLINE_FREE[:1] + ["deepseek-web/deepseek-v4-flash", "zai-web/glm-5.3-flash", "lmarena/claude-sonnet-5", "lmarena/gpt-5.5-instant", "lmarena/qwen3.7-max", "lmarena/kimi-k2.6", "lmarena/glm-5.1",
               "lmarena/deepseek-v4-pro-thinking", "lmarena/mistral-large-3", "lmarena/minimax-m3"]
-SUB_VISION = ["claude/claude-sonnet-5", "github/gpt-5-mini", "agy/gemini-3.8-flash-medium", "antigravity/claude-sonnet-4-6"]
+SUB_VISION = ["codex/gpt-6-luna", "claude/claude-sonnet-5", "github/gpt-5-mini", "agy/gemini-3.8-flash-medium", "antigravity/claude-sonnet-4-6"]
 # free routes that log prompts for training / publish arena chats: public profile only
 TRAINS = {"kilo-gateway", "kilo-anon", "lmarena", "aihorde"}   # aihorde: volunteer workers see the prompt
 
