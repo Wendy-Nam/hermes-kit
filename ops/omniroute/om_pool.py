@@ -28,7 +28,14 @@ PFX = {"agnes": "agnes", "aion": "aion", "anyapi": "anyapi", "bai": "bai", "groq
        "experiential": "experiential", "lucidity": "lucidity", "moondream": "moondream", "septor": "septor", "waterfall": "waterfall",
        "xkiro": "xkiro", "github": "github-models", "sail": "sail", "zhipu": "zhipu"}
 # auggie/devin-cli need their CLI inside the container: left out. zai-web needs Playwright Chromium -> the `-web` image
-CLINE_FREE = ["cline/nvidia/nemotron-3-ultra-550b-a55b:free", "cline/poolside/laguna-m.1:free", "cline/google/gemma-4-31b-it:free"]
+# Cline: free only (owner, 2026-09-27). A paid id answers 402 on this account and OmniRoute then locks the WHOLE Cline
+# connection for minutes, taking the free ones down too -> never list a paid Cline id. Ids from api.cline.bot/api/v1/models;
+# deepseek v4/v4.1 flash carry no ":free" suffix but answer at a negative balance, i.e. free.
+CLINE_FREE = ["cline/deepseek/deepseek-v4.1-flash", "cline/deepseek/deepseek-v4-flash", "cline/nvidia/nemotron-3-ultra-550b-a55b:free",
+              "cline/nvidia/nemotron-3-super-120b-a12b:free", "cline/qwen/qwen3.8-27b:free", "cline/google/gemma-4-31b-it:free",
+              "cline/inclusionai/ling-3.0-flash-fin:free", "cline/poolside/laguna-s-2.1:free", "cline/thinkingmachines/inkling:free",
+              "cline/nvidia/nemotron-3.5-lightning:free"]
+KIMI_FREE = ["unorouter/kimi-k3:free"]
 # Nous stays a direct Hermes provider: free tier = OAuth only, no API key, and OmniRoute nous-research is key-only
 # Antigravity: agy = Antigravity CLI Pro account (hanzoom2000, first), antigravity = second account (sharedwendy999).
 # Its Gemini is allowed in tool tiers: OmniRoute's antigravity signature cache round-trips the Gemini 3 thought
@@ -38,13 +45,14 @@ AG_SMART = ["agy/gemini-3.1-pro-high", "agy/claude-sonnet-4-6", "agy/gemini-3.8-
             "antigravity/gemini-3.1-pro-high", "antigravity/claude-sonnet-4-6", "antigravity/gemini-3.8-flash-tiered"]
 AG_BRAIN = ["agy/gemini-3.1-pro-high", "agy/claude-opus-4-6-thinking", "antigravity/gemini-3.1-pro-high", "antigravity/claude-opus-4-6-thinking"]
 # Copilot (every model "not supported for this integration") and zai-web (browser transport 502) dropped 2026-09-27
-SUB_MAIN = ["codex/gpt-6-luna", "claude/claude-sonnet-5"] + AG_MAIN + ["deepseek-web/deepseek-v4-pro"] + CLINE_FREE
+SUB_MAIN = ["codex/gpt-6-luna", "claude/claude-sonnet-5"] + AG_MAIN + ["deepseek-web/deepseek-v4-pro"] + KIMI_FREE + CLINE_FREE
 SUB_SMART = (["codex/gpt-6-sol", "codex/gpt-5.6-terra", "claude/claude-sonnet-5"] + AG_SMART
-             + ["codex/gpt-6-luna", "deepseek-web/deepseek-v4-pro", "agy/gpt-oss-120b-medium", "antigravity/gpt-oss-120b-medium"] + CLINE_FREE)
+             + KIMI_FREE + ["codex/gpt-6-luna", "deepseek-web/deepseek-v4-pro"] + CLINE_FREE
+             + ["agy/gpt-oss-120b-medium", "antigravity/gpt-oss-120b-medium"])
 SUB_BRAIN = (["codex/gpt-6-astra", "codex/gpt-6-sol"] + AG_BRAIN[:2] + ["claude/claude-opus-5-5", "claude/claude-opus-5"]
-             + AG_BRAIN[2:] + ["deepseek-web/deepseek-v4-pro-think"])
+             + AG_BRAIN[2:] + KIMI_FREE + ["deepseek-web/deepseek-v4-pro-think"])
 # public profile answers other people: no paid-subscription quota, but lmarena/web sessions are fine there
-SUB_PUBLIC = CLINE_FREE[:1] + ["deepseek-web/deepseek-v4-flash", "lmarena/claude-sonnet-5", "lmarena/gpt-5.5-instant", "lmarena/qwen3.7-max", "lmarena/kimi-k2.6", "lmarena/glm-5.1",
+SUB_PUBLIC = KIMI_FREE + CLINE_FREE + ["deepseek-web/deepseek-v4-flash", "lmarena/claude-sonnet-5", "lmarena/gpt-5.5-instant", "lmarena/qwen3.7-max", "lmarena/kimi-k2.6", "lmarena/glm-5.1",
               "lmarena/deepseek-v4-pro-thinking", "lmarena/mistral-large-3", "lmarena/minimax-m3"]
 SUB_VISION = ["codex/gpt-6-luna", "agy/gemini-3.8-flash-medium", "claude/claude-sonnet-5", "antigravity/gemini-3.8-flash-tiered",
               "antigravity/claude-sonnet-4-6"]
@@ -56,9 +64,13 @@ C = {
     "solar-pro4": ("tools", "ir", 128000, ["upstage/solar-pro4"], SUB_MAIN, None, [RES_CF], 40, {"context_length": 131072}),
     # general chat (default profile): flat-rate Codex first (99% cache), GOAT deepseek when Codex limits hit, then the old
     # main. The RP channel stays on solar-pro4 via discord.channel_overrides (frontier models refuse there, a refusal is a 200)
-    "hermes-chat": ("tools", "ir", 128000, ["codex/gpt-6-luna", "command-code/deepseek/deepseek-v4.1-flash", "upstage/solar-pro4"],
+    "hermes-chat": ("tools", "ir", 128000, ["codex/gpt-6-luna", "cline/deepseek/deepseek-v4.1-flash", "command-code/deepseek/deepseek-v4.1-flash", "upstage/solar-pro4"],
                     ["claude/claude-sonnet-5"] + AG_MAIN + ["deepseek-web/deepseek-v4-pro"] + CLINE_FREE, None, [RES_CF], 30,
                     {"context_length": 131072}),
+    # free-only lane for omh delegation (owner: free models used actively, 2026-09-27); paid combos follow in the omh chain
+    "hermes-free": ("tools", "ir", 64000, ["cline/deepseek/deepseek-v4.1-flash", "unorouter/kimi-k3:free", "experiential/gpt-5.6-luna",
+                                           "cline/nvidia/nemotron-3-ultra-550b-a55b:free", "cline/nvidia/nemotron-3-super-120b-a12b:free",
+                                           "nvidia/nvidia/nemotron-3-ultra-550b-a55b"], CLINE_FREE, None, [RES_XK], 40, {}),
     "hermes-fast": ("tools", "sr", 32000, [MIN8, MIN14, "groq/openai/gpt-oss-120b", "cerebras/gpt-oss-120b"], [], None, [RES_CF], 30, {}),
     "hermes-private": ("tools", "ir", 32000, [MI + "codestral-latest", MIN8, MIN14], [], ["mistral", "cloudflare-ai"], [RES_CF], 30,
                        {"allowedProviders": ["mistral", "cloudflare-ai"]}),
@@ -71,7 +83,11 @@ C = {
                                              "nvidia/nvidia/nemotron-3-ultra-550b-a55b", MI + "codestral-latest"], SUB_SMART, None, [RES_XK], 40, {}),
     "hermes-coding-worker": ("tools", "ir", 64000, [CF_ + "deepseek-ai/deepseek-r1-distill-qwen-32b", CF_ + "qwen/qwen3-30b-a3b-fp8",
                                                     MIN14, "openrouter/google/gemma-4-31b-it:free", MI + "codestral-latest"], [], None, [RES_CF], 40, {}),
-    "hermes-public": ("tools", "ir", 32000, [MI + "codestral-latest", "cohere/command-a-03-2025"], SUB_PUBLIC, None, [RES_CF], 40, {}),
+    # free models only (the public profile exists to burn free quota). codestral first made the summary channel ask back,
+    # hunt for the skill in the tool list and give up (2026-09-27): chat-capable free models lead
+    "hermes-public": ("tools", "ir", 32000, ["experiential/gpt-5.6-luna", "nvidia/nvidia/nemotron-3-ultra-550b-a55b",
+                                             "cline/nvidia/nemotron-3-ultra-550b-a55b:free", MI + "codestral-latest",
+                                             "cohere/command-a-03-2025"], SUB_PUBLIC, None, [RES_CF], 40, {}),
     "hermes-commandcode": ("tools", "ir", 64000, ["command-code/deepseek/deepseek-v4.1-flash", "command-code/moonshotai/Kimi-K2.7-Code",
                                                   "command-code/Qwen/Qwen3.8-Flash", "command-code/deepseek/deepseek-v4-flash"], SUB_SMART, None, [], 40, {}),
     "hermes-ultrabrain": ("tools", "ir", 64000, [], SUB_BRAIN + ["command-code/deepseek/deepseek-v4.1-flash", "command-code/moonshotai/Kimi-K2.7-Code"], None, [RES_XK], 40, {}),
@@ -79,7 +95,7 @@ C = {
     "hermes-visual-engineering": ("tools", "ir", 64000, ["command-code/moonshotai/Kimi-K2.7-Code", "command-code/deepseek/deepseek-v4.1-flash"],
                                   SUB_SMART, None, [RES_CF], 40, {}),
 }
-UNLISTED_OK = {"upstage/solar-pro4"}   # registered by hand: Upstage /models omits it
+UNLISTED_OK = {"upstage/solar-pro4"} | set(CLINE_FREE)   # Upstage /models omits solar-pro4; OmniRoute's Cline list is curated (13) but ids pass through
 
 
 def gemini(m):
