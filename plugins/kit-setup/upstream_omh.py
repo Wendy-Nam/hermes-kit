@@ -26,21 +26,20 @@ OMH_URL = 'https://codeload.github.com/rlaope/oh-my-hermes/tar.gz/' + OMH_COMMIT
 CATEGORIES = ('quick', 'deep', 'architect', 'artistry', 'ultrabrain', 'writing',
               'visual-engineering', 'capable', 'simple-work', 'deep-work',
               'unspecified-low', 'unspecified-high')
-TOKEN = re.compile(r'^[A-Za-z0-9][A-Za-z0-9._/:-]{0,127}$')
+# OMH writes these values into delegation.*; its own grammar has no ':' or '@'.
+TOKEN = re.compile(r'^[A-Za-z0-9][A-Za-z0-9._/-]{0,127}$')
 
 
 def validate_routing(routing):
+    """The student's aux provider/model. Effort is chosen per task type, not here."""
     if not isinstance(routing, dict) or set(routing) - {'model', 'provider', 'reasoning_effort'}:
         raise ValueError('explicit student routing is required')
     for key in ('model', 'provider'):
         if not isinstance(routing.get(key), str) or not TOKEN.fullmatch(routing[key]):
             raise ValueError('invalid explicit routing')
-    if routing['provider'] in ('auto', 'default'):
+    if routing['provider'] in ('auto', 'default', 'custom'):
         raise ValueError('provider must be explicit')
-    effort = routing.get('reasoning_effort', 'medium')
-    if effort not in ('low', 'medium', 'high', 'xhigh', 'max'):
-        raise ValueError('unsupported effort')
-    return dict(routing, reasoning_effort=effort)
+    return {'model': routing['model'], 'provider': routing['provider']}
 
 
 def _source(blob, destination):
@@ -163,6 +162,23 @@ def _restore_profiles(data, state):
             raise ValueError('profile file changed during install')
 
 
+def _restored_routes(data):
+    """Task chains from a backup restore: `.omh` holding only routing documents.
+
+    Returns the saved per-task chains ({} when none), or None when `.omh` is absent
+    or holds anything else, which is a real OMH home and is never replaced.
+    """
+    home = data / '.omh'
+    if not home.is_dir() or home.is_symlink() or {p.name for p in home.iterdir()} != {'routing'}:
+        return None
+    try:
+        from omh_enhancements import validate_categories
+        settings = json.loads((home / 'routing/kit-enhanced.json').read_text())
+        return validate_categories(settings.get('categories') or {})
+    except (OSError, ValueError, TypeError, AttributeError):
+        return {}
+
+
 def install_upstream_omh(data_dir, *, routing, host_version):
     """Install upstream core + explicit same-model student chain, without personal defaults.
 
@@ -182,7 +198,8 @@ def install_upstream_omh(data_dir, *, routing, host_version):
     # a student changing a model or service in another setup interaction.
     with _locked(data), config_locked(data):
         state = _read_state(data)
-        if (data / 'plugins/omh').exists() or (data / '.omh').exists():
+        restored = _restored_routes(data)
+        if (data / 'plugins/omh').exists() or ((data / '.omh').exists() and restored is None):
             return {'id':'omh','status':'preserved','message':'기존 OMH를 보존했습니다. 새로 설치하거나 덮어쓰지 않았습니다.'}
         config = data / 'config.yaml'
         if not config.is_file() or config.is_symlink():
@@ -197,6 +214,9 @@ def install_upstream_omh(data_dir, *, routing, host_version):
         before = config.read_bytes()
         tools_dir = data / '.kit-tools'; tools_dir.mkdir(exist_ok=True)
         work = Path(tempfile.mkdtemp(prefix='omh-2.0.5-', dir=tools_dir))
+        if restored is not None:
+            # Only routing documents from a backup: keep them aside, reapply the task chains.
+            shutil.move(str(data / '.omh'), str(work / 'restored-omh'))
         try:
             snapshot = _snapshot_profiles(data)
         except Exception as exc:
@@ -221,29 +241,43 @@ def install_upstream_omh(data_dir, *, routing, host_version):
                 '--memory-mode', 'off', '--default-executor', 'hermes', '--json'], env))
             if not payload.get('ok') or not payload.get('plugin_distribution', {}).get('import_smoke'):
                 raise RuntimeError('upstream setup verification failed')
+            # Every task type routes to the student's aux model at OMH's recommended
+            # effort for that type; per-task chains are added later in /setup.
+            from omh_enhancements import compose, enable_locked
             routing_dir = data / '.omh/routing'; routing_dir.mkdir(exist_ok=True)
-            alias = 'student-selected'
-            (routing_dir / 'model-providers.json').write_text(json.dumps({'schema_version':'model_provider_routes/v1',
-                'models':{alias:{'model':route['model'], 'provider':route['provider']}}},indent=2)+'\n')
-            (routing_dir / 'model-chains.json').write_text(json.dumps({'schema_version':'mixture_chain_overrides/v1',
-                'categories':{c:[{'model':alias,'reasoning_effort':route['reasoning_effort']}] for c in CATEGORIES}},indent=2)+'\n')
+            providers, chains = compose(route, {})
+            (routing_dir / 'model-providers.json').write_text(json.dumps(providers, indent=2)+'\n')
+            (routing_dir / 'model-chains.json').write_text(json.dumps(chains, indent=2)+'\n')
             launcher.parent.mkdir(parents=True, exist_ok=True)
             launcher.symlink_to(cli)
             receipt = {'version':OMH_VERSION,'source_commit':OMH_COMMIT,'archive_sha256':OMH_SHA256,
                        'cli':cli,'routing':route,'mode':'upstream-core','live_dispatch_verified':False}
             state['components']['omh-upstream'] = receipt
-            result = {'id':'omh','status':'installed','message':'OMH 기본 팩 설치 완료. 재시작 후 실제 도구 실행 검증이 필요합니다.'}
+            message = 'OMH 기본 팩 설치 완료. 작업 종류별 권장 추론 강도와 모델 보정이 켜졌습니다.'
+            try:
+                try:
+                    enable_locked(data, updates=restored or {})
+                except ValueError:
+                    enable_locked(data)  # a restored chain no longer validates: start clean
+            except Exception as exc:
+                # The upstream pack works without calibration; say so instead of failing it.
+                message = f'OMH 기본 팩 설치 완료. 모델 보정은 켜지 못했습니다 ({type(exc).__name__}).'
+            result = {'id':'omh','status':'installed','message':message+' 적용하기(재시작) 후 실제 위임으로 확인해 주세요.'}
             state.setdefault('last_results', {})['omh-upstream'] = result
             _save_state(data,state)
         except Exception as exc:
             # Restore activation config; keep failed artifacts in a recovery directory.
             if launcher.is_symlink() and str(launcher.readlink()).startswith(str(work)):
                 launcher.unlink()
+            # The calibration receipt describes files that are moved aside below.
+            (data / '.kit-tools/omh-enhancements.json').unlink(missing_ok=True)
             restored = work / 'config.restore'; restored.write_bytes(before); os.replace(restored, config)
             for name, label in (('.omh','omh-state'), ('plugins/omh','omh-plugin')):
                 path = data / name
                 if path.exists(): shutil.move(str(path), str(work / ('failed-' + label)))
-            result = {'id':'omh','status':'failed','message':f'OMH 설치 실패 ({type(exc).__name__}). 기존 설정을 복원했습니다.'}
+            if (work / 'restored-omh').is_dir():
+                shutil.move(str(work / 'restored-omh'), str(data / '.omh'))
+            result ={'id':'omh','status':'failed','message':f'OMH 설치 실패 ({type(exc).__name__}). 기존 설정을 복원했습니다.'}
         finally:
             # Every student profile home must come back exactly as it was, whether
             # the install succeeded, failed, or only partly wrote.

@@ -1,4 +1,4 @@
-import sys,tempfile,types,unittest
+import json,sys,tempfile,types,unittest
 from pathlib import Path
 from unittest.mock import patch,Mock
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
@@ -8,26 +8,42 @@ class OmhOptionsTests(unittest.TestCase):
   self.tmp=tempfile.TemporaryDirectory();self.addCleanup(self.tmp.cleanup);self.root=Path(self.tmp.name)
   config_store.write(self.root,{'delegation.provider':'kit-omniroute','delegation.model':'existing','providers.kit-omniroute.api':'http://omniroute:20128/v1'},remember=False)
   (self.root/'plugins/omh').mkdir(parents=True)
+  self.fake=types.ModuleType('omh_enhancements');self.fake.enable_enhanced_omh=Mock(return_value={'status':'enabled','message':'ok'})
+  import omh_enhancements
+  for name in ('DEFAULT_EFFORTS','validate_chain'):setattr(self.fake,name,getattr(omh_enhancements,name))
+  self.modules=patch.dict(sys.modules,{'omh_enhancements':self.fake});self.modules.start();self.addCleanup(self.modules.stop)
  def test_unconnected_provider_never_probed(self):
   with patch.object(model_setup,'probe') as probe:
-   result=omh_options.save_route(self.root,'deep','stranger','model','medium','model')
+   result=omh_options.save_route(self.root,'deep','stranger','model')
   self.assertEqual(result['status'],'failed');probe.assert_not_called()
- def test_failed_probe_does_not_modify_config(self):
-  before=(self.root/'config.yaml').read_bytes()
+ def test_keyed_provider_is_connected(self):
+  (self.root/'.env').write_text('GEMINI_API_KEY=synthetic\n')
+  self.assertIn('gemini',omh_options.available_providers(self.root))
+ def test_failed_probe_saves_nothing(self):
   with patch.object(model_setup,'probe',return_value=(False,'offline')):
-   result=omh_options.save_route(self.root,'deep','kit-omniroute','my-combo','medium','combo')
-  self.assertEqual(result['status'],'failed');self.assertEqual((self.root/'config.yaml').read_bytes(),before)
- def test_combo_identity_passed_to_enhancement_without_guessing_family(self):
-  fake=types.ModuleType('omh_enhancements');fake.enable_enhanced_omh=Mock(return_value={'status':'enabled','message':'ok'})
-  with patch.dict(sys.modules,{'omh_enhancements':fake}),patch.object(model_setup,'probe',return_value=(True,'ok')):
-   omh_options.save_route(self.root,'deep','kit-omniroute','my-combo','medium','combo')
-  routes=fake.enable_enhanced_omh.call_args.kwargs['category_routes'];self.assertEqual(routes['deep'][0]['kind'],'combo');self.assertEqual(routes['deep'][0]['model'],'my-combo')
- def test_invalid_route_kind_rejected(self):
+   result=omh_options.save_route(self.root,'deep','kit-omniroute','my-combo, other','high')
+  self.assertEqual(result['status'],'failed');self.fake.enable_enhanced_omh.assert_not_called()
+ def test_chain_probed_and_blank_effort_uses_recommendation(self):
+  with patch.object(model_setup,'probe',return_value=(True,'ok')) as probe:
+   omh_options.save_route(self.root,'deep','kit-omniroute','my-combo, kit-omniroute=second','')
+  routes=self.fake.enable_enhanced_omh.call_args.kwargs['category_routes']
+  self.assertEqual(routes,{'deep':[{'provider':'kit-omniroute','model':'my-combo','reasoning_effort':'high'},
+                                    {'provider':'kit-omniroute','model':'second','reasoning_effort':'high'}]})
+  self.assertEqual(probe.call_count,2)
+ def test_quick_recommendation_is_low(self):
+  with patch.object(model_setup,'probe',return_value=(True,'ok')):
+   omh_options.save_route(self.root,'quick','kit-omniroute','my-combo')
+  self.assertEqual(self.fake.enable_enhanced_omh.call_args.kwargs['category_routes']['quick'][0]['reasoning_effort'],'low')
+ def test_invalid_effort_and_models_rejected(self):
   with patch.object(model_setup,'probe') as probe:
-   self.assertEqual(omh_options.save_route(self.root,'deep','kit-omniroute','good','medium','auto')['status'],'failed')
+   for models,effort in (('good','auto'),('a:b',''),(','.join(f'm{i}' for i in range(6)),'')):
+    self.assertEqual(omh_options.save_route(self.root,'deep','kit-omniroute',models,effort)['status'],'failed')
   probe.assert_not_called()
+ def test_reset_removes_only_that_task(self):
+  omh_options.save_route(self.root,'deep','kit-omniroute','-')
+  self.assertEqual(self.fake.enable_enhanced_omh.call_args.kwargs,{'remove':('deep',)})
  def test_requires_installed_base(self):
   (self.root/'plugins/omh').rmdir()
   with patch.object(model_setup,'probe') as probe:
-   self.assertEqual(omh_options.save_route(self.root,'deep','kit-omniroute','good','medium','model')['status'],'failed')
+   self.assertEqual(omh_options.save_route(self.root,'deep','kit-omniroute','good')['status'],'failed')
   probe.assert_not_called()
