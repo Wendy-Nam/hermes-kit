@@ -59,6 +59,9 @@ def boot(data_dir):
     root=Path(data_dir)
     ensure_setup_enabled(root)
     for row in retry_installation(root):print('[kit] '+row['message'])
+    from omh_enhancements import upgrade_enhanced_omh
+    upgraded=upgrade_enhanced_omh(root)
+    if upgraded:print('[kit] OMH 보정 갱신: '+upgraded['status'])
     # Invitation exists before Discord /setup becomes reachable. Token is never printed.
     env=get_env(root/'.env')
     token=env.get('DISCORD_BOT_TOKEN') or os.environ.get('DISCORD_BOT_TOKEN','')

@@ -9,9 +9,11 @@ The kit owns exactly two things:
 - the two routing documents, composed from the student's aux model (every task
   type, OMH's recommended effort per type) plus any per-task chains the student
   saved in /setup;
-- one fail-open addition to the upstream `pre_tool_call` hook that appends OMH's
-  native high-effort calibration for the route upstream prepared to the child
-  context. It never blocks a dispatch and never writes Hermes config.
+- one addition to the upstream `pre_tool_call` hook. A spawn this session did not
+  route with `omh_delegate_route` is sent back once per turn with instructions to
+  route it (the retry dispatches, so a model that cannot route is never stuck);
+  a routed spawn gets OMH's native calibration for that route appended to the
+  child context. Internal errors dispatch unchanged; it never writes Hermes config.
 
 The upstream hook file is kept byte-for-byte in a receipt; disabling restores it and
 rewrites the basic routing documents. Restart the gateway after enable/disable.
@@ -29,7 +31,7 @@ from components import _locked
 from config_store import locked as config_locked
 from upstream_omh import CATEGORIES
 
-VERSION = 2
+VERSION = 3
 # Same grammar OMH accepts for delegation values: anything wider is refused upstream.
 TOKEN = re.compile(r'^[A-Za-z0-9][A-Za-z0-9._/-]{0,127}$')
 EFFORTS = ('low', 'medium', 'high', 'xhigh', 'max')
@@ -54,16 +56,28 @@ CHAIN_SCHEMA = 'mixture_chain_overrides/v1'
 
 # Generated into the installed public plugin; no owner-specific prompts, endpoints,
 # routes, credentials or personal skill data are embedded.
-RUNTIME_SOURCE = r'''"""Kit calibration over upstream OMH routing. Fail-open: never blocks a dispatch."""
+RUNTIME_SOURCE = r'''"""Kit calibration over upstream OMH routing.
+
+A spawn this session did not route with `omh_delegate_route` is sent back once per turn
+so the task type picks its model and effort; the retry, and every internal error,
+dispatches unchanged.
+"""
 import hashlib, json, subprocess, sys, threading
 from copy import deepcopy
 from pathlib import Path
 HOME = Path(__file__).resolve().parents[2]
-SETTINGS = HOME / '.omh/routing/kit-enhanced.json'
+OMH_HOME = HOME / '.omh'
+SETTINGS = OMH_HOME / 'routing/kit-enhanced.json'
 OMNIROUTE_STATE = HOME / '.kit-omniroute.json'
 _CACHE = {}
 _LOCK = threading.Lock()
 _MODULES = []
+_ASKED = set()  # (session, turn) already sent back once; bounded below
+ROUTE_HELP = ("Route this delegation first: pick the task category from the actual goal (for example deep "
+              "for diagnosis, simple-work for bounded routine work), call omh_delegate_route(action=\"set\", "
+              "category=...), then call delegate_task again in this same turn. Work needing different "
+              "categories needs a separate set and delegate_task pair each. This is tool feedback, not a "
+              "request for user approval.")
 # OMH writes its calibration for high effort and above. At medium the same family
 # guidance is borrowed (as on the author's server) without raising the real effort;
 # low stays uncalibrated so quick lanes stay short.
@@ -158,13 +172,36 @@ def guidance_for(route, config):
     parts = [d['guidance'].strip()] + ([FLOOR] if d.get('family') in (None, '', 'unknown') else [])
     return '\n\n'.join(part for part in parts if part)
 
-def guard(tool_name, args, **kwargs):
-    """Append calibration for the route upstream prepared. Any failure dispatches unchanged."""
+def routed_here(route, session_id):
+    """Did OMH write the live delegation keys for this session? Upstream records the
+    writer under its lock and drops the record at turn end, so an unrouted spawn, a
+    route left by another concurrent session, or one from an earlier turn all read no."""
+    from .delegation_route_restore import load_route_restore_record
+    record=load_route_restore_record(OMH_HOME)
+    if not route or not record or record.get('written')!=route: return False
+    writer=record.get('writer_session_id') or ''
+    return not session_id or not writer or writer==session_id
+
+def ask_once(session_id, turn_id):
+    """True the first time this turn: a model that cannot route (tool missing, chain
+    exhausted to the baseline) still dispatches on its retry."""
+    key=(str(session_id or ''),str(turn_id or ''))
+    with _LOCK:
+        if key in _ASKED: return False
+        if len(_ASKED)>=256: _ASKED.clear()
+        _ASKED.add(key)
+        return True
+
+def guard(tool_name, args, session_id='', turn_id='', **kwargs):
+    """Require an OMH route, then append its calibration. Any failure dispatches unchanged."""
     if tool_name!='delegate_task' or not isinstance(args,dict) or (args.get('action') or 'spawn')!='spawn': return None
     try:
         config=settings()
         if not config: return None
-        guidance=guidance_for(current_route(),config).strip()
+        route=current_route()
+        if config.get('require_route') and not routed_here(route,session_id) and ask_once(session_id,turn_id):
+            return {'action':'block','message':ROUTE_HELP}
+        guidance=guidance_for(route,config).strip()
         if not guidance: return None
         changed={}
         if isinstance(args.get('tasks'),list):
@@ -182,7 +219,7 @@ def guard(tool_name, args, **kwargs):
 '''
 
 HOOK_APPEND = '''
-# kit-enhanced-omh/v2: upstream governance first; the kit only appends calibration context.
+# kit-enhanced-omh/v3: upstream governance first; the kit asks for a route, then appends calibration.
 _KIT_BASIC_PRE_TOOL = pre_tool_call
 from .. import kit_enhanced as _kit_enhanced
 def pre_tool_call(**kwargs):
@@ -193,10 +230,12 @@ def pre_tool_call(**kwargs):
         if isinstance(args, dict):
             args = dict(args)
             if original: args.update(original.get('args') or {})
-        directive = _kit_enhanced.guard(kwargs.get('tool_name'), args)
+        directive = _kit_enhanced.guard(kwargs.get('tool_name'), args,
+                                        session_id=kwargs.get('session_id') or '', turn_id=kwargs.get('turn_id') or '')
     except Exception:
         return original
     if not directive: return original
+    if directive.get('action') == 'block': return directive
     return {'action': 'modify', 'args': {**((original or {}).get('args') or {}), **directive['args']}}
 '''
 
@@ -356,7 +395,14 @@ def enable_locked(data, *, updates=None, remove=(), base=False):
     if set(remove) - set(CATEGORIES): raise ValueError('unknown task category')
     receipt = _load_receipt(data)
     if receipt and receipt.get('version') != VERSION:
-        _disable_locked(data, receipt)  # v1 relied on host routing Hermes 0.21 never had
+        # Older hooks are replaced (v1 relied on host routing Hermes 0.21 never had; v2
+        # never asked for a route). The student's saved task chains carry over.
+        try:
+            kept = validate_categories(json.loads(_read(data, SETTINGS)).get('categories') or {})
+        except (TypeError, ValueError, AttributeError):
+            kept = {}
+        updates = {**kept, **updates}
+        _disable_locked(data, receipt)
         receipt = None
     if receipt:
         settings = json.loads(_read(data, SETTINGS))
@@ -381,7 +427,7 @@ def enable_locked(data, *, updates=None, remove=(), base=False):
         # Uncovered task types would fall back to OMH's shipped chains, which name
         # models this student's accounts are not known to serve.
         raise ValueError('aux route required')
-    settings = {'version': VERSION, 'enabled': True, 'python': _python(data),
+    settings = {'version': VERSION, 'enabled': True, 'require_route': True, 'python': _python(data),
                 'base': stored_base, 'categories': dict(sorted(categories.items()))}
     providers, chains = compose(stored_base, categories)
     blobs = {SETTINGS: _encode(settings), ROUTE_FILES[0]: _encode(providers), ROUTE_FILES[1]: _encode(chains),
@@ -391,7 +437,25 @@ def enable_locked(data, *, updates=None, remove=(), base=False):
     after = {**(receipt or {}).get('after', {}), **{k: _sha(v) for k, v in blobs.items()}}
     new_receipt = {'version': VERSION, 'before': {HOOK_FILE: hook_before}, 'after': after}
     _apply(data, {**blobs, RECEIPT: _encode(new_receipt)}, {**rollback, RECEIPT: _read(data, RECEIPT)})
+    ensure_soul_rule(data)
     return settings
+
+
+# The seed SOUL of k7+ carries this rule; students seeded earlier keep their SOUL, so it
+# is appended once, marked, only when their SOUL never mentions the route tool.
+SOUL_RULE = ('\n\n<!-- kit: omh-route -->\n## OMH 위임\n'
+             '- 하위 작업으로 넘기기 전에 `omh_delegate_route`로 작업 종류를 정하고, 같은 턴에 위임한다. '
+             '작업 종류가 다르면 종류마다 정하고 넘긴다.\n')
+
+
+def ensure_soul_rule(data):
+    """Best effort: a missing or linked SOUL is left alone; the hook asks for routes anyway."""
+    try:
+        soul = _safe(data, 'SOUL.md')
+        if soul.is_file() and 'omh_delegate_route' not in soul.read_text(encoding='utf-8'):
+            with soul.open('a', encoding='utf-8') as f: f.write(SOUL_RULE)
+    except (OSError, ValueError, UnicodeDecodeError):
+        pass
 
 
 def enable_enhanced_omh(data_dir, *, category_routes=None, remove=()):
@@ -406,6 +470,19 @@ def enable_enhanced_omh(data_dir, *, category_routes=None, remove=()):
         return {'status': 'conflict', 'message': 'OMH 경로 파일이 키트 밖에서 수정되어 보존했습니다. 덮어쓰지 않았습니다.'}
     except Exception as exc:
         return {'status': 'failed', 'message': '강화 모드 설정 실패; 기존 설정을 보존했습니다. (' + type(exc).__name__ + ')'}
+
+
+def upgrade_enhanced_omh(data_dir):
+    """Boot, before the gateway starts: bring a student's earlier calibration install to
+    this version, keeping their task chains. Students who never turned it on are untouched."""
+    try:
+        data = Path(data_dir).resolve()
+        receipt = json.loads(_safe(data, RECEIPT).read_text())
+    except (OSError, ValueError):
+        return None
+    if receipt.get('version') == VERSION:
+        return None
+    return enable_enhanced_omh(data)
 
 
 def sync_base_route(data_dir, provider, model):

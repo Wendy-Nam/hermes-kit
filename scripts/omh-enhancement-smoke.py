@@ -75,11 +75,14 @@ with tempfile.TemporaryDirectory(prefix='kit-omh-acceptance-') as directory:
         for relative, content in untouched.items():
             assert (data / relative).read_bytes() == content, relative
 
+    (data / 'SOUL.md').write_text('# 나의 AI 비서\n')  # a student seeded before the route rule
     result = install_upstream_omh(data, routing={'model': 'gemini-3-flash', 'provider': 'gemini'},
                                   host_version='0.21.2')
     assert result['status'] == 'installed', result
     assert '보정이 켜졌습니다' in result['message'], result
     assert (data / RECEIPT).is_file()
+    soul = (data / 'SOUL.md').read_text()
+    assert soul.startswith('# 나의 AI 비서\n') and soul.count('omh_delegate_route') == 1, soul
     assert_student_state()
     import glob, subprocess
     skills = {Path(p).parent.name for p in glob.glob(str(data / '.omh/skills/*/*/SKILL.md'))}
@@ -100,8 +103,16 @@ with tempfile.TemporaryDirectory(prefix='kit-omh-acceptance-') as directory:
         parsed = yaml.safe_load((data / 'config.yaml').read_text())['delegation']
         return {k: parsed.get(k) for k in ('provider', 'model', 'reasoning_effort')}
 
-    def dispatch(args):
-        return plugin.hooks['pre_tool_call'](tool_name='delegate_task', args=args, **session)
+    turn = {'turn_id': 'kit-smoke-turn-0'}
+
+    def dispatch(args, **override):
+        return plugin.hooks['pre_tool_call'](tool_name='delegate_task', args=args, **{**session, **turn, **override})
+
+    # An unrouted spawn is sent back once per turn to route first; the retry dispatches.
+    asked = dispatch({'goal': 'Synthetic'})
+    assert asked and asked['action'] == 'block' and 'omh_delegate_route' in asked['message'], asked
+    assert dispatch({'goal': 'Synthetic'}) is None
+    turn['turn_id'] = 'kit-smoke-turn-1'
 
     # Upstream routes every task type to the aux model at OMH's recommended effort.
     for category in CATEGORIES:
@@ -123,6 +134,9 @@ with tempfile.TemporaryDirectory(prefix='kit-omh-acceptance-') as directory:
     assert contexts[0].startswith('Preserve context') and all('calibration' in c.lower() for c in contexts), contexts
     again = dispatch(dict(original, **directive['args']))
     assert not again or again.get('action') != 'modify', again
+    # The live route belongs to this session: a concurrent session is asked to route its own.
+    other = dispatch({'goal': 'Synthetic'}, session_id='kit-smoke-other', task_id='kit-smoke-other')
+    assert other and other['action'] == 'block', other
     for action in ('list', 'stop', 'steer'):
         directive = dispatch({'action': action})
         assert not directive or directive.get('action') != 'block', (action, directive)
