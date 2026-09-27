@@ -112,6 +112,6 @@ def summary(data_dir):
             route='기본 · '+DEFAULT_EFFORTS[category]
         tip=recommended.get(category) or []
         lines.append(f'- {label}: {route}'+(f" (OMH 추천: {tip[0][0]} {tip[0][1]})" if tip else ''))
-    lines.append('보정 문구는 추론 강도 high 이상에서 붙습니다. 추천 모델은 참고용이며 본인 계정에서 쓸 수 있는 모델만 지정하세요.')
+    lines.append('보정 문구는 추론 강도 medium 이상에서 붙습니다(low 제외). 추천 모델은 참고용이며 본인 계정에서 쓸 수 있는 모델만 지정하세요.')
     if info.get('error'):lines.append('상태 파일을 읽지 못했습니다: '+info['error'])
     return '\n'.join(lines)

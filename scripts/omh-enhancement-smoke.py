@@ -127,7 +127,10 @@ with tempfile.TemporaryDirectory(prefix='kit-omh-acceptance-') as directory:
         directive = dispatch({'action': action})
         assert not directive or directive.get('action') != 'block', (action, directive)
 
-    # Low effort: nothing to add, and nothing blocks.
+    # Medium borrows the family calibration; low adds nothing; nothing blocks.
+    route('set', category='writing')
+    medium = dispatch({'tasks': [{'goal': 'Synthetic'}]})
+    assert medium and 'calibration' in medium['args']['tasks'][0]['context'].lower(), medium
     route('set', category='quick')
     assert dispatch({'tasks': [{'goal': 'Synthetic'}]}) is None
     route('clear')

@@ -377,7 +377,7 @@ class OmhRouteModal(discord.ui.Modal):
         self.model=discord.ui.TextInput(label='모델 ID (대체 모델은 쉼표로, 최대 5개)',max_length=400,
             placeholder='예: gemini-3-pro, gemini-3-flash · 다른 제공자는 제공자=모델 · 되돌리기는 -')
         self.effort=discord.ui.TextInput(label='추론 강도 (비우면 권장값 '+DEFAULT_EFFORTS[category]+')',required=False,max_length=6,
-            placeholder='low / medium / high / xhigh / max · high 이상에서 보정 적용')
+            placeholder='low / medium / high / xhigh / max · medium 이상에서 보정 적용')
         for field in (self.provider,self.model,self.effort):self.add_item(field)
     async def on_submit(self,interaction):
         from omh_options import save_route
