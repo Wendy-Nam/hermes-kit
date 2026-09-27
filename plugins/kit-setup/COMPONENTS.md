@@ -25,11 +25,30 @@ cross-component transaction. Private bundles never install plugins or scripts.
 ## Optional upstream OMH
 
 `upstream_omh.install_upstream_omh(data_dir, routing=..., host_version=...)`
-installs the upstream **core** workflow pack. The student must explicitly choose
-one configured model/provider and effort. All initial categories use exactly
-that choice; no instructor accounts, personal chains, anonymous pools, or
-private settings are copied. This is a simple starting configuration, not a
-claim that the selected model is best for every category.
+installs the upstream **core** workflow pack. The student's configured aux
+provider/model routes every task category, at OMH 2.0.5's shipped chain-head
+effort for that category capped at `high` (ultrabrain/deep/architect/artistry/
+visual-engineering/deep-work `high`; writing/capable/unspecified-high `medium`;
+quick/simple-work/unspecified-low `low`). No instructor accounts, personal chains,
+anonymous pools, or private settings are copied.
+
+Routing is upstream's own: `omh_delegate_route` writes `delegation.*` for the next
+dispatch from `.omh/routing/model-chains.json` + `model-providers.json`, and walks
+fallback candidates itself. Hermes 0.21.2 has no `delegate_task(routing=...)`; the
+kit never depends on one (k6's per-dispatch design did, which is why its image
+never published).
+
+`omh_enhancements` owns only (a) those two documents, composed from the aux model
+plus per-task chains saved in /setup (one to five models each, merged across saves,
+each probed with the student's keys first), and (b) one fail-open addition to the
+upstream `pre_tool_call` hook: for the route upstream prepared it appends OMH's
+native `calibration_for_route` text to each child's context. That text exists only
+at `high` effort and above; the kit's own OmniRoute combo is calibrated as its
+single underlying model. The hook never blocks a dispatch and never writes config.
+It is enabled with the basic pack and can be turned off in /setup, which restores
+the upstream hook byte-for-byte. A changed aux model (model selection or OmniRoute
+connection) is synced into every task category the student did not assign; routing
+documents edited outside the kit are preserved, never overwritten.
 
 Pinned source: `rlaope/oh-my-hermes` tag `v2.0.5`, commit
 `b84f096e59d50fc933ed4b43fd36675e8cff593a`, codeload archive SHA-256
@@ -45,8 +64,10 @@ A real local isolated installation verified the pinned package, setup's
 import/register smoke, configuration preservation, and route file creation.
 This is **not** live Hermes child execution evidence. Restart and verify an
 actual OMH tool and a harmless delegated task before claiming operational
-readiness. The instructor's immutable dispatch/calibration custom patches are
-not included. The upstream source package has no runtime dependencies; its
+readiness. `scripts/omh-enhancement-smoke.py` runs the real upstream install on the
+shipped Hermes runtime and checks every category's route, fallback, calibration
+and profile isolation without model requests. The instructor's personal patches
+are not included. The upstream source package has no runtime dependencies; its
 Python build tooling is resolved by pip and is not an offline bundled wheel.
 
 For separately reviewed plugin archives, `components.install_optional()`

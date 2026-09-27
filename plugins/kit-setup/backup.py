@@ -11,7 +11,8 @@ import time
 from urllib.parse import parse_qsl, urlsplit
 from pathlib import Path
 
-INCLUDE = ("memories", "config.yaml", "SOUL.md", "cron/jobs.json", "profiles", "vaults")
+# .omh/routing: per-task OMH chains; reapplied when OMH is reinstalled after a restore.
+INCLUDE = ("memories", "config.yaml", "SOUL.md", "cron/jobs.json", "profiles", "vaults", ".omh/routing")
 EXCLUDE_NAMES = {"auth.json", "auth_tokens.json", "sessions", "cookies.json",
                  "credentials.json", "auth", "executors", "_backup"}
 KEEP = 4

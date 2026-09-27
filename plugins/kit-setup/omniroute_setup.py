@@ -243,7 +243,10 @@ def configure(data_dir, password, provider, api_key, model):
                 if old and old != state['active'][field]:
                     try:client.request('DELETE','/api/'+kind+'/'+_identifier(old))
                     except SetupError:pass  # preserved for operator cleanup; never change non-kit records
-            return True, 'OmniRoute 도구 시험 2단계 통과. 보조 작업만 연결했습니다. 재시작 후 적용됩니다.'
+        # Outside the component lock: the OMH sync takes it itself.
+        from omh_enhancements import sync_base_route
+        sync_base_route(data, PROVIDER_NAME, name)
+        return True, 'OmniRoute 도구 시험 2단계 통과. 보조 작업만 연결했습니다. 재시작 후 적용됩니다.'
     except SetupError as exc:
         return False, str(exc) + ' · 메인 모델 설정은 유지됩니다.'
     except Exception as exc:

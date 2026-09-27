@@ -31,6 +31,10 @@ def select_model(data_dir, provider, model, role="main"):
         changes.update({'providers.commandcode.api': 'https://api.commandcode.ai/provider/v1',
                         'providers.commandcode.key_env': 'COMMANDCODE_API_KEY', 'providers.commandcode.transport':'openai_chat'})
     write(data_dir, changes)
+    if role == 'aux':
+        # OMH routes every unassigned task type to the aux model; keep that in step.
+        from omh_enhancements import sync_base_route
+        sync_base_route(data_dir, provider, model.strip())
     return True, '모델을 선택했습니다. 실제 연결 확인 후 적용해 주세요.'
 
 def probe(data_dir, *, timeout=90, role="main", candidate=None):

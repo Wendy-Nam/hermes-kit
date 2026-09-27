@@ -1,11 +1,12 @@
-"""Optional OMH acceptance against checksum-pinned upstream, with no model requests.
+"""OMH acceptance against checksum-pinned upstream on the shipped Hermes runtime.
 
-Network access is used only by the existing source/package installer. All route
-and hook tests are local, and no real credentials or user homes are mounted.
+No model requests. Network is used only by the upstream source/package installer.
+Checks that the kit's routing documents drive upstream `omh_delegate_route` for
+every task type, that calibration reaches the child context for high-effort
+routes without ever blocking, and that bot profiles and the main model stay intact.
 """
 from copy import deepcopy
 import importlib.util
-import inspect
 import json
 import os
 from pathlib import Path
@@ -17,22 +18,9 @@ import yaml
 KIT_ROOT = Path('/opt/kit/plugins/kit-setup')
 sys.path.insert(0, str(KIT_ROOT if KIT_ROOT.is_dir() else Path(__file__).resolve().parents[1] / 'plugins/kit-setup'))
 from upstream_omh import CATEGORIES, install_upstream_omh
+from omh_enhancements import (DEFAULT_EFFORTS, HOOK_FILE, RECEIPT, disable_enhanced_omh,
+                              enable_enhanced_omh, sync_base_route)
 
-
-def host_routing_supported():
-    """Whether this interpreter is the shipped Hermes runtime with native routing.
-
-    The optional enhancement patches `omh_delegate_route` only where the host's
-    `delegate_task(routing=...)` exists. A bare `python3` cannot answer that
-    question, and the plugin correctly refuses to prepare a route there, so the
-    check runs first and fails with the interpreter to use instead.
-    """
-    try:
-        from tools.delegate_tool import delegate_task, DELEGATE_TASK_SCHEMA
-    except ImportError:
-        return False
-    return ('routing' in inspect.signature(delegate_task).parameters
-            and 'routing' in DELEGATE_TASK_SCHEMA.get('parameters', {}).get('properties', {}))
 
 class Registration:
     def __init__(self):
@@ -61,23 +49,13 @@ def load_plugin(data, suffix):
     return registry
 
 
-def invoke(registry, data, action, **arguments):
-    result = registry.tools['omh_delegate_route']({'action': action, **arguments},
-        hermes_home=str(data), omh_home=str(data / '.omh'), session_id='kit-smoke-session')
-    return json.loads(result) if isinstance(result, str) else result
-
-
-assert host_routing_supported(), (
-    'this smoke needs the shipped Hermes runtime: run it inside the image with '
-    '/opt/hermes/.venv/bin/python, not a bare python3 (the host itself provides '
-    'delegate_task(routing=...), and the optional enhancement is refused without it)')
-
 with tempfile.TemporaryDirectory(prefix='kit-omh-acceptance-') as directory:
     data = Path(directory)
     os.environ.update(HOME=directory, HERMES_HOME=directory, OMH_HOME=str(data / '.omh'))
-    main = {'default': 'fixture-main', 'provider': 'openai'}
+    main = {'default': 'fixture-main', 'provider': 'openai-codex'}
     config = {'model': main, 'plugins': {'enabled': []},
-              'delegation': {'max_iterations': 250}, 'student_marker': 'keep'}
+              'delegation': {'max_iterations': 250, 'provider': 'gemini', 'model': 'gemini-3-flash'},
+              'student_marker': 'keep'}
     (data / 'config.yaml').write_text(yaml.safe_dump(config))
     untouched = {
         '.env': b'FIXTURE_NOT_A_REAL_KEY=synthetic-value\n',
@@ -88,81 +66,100 @@ with tempfile.TemporaryDirectory(prefix='kit-omh-acceptance-') as directory:
         path = data / relative
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(content)
-    result = install_upstream_omh(data,
-        routing={'model': 'gpt-6-sol', 'provider': 'openai', 'reasoning_effort': 'medium'},
-        host_version='0.21.2')
+
+    def assert_student_state():
+        parsed = yaml.safe_load((data / 'config.yaml').read_text())
+        assert parsed['model'] == main, parsed['model']
+        assert parsed['delegation']['max_iterations'] == 250
+        assert parsed['student_marker'] == 'keep'
+        for relative, content in untouched.items():
+            assert (data / relative).read_bytes() == content, relative
+
+    result = install_upstream_omh(data, routing={'model': 'gemini-3-flash', 'provider': 'gemini'},
+                                  host_version='0.21.2')
     assert result['status'] == 'installed', result
-    basic = load_plugin(data, 'basic')
-    missing = {'goal': 'Synthetic local inspection'}
-    hook_args = {'tool_name': 'delegate_task', 'args': missing,
-                 'hermes_home': directory, 'omh_home': str(data / '.omh'), 'session_id': 'kit-smoke-session'}
-    assert basic.hooks['pre_tool_call'](**hook_args) is None
-    assert yaml.safe_load((data / 'config.yaml').read_text())['model'] == main
-    for relative, content in untouched.items():
-        assert (data / relative).read_bytes() == content, relative
+    assert '보정이 켜졌습니다' in result['message'], result
+    assert (data / RECEIPT).is_file()
+    assert_student_state()
 
-    from omh_enhancements import PINNED_FILES, enable_enhanced_omh, disable_enhanced_omh
-    basic_files = {name: (data / name).read_bytes() for name in PINNED_FILES}
-    primary = {'model': 'gpt-6-sol', 'provider': 'openai', 'reasoning_effort': 'medium', 'kind': 'model'}
-    secondary = {'model': 'claude-sonnet-5', 'provider': 'anthropic', 'reasoning_effort': 'high', 'kind': 'model'}
-    categories = {category: [deepcopy(primary)] for category in CATEGORIES}
-    categories['deep'] = [deepcopy(primary), deepcopy(secondary)]
-    categories['writing'] = [deepcopy(secondary)]
-    result = enable_enhanced_omh(data, category_routes=categories, require_route=True)
-    assert result['status'] in {'installed', 'enabled', 'configured'}, result
-    enhanced = load_plugin(data, 'enhanced')
-    after_config = (data / 'config.yaml').read_bytes()
-    parsed = yaml.safe_load(after_config)
-    assert parsed['model'] == main
-    assert parsed['delegation']['max_iterations'] == 250
-    assert parsed['student_marker'] == 'keep'
-    for relative, content in untouched.items():
-        assert (data / relative).read_bytes() == content, relative
+    plugin = load_plugin(data, 'enhanced')
+    session = {'session_id': 'kit-smoke-session', 'task_id': 'kit-smoke-session'}
 
-    blocked = enhanced.hooks['pre_tool_call'](**hook_args)
-    assert blocked['action'] == 'block', blocked
+    def route(action, **arguments):
+        raw = plugin.tools['omh_delegate_route']({'action': action, **arguments}, **session)
+        return json.loads(raw) if isinstance(raw, str) else raw
+
+    def delegation():
+        parsed = yaml.safe_load((data / 'config.yaml').read_text())['delegation']
+        return {k: parsed.get(k) for k in ('provider', 'model', 'reasoning_effort')}
+
+    def dispatch(args):
+        return plugin.hooks['pre_tool_call'](tool_name='delegate_task', args=args, **session)
+
+    # Upstream routes every task type to the aux model at OMH's recommended effort.
+    for category in CATEGORIES:
+        prepared = route('set', category=category)
+        assert prepared.get('status') not in ('error',), (category, prepared)
+        assert delegation() == {'provider': 'gemini', 'model': 'gemini-3-flash',
+                                'reasoning_effort': DEFAULT_EFFORTS[category]}, (category, delegation())
+    route('clear')
+
+    # High effort: native calibration is appended to every child, input untouched, idempotent.
+    route('set', category='ultrabrain')
+    original = {'tasks': [{'goal': 'Synthetic local inspection', 'context': 'Preserve context'},
+                          {'goal': 'Second lane'}]}
+    saved = deepcopy(original)
+    directive = dispatch(original)
+    assert original == saved
+    assert directive and directive['action'] == 'modify', directive
+    contexts = [task['context'] for task in directive['args']['tasks']]
+    assert contexts[0].startswith('Preserve context') and all('calibration' in c.lower() for c in contexts), contexts
+    again = dispatch(dict(original, **directive['args']))
+    assert not again or again.get('action') != 'modify', again
     for action in ('list', 'stop', 'steer'):
-        directive = enhanced.hooks['pre_tool_call'](**dict(hook_args, args={'action': action}))
+        directive = dispatch({'action': action})
         assert not directive or directive.get('action') != 'block', (action, directive)
 
-    selected = invoke(enhanced, data, 'set', category='deep')
-    routing = selected['delegate_args']['routing']
-    assert routing == {key: primary[key] for key in ('model', 'provider', 'reasoning_effort')}, selected
-    assert (data / 'config.yaml').read_bytes() == after_config
-    original = {'goal': 'Synthetic local inspection', 'routing': routing, 'context': 'Preserve context'}
-    saved = deepcopy(original)
-    directive = enhanced.hooks['pre_tool_call'](**dict(hook_args, args=original))
-    assert original == saved
-    assert not directive or directive.get('action') != 'block', directive
-    if directive and directive.get('action') == 'modify':
-        merged = dict(original, **directive['args'])
-        assert merged['routing'] == routing
-        assert 'Preserve context' in merged['context']
-        again = enhanced.hooks['pre_tool_call'](**dict(hook_args, args=merged))
-        assert not again or again.get('action') != 'modify', again
+    # Low effort: nothing to add, and nothing blocks.
+    route('set', category='quick')
+    assert dispatch({'tasks': [{'goal': 'Synthetic'}]}) is None
+    route('clear')
 
-    other_session = enhanced.hooks['pre_tool_call'](**dict(hook_args, args=original, session_id='other-session'))
-    assert other_session['action'] == 'block', other_session
-    fallback = invoke(enhanced, data, 'fallback', category='deep', previous_routing=routing)
-    assert fallback['delegate_args']['routing'] == {key: secondary[key] for key in ('model', 'provider', 'reasoning_effort')}, fallback
-    exhausted = invoke(enhanced, data, 'fallback', category='deep', previous_routing=fallback['delegate_args']['routing'])
-    assert exhausted['status'] == 'exhausted', exhausted
-    assert 'delegate_args' not in exhausted
-    assert (data / 'config.yaml').read_bytes() == after_config
+    # Per-task chains accumulate; upstream fallback walks them and then restores the baseline.
+    deep = [{'provider': 'openai-codex', 'model': 'gpt-6-astra', 'reasoning_effort': 'high'},
+            {'provider': 'gemini', 'model': 'gemini-3-pro', 'reasoning_effort': 'high'}]
+    writing = [{'provider': 'gemini', 'model': 'gemini-3-pro', 'reasoning_effort': 'medium'}]
+    assert enable_enhanced_omh(data, category_routes={'deep': deep})['status'] == 'enabled'
+    assert enable_enhanced_omh(data, category_routes={'writing': writing})['status'] == 'enabled'
+    plugin = load_plugin(data, 'chains')
+    route('set', category='deep')
+    assert delegation() == {k: deep[0][k] for k in ('provider', 'model', 'reasoning_effort')}, delegation()
+    fallback = route('fallback', category='deep')
+    assert delegation() == {k: deep[1][k] for k in ('provider', 'model', 'reasoning_effort')}, (fallback, delegation())
+    route('set', category='writing')
+    assert delegation()['model'] == 'gemini-3-pro' and delegation()['reasoning_effort'] == 'medium', delegation()
+    route('set', category='architect')
+    assert delegation()['model'] == 'gemini-3-flash', delegation()
+    route('clear')
+    assert delegation() == {'provider': 'gemini', 'model': 'gemini-3-flash', 'reasoning_effort': None}, delegation()
 
-    unselected = dict(routing, model='unselected-model')
-    blocked = enhanced.hooks['pre_tool_call'](**dict(hook_args, args=dict(original, routing=unselected)))
-    assert blocked['action'] == 'block', blocked
-    # The enhanced route tool must never overwrite shared profile defaults.
-    invoke(enhanced, data, 'clear')
-    assert (data / 'config.yaml').read_bytes() == after_config
-    for relative, content in untouched.items():
-        assert (data / relative).read_bytes() == content, relative
+    # A changed aux model follows into every task type the student did not assign.
+    assert sync_base_route(data, 'opencode-go', 'kimi-k3')['status'] == 'synced'
+    plugin = load_plugin(data, 'synced')
+    route('set', category='capable')
+    assert delegation()['model'] == 'kimi-k3', delegation()
+    route('set', category='deep')
+    assert delegation()['model'] == 'gpt-6-astra', delegation()
+    route('clear')
+    assert_student_state()
+
     restored = disable_enhanced_omh(data)
     assert restored['status'] == 'disabled', restored
-    for name, content in basic_files.items():
-        assert (data / name).read_bytes() == content, name
-    restored_plugin = load_plugin(data, 'restored')
-    assert restored_plugin.hooks['pre_tool_call'](**hook_args) is None
-    assert (data / 'config.yaml').read_bytes() == after_config
-print('OMH enhanced: real upstream install/register, explicit route guard, calibration and isolated config passed')
+    assert b'kit-enhanced-omh' not in (data / HOOK_FILE).read_bytes()
+    plugin = load_plugin(data, 'restored')
+    route('set', category='ultrabrain')
+    assert delegation()['model'] == 'kimi-k3', delegation()
+    assert dispatch({'goal': 'Synthetic local inspection'}) is None
+    route('clear')
+    assert_student_state()
+print('OMH: real upstream install, per-task routes, fallback, fail-open calibration and isolated profiles passed')

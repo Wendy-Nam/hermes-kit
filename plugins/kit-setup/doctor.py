@@ -178,6 +178,26 @@ def check_maintenance(data_dir):
         return Finding('백업·업데이트 예약',BAD,'예약 정보를 읽을 수 없습니다')
 
 
+def check_omh(data_dir):
+    """OMH is optional: absent is fine; installed without calibration or with an
+    unreadable route is worth a look, since every delegated task depends on it."""
+    try:
+        from omh_enhancements import describe
+        info=describe(data_dir)
+    except Exception:
+        return Finding('OMH',WARN,'상태를 읽을 수 없습니다')
+    if not info.get('installed'):
+        return Finding('OMH',OK,'설치하지 않음 (선택 기능)')
+    if info.get('error'):
+        return Finding('OMH',WARN,'경로 설정을 읽을 수 없습니다. /setup의 OMH 설정에서 확인하세요')
+    base=info.get('base')
+    route=f"{base['provider']}/{base['model']}" if base else '키트 밖에서 수정된 경로'
+    custom=len(info.get('categories') or {})
+    if not info.get('calibration'):
+        return Finding('OMH',WARN,f'설치됨 · 기본 경로 {route} · 모델 보정 꺼짐')
+    return Finding('OMH',OK,f'설치됨 · 기본 경로 {route} · 작업별 지정 {custom}개 · 모델 보정 켜짐')
+
+
 def check_models(data_dir):
     from model_setup import probe
     result=[]
@@ -196,6 +216,7 @@ def collect(data_dir: Path, env_file: Path, process=None, run_models=False) -> l
     findings += check_keys(env, env_file)
     findings += check_components(data_dir)
     findings.append(check_maintenance(data_dir))
+    findings.append(check_omh(data_dir))
     if run_models: findings += check_models(data_dir)
     findings.append(check_optional("http://omniroute:20128/healthz", "OmniRoute 심화팩"))
     return findings
