@@ -29,4 +29,4 @@ services:
     ports: ["22000:22000/tcp", "22000:22000/udp", "127.0.0.1:8384:8384"]
 
 volumes: {hermes-data: {}, vaults: {}, syncthing-config: {}}
-networks: {default: {name: hermes-kit}}   # 심화팩(freellmapi)이 external로 합류
+networks: {default: {name: hermes-kit}}   # 심화팩(OmniRoute)이 external로 합류

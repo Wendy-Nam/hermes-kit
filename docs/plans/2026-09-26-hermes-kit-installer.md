@@ -4,9 +4,9 @@
 
 **Goal:** 비개발자 수강생이 "VPS 결제 → compose 붙여넣기 → 디스코드 `/setup`" 만으로 서아 님 서버와 같은 품질의 Hermes를 20분 안에, 매번 같은 결과로 갖게 한다.
 
-**Architecture:** 설치 후 LLM이 컨테이너를 고치던 방식을 버리고, 변하지 않는 것은 **공개 파생 이미지**(Hermes v0.21.2 + 보이스 패치 + rtk + 공개 플러그인 + 기본 config)에 굽는다. 사람마다 다른 것(키)은 디스코드 `/setup` 모달로 받아 LLM을 거치지 않고 검증·저장한다. 서아 님 노하우(큐레이션 스킬·SOUL·freellmapi 체인·구직 키트)는 **비공개 팩 레포**에 두고 첫 부팅 때 기수별 토큰으로 받아온다.
+**Architecture:** 설치 후 LLM이 컨테이너를 고치던 방식을 버리고, 변하지 않는 것은 **공개 파생 이미지**(Hermes v0.21.2 + 보이스 패치 + rtk + 공개 플러그인 + 기본 config)에 굽는다. 사람마다 다른 것(키)은 디스코드 `/setup` 모달로 받아 LLM을 거치지 않고 검증·저장한다. 서아 님 노하우(큐레이션 스킬·SOUL·OmniRoute 검증 콤보·구직 키트)는 **비공개 팩 레포**에 두고 첫 부팅 때 기수별 토큰으로 받아온다.
 
-**Tech Stack:** Docker / s6-overlay cont-init(Hermes 이미지 기본), GitHub Actions + GHCR, Python 3.13 stdlib(플러그인·검증기, 신규 의존성 없음), discord.py(Hermes에 이미 포함), freellmapi 선언형 config(JSON), Syncthing 사이드카.
+**Tech Stack:** Docker / s6-overlay cont-init(Hermes 이미지 기본), GitHub Actions + GHCR, Python 3.13 stdlib(플러그인·검증기, 신규 의존성 없음), discord.py(Hermes에 이미 포함), OmniRoute 관리 API(심화팩), Syncthing 사이드카.
 
 **Spec:** 별도 스펙 문서 없음 — 이 문서 §0(결정과 근거)이 스펙이다. 근거는 2026-09-26 서아 님 서버(`ssh hermes`) 실측과 upstream 소스 확인.
 
@@ -17,8 +17,8 @@
 - 키·토큰·`auth.json`·`.env`·개인 플러그인(`hermes-self`, `turn-router`, `session-sticky`, `hermes-snow-search`, `ux-improvements`)은 **공개 이미지에 절대 들어가지 않는다**. CI가 검사한다.
 - 키는 **LLM 컨텍스트를 거치지 않는다**: 모달 → 플러그인 → 검증 → `/opt/data/.env`(chmod 600). 채팅 메시지로 받지 않는다.
 - `auto:unfiltered` 풀과 allowlist의 `"unfiltered"`는 배포판 어디에도 없다.
-- 개인정보 풀(private) allowlist: `groq, cerebras, mistral`. 단 Mistral은 무료 플랜 기본값이 학습 사용이라, `/setup`에서 Mistral 키를 넣을 때 **"Admin Console → Privacy에서 학습 끄기 완료" 체크가 필수**(체크 없으면 키 저장 안 함). (§7 D4 — `xkiro`·`aion` 제외, `cohere`는 freellmapi ToS 리뷰 "❌ 개인용 금지", `requesty`·`opencode`는 미검토라 제외, `cloudflare`는 "⚠️ 모호"라 제외). 학습 미사용 여부는 S10에서 재확인.
-- LLM 스타터 = **ChatGPT 구독(openai-codex OAuth) + OpenCode Go(기본) 또는 Command Code GOAT**. 고급 = CLI 워커 팩 + freellmapi 팩. Claude 구독은 스타터에서 안내하지 않음 (§7 D3).
+- 개인정보 풀(private) allowlist: `groq, cerebras, mistral`. 단 Mistral은 무료 플랜 기본값이 학습 사용이라, `/setup`에서 Mistral 키를 넣을 때 **"Admin Console → Privacy에서 학습 끄기 완료" 체크가 필수**(체크 없으면 키 저장 안 함). (§7 D4 — `xkiro`·`aion` 제외, `cohere`는 freellmapi ToS 리뷰 "❌ 개인용 금지", `requesty`·`opencode`는 미검토라 제외, `cloudflare`는 "⚠️ 모호"라 제외). 학습 미사용 여부는 S10에서 재확인. OmniRoute에서는 `hermes-private` 콤보 + `allowedProviders` 잠금으로 구현.
+- LLM 스타터 = **ChatGPT 구독(openai-codex OAuth) + OpenCode Go(기본) 또는 Command Code GOAT**. 고급 = CLI 워커 팩 + OmniRoute 팩(2026-09-27 freellmapi에서 전환, §7 D7). Claude 구독은 스타터에서 안내하지 않음 (§7 D3).
 - 볼트는 `work`, `personal` 두 개. 커뮤니티 플러그인은 `dataview`(0.5.70), `obsidian-tasks-plugin`(8.4.0), `tasknotes`(4.13.5) 버전 고정·MIT.
 - 신규 Python 의존성 추가 금지. HTTP는 `urllib.request`, YAML은 `hermes config set` CLI 사용.
 - 데이터 경로는 `/opt/data`(= `HERMES_HOME`) 고정.
@@ -35,8 +35,8 @@
 | 3 | 키 입력은 디스코드 모달 | `PluginContext.register_platform_handler("discord", factory)`가 `factory(native: commands.Bot, adapter)` 제공(`hermes_cli/plugins.py:831`) → discord.py `Modal` 직접 등록 가능. 별도 웹페이지를 인터넷에 열 필요 없음 |
 | 4 | 첫 주인 = 디스코드 서버 소유자 자동 승인 | 미등록 DM은 페어링 코드 발급 후 주인이 CLI로 `hermes pairing approve` 해야 함(`gateway/run_inbound.py:78`). `PairingStore(profile=None)`의 `generate_code`/`approve_code`로 플러그인이 대신 수행 |
 | 5 | 팩 단위 키 | Groq=한국어 STT 정확도(`stt.provider: groq, language: ko`), Webshare=원티드 등 클라우드 IP 차단 우회. 둘 다 필수지만 팩 사용자에게만 |
-| 6 | freellmapi는 선언형 config | freellmapi `FREEAPI_CONFIG_PATH` JSON(keys/models/fallback/routing, 멱등, 부팅마다 적용). sqlite 직접 패치 불필요 |
-| 7 | 공개 이미지 + 비공개 팩 분리 | Hermes MIT, rtk Apache-2.0, freellmapi MIT → 재배포 가능. 노하우는 팩 레포에 |
+| 6 | OmniRoute는 관리 HTTP API로 구성 | 선언형 config 없음, Docker 이미지 CLI는 `tsx` 누락으로 불가(2026-09-26). 설정·키·콤보는 `ops/omniroute/`의 멱등 스크립트 방식 (구: freellmapi 선언형 config) |
+| 7 | 공개 이미지 + 비공개 팩 분리 | Hermes MIT, rtk Apache-2.0, OmniRoute MIT → 재배포 가능. 노하우는 팩 레포에 |
 | 8 | 기본 스킬 정리는 네이티브 명령 | `hermes skills opt-out --remove -y`(수정 안 한 번들 스킬만 삭제) |
 | 9 | 배포는 compose 붙여넣기, 원클릭은 후순위 | Hostinger Docker Manager가 compose URL/내용 배포 지원, 공개 API `create new project`도 있음(실험 기능) |
 
@@ -68,7 +68,7 @@
 ```
 hermes-kit/
 ├─ Dockerfile                          # 베이스 고정 + rtk + 패치 + 플러그인 + 시드
-├─ docker-compose.yml                  # 수강생이 붙여넣는 파일 (hermes + freellmapi + syncthing)
+├─ docker-compose.yml                  # 수강생이 붙여넣는 파일 (hermes + syncthing; OmniRoute는 advanced/ 별도 프로젝트)
 ├─ versions.env                        # HERMES_BASE_IMAGE, RTK_VERSION, KIT_VERSION 한 곳에
 ├─ patches/voice/                      # hermes-voice-patches 그대로 (apply.sh, check.py, patches/*)
 ├─ plugins/
@@ -91,7 +91,8 @@ hermes-kit/
 │  ├─ vaults/{work,personal}/.obsidian/  # community-plugins.json + plugins/{dataview,obsidian-tasks-plugin,tasknotes}/ (빌드 시 다운로드)
 │  └─ bundled-keep.txt                 # 남길 Hermes 번들 스킬 경로 목록
 ├─ rootfs/etc/cont-init.d/10-kit-seed  # 시드 + opt-out + 팩 fetch
-├─ freellmapi/freellmapi.config.json   # 체인 기본(unfiltered 없음), 키는 비움
+├─ advanced/docker-compose.omniroute.yml # 💸 심화팩(두 번째 프로젝트)
+├─ ops/omniroute/                      # 콤보 생성·검증·전환 도구(운영 검증본)
 ├─ scripts/secret-scan.sh              # CI: 금지 파일/패턴 검사
 └─ .github/workflows/build.yml         # 빌드 → 스모크 → 스캔 → GHCR push
 ```
@@ -103,7 +104,7 @@ hermes-kit-packs/
 ├─ manifest.json                       # 팩 버전, 포함 스킬 목록
 ├─ skills/kit/                         # 큐레이션 스킬 (youtube-content Gemini판 등)
 ├─ soul/                               # 서아 님 튜닝 SOUL 조각 (선택 적용)
-├─ freellmapi/chains.json              # 서아 님 체인 (unfiltered 제거판)
+├─ omniroute/combos.json               # 서아 님 검증 콤보 목록 (unfiltered·구독·학습 경로 제거판)
 └─ packs/job-hunt -> (hermes-job-hunt-for-korean install.sh 호출)
 ```
 
@@ -149,7 +150,7 @@ hermes-kit-packs/
 
 - [ ] **S6. Composio 연결 흐름.** `x-consumer-api-key`만 넣은 상태에서 Gmail 도구 첫 호출 시 MCP가 OAuth 링크를 돌려주는지. 통과: 키 1개 + 채팅 내 링크 클릭으로 완료 → 별도 링크 생성 코드 불필요. 대안: Composio REST로 connect link 생성(문서 확인 후 validators에 추가).
 
-- [ ] **S7. freellmapi 체인(프로필) 선언형 지원.** freellmapi 문서/소스에서 `auto:<profile>` 체인을 JSON config로 만들 수 있는지(`fallback` 필드 범위). 대안: 부팅 후 REST API로 생성하는 1회성 스크립트 — 서버 `patch-freellmapi-pools.py` 로직을 이식.
+- [ ] ~~**S7. freellmapi 체인(프로필) 선언형 지원.**~~ (2026-09-27 OmniRoute 전환으로 폐기) freellmapi 문서/소스에서 `auto:<profile>` 체인을 JSON config로 만들 수 있는지(`fallback` 필드 범위). 대안: 부팅 후 REST API로 생성하는 1회성 스크립트 — 서버 `patch-freellmapi-pools.py` 로직을 이식.
 
 - [ ] **S8. 라이선스.** `rtk-hermes`(rtk-rewrite 플러그인 원본) 라이선스, `web-crawl4ai` 플러그인 출처·라이선스, `omh` 휠 라이선스. 재배포 불가면 설치 명령(`hermes plugins install <url>`)만 이미지에 넣는다.
 
@@ -209,7 +210,6 @@ RUN sh /opt/kit/voice-patches/apply.sh --root /opt/hermes
 
 COPY plugins /opt/kit/plugins
 COPY seed /opt/kit/seed
-COPY freellmapi /opt/kit/freellmapi
 COPY rootfs/etc/cont-init.d/10-kit-seed /etc/cont-init.d/10-kit-seed
 RUN chmod 0755 /etc/cont-init.d/10-kit-seed
 ARG KIT_VERSION
@@ -243,7 +243,7 @@ Expected: 전 항목 PASS.
 
 | 제외 | 이유 |
 |---|---|
-| `patch-freellmapi-*`, `patch-aux-route-attribution.py`, `patch-aux-configured-routes-only-v0212.py` | freellmapi 심화팩 전제 → 심화팩에서 판단 |
+| `patch-freellmapi-*`, `patch-aux-route-attribution.py`, `patch-aux-configured-routes-only-v0212.py` | freellmapi 전제 → OmniRoute 전환으로 불필요 |
 | `patch-omh-*`, `patch-snow-search-*`, `patch-evo-dspy3.py`, `patch-embed-role.py`, `patch-background-review-pilot.py` | 개인 플러그인·실험 기능 |
 | `patch-voice-*`, `patch-tts-provider-none-*`, `patch-elevenlabs-*`, `patch-discord-call-slash.py` | 보이스 패치 번들(Task 1)과 중복 |
 
@@ -267,11 +267,11 @@ Expected: 전 항목 PASS.
 | `tts.provider: none`, `voice.auto_tts: false` | `mcp_servers.life-os`, `public_data_lens` |
 | `web.search_backend: ddgs`, `web.extract_backend` | `moa` (openai-codex 전제) |
 | `tool_budget` 블록 | `image_gen` (openai-codex 전제 — LLM 팩 후처리에서 설정) |
-| `file_read_max_chars: 16000`, `timezone: Asia/Seoul` | `fallback_providers`의 nous/freellmapi 항목 (freellmapi 팩에서 추가) |
+| `file_read_max_chars: 16000`, `timezone: Asia/Seoul` | `fallback_providers`의 omniroute 항목 (OmniRoute 팩에서 추가) |
 | `skills.compact_categories`, `creation_nudge_interval: 0` | `known_*_toolsets` (런타임 캐시) |
 | `plugins.enabled: [web-crawl4ai, kit-setup]` (rtk-rewrite는 `rtk init`이 추가) | 개인 플러그인 전부 |
 | `display.platforms.discord` 블록 | `command_allowlist` (보안상 기본값 유지) |
-| `auxiliary.*` → provider `gemini`, model `gemini-3.6-flash` (Gemini 키 1개로 동작) | `auxiliary.*`의 freellmapi 라우팅 (freellmapi 팩이 덮어씀) |
+| `auxiliary.*` → provider `gemini`, model `gemini-3.6-flash` (Gemini 키 1개로 동작) | `auxiliary.*`의 omniroute 라우팅 (OmniRoute 팩이 덮어씀) |
 
 - [x] **Step 1:** 위 표대로 `seed/config-overlay.yaml` 작성 — **바꿀 키만** 담는다(공식 기본 config 2,135줄을 복제하지 않음). `/opt/kit/bin/merge_yaml.py`(딕셔너리는 재귀 병합, 리스트·스칼라는 교체) + 단위 테스트 1개. `_config_version`은 베이스 이미지의 `hermes config check`가 요구하는 값으로.
 - [x] **Step 2: 검증** — `docker run --rm -v $PWD/seed/config.yaml:/opt/data/config.yaml --entrypoint hermes hermes-kit:dev config check` → 오류 0.
@@ -694,24 +694,19 @@ def ensure_owner(user_id: str, name: str) -> bool:
 - [ ] **Step 4: 토큰 측정** — 시드 설치 직후 `.skills_prompt_snapshot.json` 크기를 기록(서버 현재 59KB 대비 목표 치 §7 D1에서 정함).
 - [ ] **Step 5: Commit**
 
-### Task 12: 💸 freellmapi 심화팩 (별도 compose 프로젝트)
+### Task 12: 💸 OmniRoute 심화팩 (별도 compose 프로젝트) — 2026-09-27 freellmapi에서 전환
 
-**Files:** 레포 A `advanced/docker-compose.freellmapi.yml`, `advanced/freellmapi.config.json`, 팩 정의 추가
+**Files:** 레포 A `advanced/docker-compose.omniroute.yml`, `ops/omniroute/*`(서아 님 운영에서 검증한 도구), 팩 정의 추가
 
-**기본 compose에 넣지 않는다.** 스타터(Codex + OpenCode Go)에는 필요 없고, 서아 님 VPS(8GB/2코어)에서도 Hermes 프로세스 하나가 약 2.7GB RSS를 쓴다 — 저사양 VPS 수강생에게 상시 컨테이너를 더 얹을 이유가 없다. 장애도 분리된다(freellmapi가 죽어도 봇은 OpenCode Go로 계속 동작).
+**기본 compose에 넣지 않는다.** 스타터(Codex + OpenCode Go)에는 필요 없고, OmniRoute는 평소 0.8~1.5GB(첫 모델 동기화 때 1.9GB)를 쓴다 → 8GB 이상 VPS에서만 안내. 장애도 분리된다(OmniRoute가 죽어도 Hermes의 직접 폴백으로 계속 답함).
 
-- [x] **Step 0: 네트워크 연결** — 기본 compose가 이름 고정 네트워크를 만든다: `networks: {default: {name: hermes-kit}}`. 심화팩 compose는 `networks: {default: {name: hermes-kit, external: true}}` → Hermes에서 `http://freellmapi:3001`로 접근. 수강생은 Hostinger Docker Manager에 **두 번째 프로젝트로 붙여넣기**만 한다.
-
-- [ ] **Step 1:** 체인은 선언형 config에 **없음**(S7) → 부팅 후 1회성 스크립트 `freellmapi_chains.py`가 관리자 로그인 → `GET /api/profiles` → 없는 이름만 `POST /api/profiles {name, emoji, color, empty: true}` → 모델 지정(`PUT /api/profiles/:id`). 서버 `patch-freellmapi-pools.py` 로직을 REST로 이식. 체인: `private`(`groq, cerebras, mistral` — Mistral 키는 옵트아웃 필수 체크를 거쳐야만 저장됨), `public`, `fast`, `compress`, `vision`, `coding`. **`unfiltered` 없음.** 키는 비워 둠. `aion-rp-*` 등 RP 모델은 어느 체인에도 넣지 않는다.
-- [x] **Step 2:** `ENCRYPTION_KEY`를 수강생이 만들지 않게 — 심화팩 compose에서 첫 기동 시 볼륨에 생성:
-  ```yaml
-  entrypoint: ["sh", "-c", "k=/app/server/data/.enc; [ -s $$k ] || head -c 32 /dev/urandom | base64 > $$k; export ENCRYPTION_KEY=$$(cat $$k); exec /docker-entrypoint.sh \"$$@\"", "--"]
-  ```
-  (ponytail: 키와 암호화 데이터가 같은 디스크 — 단일 사용자 VPS에선 .env도 같은 디스크라 차이 없음. 백업 분리 필요해지면 그때 외부화.) `/docker-entrypoint.sh` 경로는 freellmapi 이미지에서 확인.
-- [ ] **Step 3:** 팩 정의: 키 입력 칸 = groq/cerebras/mistral/openrouter 중 최대 5개(모두 선택). 제출 → freellmapi CLI(`npx freellmapi keys add <platform>` + dashboard token) 또는 config JSON 갱신 후 freellmapi 재시작.
-- [ ] **Step 3b: 관리자 계정 선점** — config JSON의 `admin`에 랜덤 비밀번호(볼륨 파일에 저장)를 넣어 **최초 설정 창을 닫는다**(freellmapi 문서: admin이 있으면 `POST /api/auth/setup`이 409). 포트는 공개하지 않음.
-- [ ] **Step 4:** `/setup` 💸이 `http://freellmapi:3001/api/ping` 200을 확인한 **뒤에만** `hermes config set`으로 `auxiliary.*` → `freellmapi` 라우팅, `fallback_providers`는 `[opencode-go(또는 commandcode), freellmapi]` 순 (서버 config의 auxiliary 블록, 모델 `auto:private`/`auto:fast`/`auto:compress`/`auto:vision`).
-- [ ] **Step 5: 확인** — `curl -H "Authorization: Bearer $K" http://freellmapi:3001/v1/models | grep -c unfiltered` → 0.
+- [x] **Step 0: 네트워크** — 기본 compose의 이름 고정 네트워크 `hermes-kit`에 external로 합류 → Hermes에서 `http://omniroute:20128/v1`. 수강생은 Hostinger Docker Manager에 **두 번째 프로젝트로 붙여넣기**만 한다.
+- [x] **Step 1: compose** — 운영 인수 테스트를 통과한 digest로 고정, `REQUIRE_API_KEY=true`, 포트 비공개(대시보드는 SSH 터널), `mem_limit: 3g`, JWT·API 키 서명 비밀값은 첫 기동 때 볼륨(`/app/data/.kit-secrets`)에 생성. 수강생이 채우는 값은 `KIT_OMNIROUTE_PASSWORD` 하나.
+- [ ] **Step 2: `/setup` 💸** — 모달로 대시보드 비밀번호(같은 값) → `.env`(600) → 플러그인이 관리 API로 ① 하드닝(`om_setup.py settings` 로직: 스킬 주입 끔·의미 응답 캐시 끔·모든 연결 `autoSync`) ② 무료 키 등록(`POST /api/providers`, 키는 모달→플러그인→OmniRoute, LLM 비경유) ③ Hermes용 추론 키 발급(`POST /api/keys` → `.env`의 `OMNIROUTE_API_KEY`) ④ 콤보 생성.
+- [ ] **Step 3: 콤보** — 이름·구조는 운영과 같게(`hermes-fast/private/compress/vision/coding/...`, 메인은 스타터 모델명 콤보). 모델 순서는 팩 레포 B의 `omniroute/combos.json`(서아 님 운영 `om_pool.py`가 실제 도구 호출로 검증한 목록) → 수강생 서버에서 **본인 키로 쓸 수 있는 모델만** 같은 도구 호출 시험 후 적용(`om_pool.py probe` 축약판). **freellmapi 프리미엄 카탈로그 원본은 팩에 넣지 않는다**(유료 라이선스 데이터 재배포 가능 여부 미확인).
+- [ ] **Step 4: 전환** — `http://omniroute:20128/healthz` 200 확인 **뒤에만** `hermes config set`으로 `auxiliary.*`·`delegation`·`fallback_providers`를 omniroute 콤보로. `fallback_providers` 마지막에는 **직접 호출 1개**(Gemini 또는 OpenCode Go)를 남겨 라우터 장애에 대비.
+- [ ] **Step 5: 확인** — `om_suite.py loop <콤보>` 통과, `/doctor`에 OmniRoute 항목(구현됨: `check_optional(".../healthz")`).
+- **수강생 기본에서 제외**: 구독·웹 세션·CLI 계정 프로바이더(Claude·Antigravity·Copilot·Cline·Devin·웹 세션 등 — OmniRoute 스스로 '프록시 사용 미승인·계정 차단 가능' 경고, 지문 위장 코드), kilo 무료·lmarena(대화 학습·공개), unfiltered 계열.
 - [x] **Step 6: Commit**
 
 ---
@@ -838,9 +833,9 @@ services:
       - syncthing-config:/var/syncthing/config
     ports: ["22000:22000/tcp", "22000:22000/udp", "127.0.0.1:8384:8384"]
 volumes: {hermes-data: {}, vaults: {}, syncthing-config: {}}
-networks: {default: {name: hermes-kit}}   # 심화팩(freellmapi)이 external로 합류
+networks: {default: {name: hermes-kit}}   # 심화팩(OmniRoute)이 external로 합류
 ```
-(`network_mode: host`를 쓰지 않는다 — 서비스 이름(`syncthing:8384`, 심화팩 `freellmapi:3001`)으로 통신, 대시보드 포트 외부 비노출)
+(`network_mode: host`를 쓰지 않는다 — 서비스 이름(`syncthing:8384`, 심화팩 `omniroute:20128`)으로 통신, 대시보드 포트 외부 비노출)
 - [ ] **Step 2: 신규 VPS 리허설** — 깨끗한 Hostinger VPS(또는 테스트 VPS)에 붙여넣기 → S9 확인 → 로그에서 초대 링크 → `/setup` 완주. **스톱워치로 시간 기록.**
 - [ ] **Step 3 (선택, 리허설 통과 후):** Hostinger API `create new project`로 원클릭 — 수강생이 Hostinger API 토큰을 만들어야 해서 단계가 오히려 늘 수 있음. 리허설 시간이 20분을 넘을 때만 착수.
 
@@ -895,9 +890,9 @@ networks: {default: {name: hermes-kit}}   # 심화팩(freellmapi)이 external로
 |---|---|
 | S2 실패 (플러그인 모달 불가) | 텍스트 인자 slash + ephemeral로 후퇴. 그래도 채팅 메시지로는 받지 않음 |
 | Hostinger가 compose `${VAR}` 입력칸을 안 띄움 (S9) | compose 안에 직접 값 입력하는 안내로 변경, 토큰 1개뿐이라 감당 가능 |
-| freellmapi 이미지가 무거워 저사양 VPS에서 느림 | 비용 최적화 팩을 선택 팩으로 유지(기본 compose에서 제외 가능) |
+| OmniRoute가 무거움(0.8~1.9GB) | 심화팩으로만, 8GB 이상 VPS에서 안내, `mem_limit: 3g` |
 | 수강생 VPS가 ARM | rtk는 `aarch64-unknown-linux-gnu` 자산 있음 → CI에 멀티아치 추가 (그때 착수) |
-| 무료 프로바이더 약관 | freellmapi README: 개인 단일 사용자 프록시 전제. 수강생 각자 자기 키 → 매뉴얼에 한 줄 고지 |
+| 무료 프로바이더 약관 | OmniRoute·무료 프로바이더 모두 개인 단일 사용자 전제. 수강생 각자 자기 키 → 매뉴얼에 한 줄 고지 |
 
 ---
 
@@ -955,7 +950,7 @@ email/email-inbox-triage
 
 **제외**
 - 개인 페르소나·생활 자동화: `er-*`, `san-*`, `selfie-*`, `scene-library-maintenance`, `soul-persona-editing`, `personal-state-review`, `self-runtime-goal-operations`, `continuity-preservation`, cron 카테고리 전체(선톡, 타임캡슐, 라이프 시그널, 자아 승격 등), `hitomi-recs`, `discord-emoji-character-sticker-set`
-- 서아 님 인프라 전용: `hermes-model-routing`(freellmapi 라우팅 전제), `hermes-kanban-delegation`, `hermes-profile-agent-interaction`, `hermes-context-*`, `delegation-*`, `autonomy-loop-continuity`, `workflow-dispatch-verification`, `hermes-embedding-retrieval`, `hermes-voice-provider-ops`(29KB), `discord-delivery-routing`, `vault-source-of-truth-navigation`, `candidate-pool-rotation-integrity`
+- 서아 님 인프라 전용: `hermes-model-routing`(freellmapi 라우팅 전제 — OmniRoute판으로 재작성 전까지 제외), `hermes-kanban-delegation`, `hermes-profile-agent-interaction`, `hermes-context-*`, `delegation-*`, `autonomy-loop-continuity`, `workflow-dispatch-verification`, `hermes-embedding-retrieval`, `hermes-voice-provider-ops`(29KB), `discord-delivery-routing`, `vault-source-of-truth-navigation`, `candidate-pool-rotation-integrity`
 - 메신저 연동(`kakaotalk-readonly-harness` 등)은 기본에서 빼고 **💬 메신저 선택 팩**(Task 12c)으로 이동 — 동의 화면 + 읽기 전용 기본
 - 외부 개인 프록시 의존: `korea-weather`, `fine-dust-location` (`k-skill-proxy.nomadamas.org` — 운영자가 내리면 깨짐). 원하면 선택 설치로.
 
@@ -972,7 +967,7 @@ email/email-inbox-triage
 | 단계 | 구성 | 월 비용 | 키 |
 |---|---|---|---|
 | **스타터 (기본 안내)** | ChatGPT Plus → `openai-codex` OAuth (메인 두뇌) + **OpenCode Go 또는 Command Code GOAT 중 하나** (위임·보조·폴백용 오픈 모델) + Gemini 무료 키 (유튜브·비전) | 약 $30 ($20 + $10) | OAuth 1 + 키 2 |
-| **고급 (선택)** | 스타터 + 🤖 CLI 워커 팩(OpenCode·Cline·Codex·Claude Code CLI, OAuth 로그인) + 💸 freellmapi 팩 | + 무료 키 여러 개 | 선택 |
+| **고급 (선택)** | 스타터 + 🤖 CLI 워커 팩(OpenCode·Cline·Codex·Claude Code CLI, OAuth 로그인) + 💸 OmniRoute 팩 | + 무료 키 여러 개 | 선택 |
 
 - **OpenCode Go** ($10/월, 오픈 모델 32종, 5시간 $12·주 $30·월 $60 한도): Hermes 내장 프로바이더 `opencode-go` → 키 1개(`OPENCODE_GO_API_KEY`)만 넣으면 됨. **스타터 기본값으로 추천** — 설정이 가장 짧다.
 - **Command Code GOAT** ($10/월, 크레딧 $70, 33개 모델): Hermes 내장 프로바이더가 아님 → `providers.commandcode.api: https://api.commandcode.ai/provider/v1` 커스텀 등록(서아 님 서버 방식). `/setup`이 대신 써 주므로 수강생 수고는 같음. 대안 선택지로 제공.
@@ -999,10 +994,24 @@ email/email-inbox-triage
 
 `/setup` 모달·버튼·드롭다운은 디스코드 기능이다. 텔레그램은 모달이 없어 키를 채팅으로 받아야 하는데(봇이 즉시 삭제해도 텔레그램 서버·알림에 남음), 이는 "키는 채팅으로 받지 않는다" 원칙과 충돌한다. → v1은 디스코드만 지원하고 매뉴얼에서도 디스코드를 권장(기존 매뉴얼과 같은 입장). 텔레그램은 셋업을 디스코드로 끝낸 뒤 게이트웨이만 추가하는 방식으로 v2에서 검토.
 
-### D7. freellmapi — 심화팩(별도 compose)
+### D7. OmniRoute — 심화팩(별도 compose) (2026-09-27, freellmapi에서 전환)
 
-기본 compose에 넣지 않음(Task 12). 이유: 스타터는 불필요, 상시 메모리 비용, 장애 분리. 켜는 법 = Hostinger에 두 번째 프로젝트 붙여넣기 → `/setup` 💸 에서 무료 키 입력. 헬스체크 통과 전에는 라우팅을 바꾸지 않으므로 반쯤 켜진 상태에서 봇이 죽지 않는다.
+- 이유: 서아 님 운영이 OmniRoute로 이전됨 → 운영에서 검증한 도구·콤보(`ops/omniroute/`)를 키트가 그대로 재사용. freellmapi 대비 연결별 카탈로그 자동 동기화(업체 `/models`, 24시간), 세션 고정(`X-Session-Id`) 기본 처리(→ session-sticky 플러그인 불필요), 콤보 폴백·프롬프트 캐시 보존을 실측으로 확인(HANDOFF §12).
+- 대가: 메모리 5~10배(0.8~1.5GB vs 0.1GB), Docker 이미지의 CLI 불가(관리 HTTP API만), 기본값에 위험 항목(스킬 주입·의미 응답 캐시 켜짐) → Task 12 Step 2 하드닝 필수. Gemini 3는 여러 턴 도구 루프에서 서명이 유실됨 → Gemini는 도구 콤보에서 빼고 단발(비전·제목)에만.
+- 켜는 법 = Hostinger에 두 번째 프로젝트 붙여넣기 → `/setup` 💸. 헬스체크 통과 전에는 라우팅을 바꾸지 않으므로 반쯤 켜진 상태에서 봇이 죽지 않는다.
 
+
+### D10. 토큰 절약 계층 — 한 층에 한 도구 (2026-09-27)
+
+| 층 | 담당 | 끄는 것 |
+|---|---|---|
+| 셸 명령 출력 | Hermes rtk 플러그인(`rtk init --agent hermes`) | OmniRoute RTK 엔진 |
+| 도구 결과 크기 | Hermes `tool_output`(3,500B·100줄)·`tool_budget` | OmniRoute toolfilter·aggressive |
+| 대화 길이 | Hermes 압축(보조 `hermes-compress` 콤보) | OmniRoute context-relay·handoff |
+| 말투 압축 | 없음 | Caveman(한국어 답변 품질 저하·사용자 입력 변형) |
+| 라우터 | 라우팅·세션 고정·프롬프트 캐시 보존만 | OmniRoute 전역 압축 `off`(기본값) |
+
+근거: 같은 텍스트를 두 층에서 줄이면 추가 이득은 작고, 비결정적 변형은 프롬프트 캐시 접두를 깨뜨린다. OmniRoute 경유 캐시 적중 99%(command-code·experiential, 2026-09-27). 더 켜려면 `om_suite.py cache`로 적중률 유지부터 확인.
 
 ### D8. 베이스 이미지 — 업스트림 공식 `nousresearch/hermes-agent:v2026.9.11`
 
@@ -1016,7 +1025,7 @@ email/email-inbox-triage
 - 서아 님 스킬을 **공개 레포 하나**에 모은다. 구조 `skills/<스킬명>/SKILL.md` + `scripts/` = anthropics/skills와 같은 형식 → Hermes 네이티브 tap으로 개별 설치:
   `hermes skills tap add <owner>/<repo>` → `hermes skills install <스킬명>`. Hermes tap은 스킬 폴더 전체(스크립트 포함)를 커밋 고정으로 가져온다(`tools/skills_hub_github.py:226-292`, 심볼릭 링크·위험 경로 거부). Claude Code 등 다른 에이전트는 폴더 복사.
 - 1차 수록: ▶️ 유튜브 요약(Gemini판, 테스트 28개 보유), 💬 카톡·팀즈 읽기(agent-messenger는 사용자가 npm 설치 — 동봉 안 함). 구직 키트는 기존 레포 유지, README에서 링크.
-- 보류: 아침 브리핑·이메일 다이제스트(만족도 낮음), 위키 자동화(`ehr-wiki` 전제), session-sticky·turn-router(freellmapi 라우팅 전제). 제외: hermes-snow-search(제3자 작성).
+- 보류: 아침 브리핑·이메일 다이제스트(만족도 낮음), 위키 자동화(`ehr-wiki` 전제), session-sticky(OmniRoute가 `X-Session-Id`를 기본 처리 → 불필요)·turn-router. 제외: hermes-snow-search(제3자 작성).
 - 키트 연동: 시드 훅이 이 레포를 tap으로 등록 → 직군 키트는 tap 설치 목록만 가짐. 비공개 팩에는 SOUL·체인 튜닝만 남고, 경우에 따라 기수 PAT 불필요.
 - 🤖 CLI 워커는 **실험 팩**: 2026-09-26 기준 영수증 12건(전부 당일 구축·스모크), 실패 4건(33%), 성공 8건도 부모 검증 전(`*_unverified`). 2주 실사용 측정(부모 검증 통과율, 워커 보고 토큰 vs 부모 검증 비용) 후 공개·키트 포함 결정. Antigravity(`agy`)는 측정 대상에 추가.
 

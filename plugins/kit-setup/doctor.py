@@ -165,7 +165,7 @@ def collect(data_dir: Path, env_file: Path, process=None) -> list[Finding]:
     findings = [check_kit_version(data_dir), check_env_file(env_file), check_disk(data_dir),
                 check_gateway(process)]
     findings += check_keys(env, env_file)
-    findings.append(check_optional("http://freellmapi:3001/api/ping", "freellmapi 심화팩"))
+    findings.append(check_optional("http://omniroute:20128/healthz", "OmniRoute 심화팩"))
     return findings
 
 

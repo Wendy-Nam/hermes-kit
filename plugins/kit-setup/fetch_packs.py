@@ -26,7 +26,7 @@ log = logging.getLogger(__name__)
 TARBALL_URL = "https://api.github.com/repos/{repo}/tarball/{ref}"
 MAX_BYTES = 60 * 1024 * 1024      # a packs repo is text; anything larger is not what we expect
 # Copied only when absent — these are the author's own config, and a student may have edited theirs.
-COPY_IF_ABSENT = ("soul", "freellmapi")
+COPY_IF_ABSENT = ("soul", "omniroute")
 
 
 def _download(url: str, token: str) -> bytes:

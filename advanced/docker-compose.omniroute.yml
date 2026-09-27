@@ -1,0 +1,43 @@
+# OmniRoute 심화팩 — 선택 사항. 기본 compose에 넣지 않습니다.
+#
+# 이유: Hermes 프로세스 하나가 이미 약 2.7GB를 쓰고, OmniRoute는 평소 0.8~1.5GB(첫 모델 동기화 때
+# 1.9GB)를 씁니다. 8GB 미만 VPS에서는 켜지 마세요. 장애도 분리됩니다(여기가 죽어도 봇은 Hermes의
+# 직접 폴백 모델로 계속 답합니다).
+#
+# 쓰려면: Hostinger Docker Manager에서 **두 번째 프로젝트**로 이 파일을 붙여넣고, 환경변수 칸에
+#   KIT_OMNIROUTE_PASSWORD — 대시보드 로그인 비밀번호(직접 정한 긴 문장)
+# 하나만 채우세요. 같은 비밀번호를 디스코드 /setup 💸 에서 한 번 더 입력하면 봇이 키 등록·콤보 구성을 합니다.
+#
+# 이미지는 서아 님 운영에서 검증한 digest로 고정합니다(2026-09-27, 3.8.51 프리릴리스). 올릴 때는
+# 운영에서 먼저 om_suite.py 인수 테스트를 통과시킨 digest로만 바꿉니다.
+services:
+  omniroute:
+    image: diegosouzapw/omniroute:next@sha256:76931aa363ba9736c4af6d307792d365993dfc9e6a02712e20544d4e6265344a
+    restart: unless-stopped
+    stop_grace_period: 40s
+    mem_limit: 3g
+    volumes:
+      - omniroute-data:/app/data
+    environment:
+      INITIAL_PASSWORD: ${KIT_OMNIROUTE_PASSWORD}
+      REQUIRE_API_KEY: "true"      # /v1 는 Hermes용 추론 키가 있어야만 응답
+      TZ: Asia/Seoul
+    # JWT·API 키 서명 비밀값은 학생이 만들지 않게 합니다. 볼륨에 처음 기동할 때 생성하고 이후 재사용합니다.
+    # (ponytail: 비밀값과 데이터가 같은 디스크 — 단일 사용자 VPS에선 .env도 같은 디스크라 차이 없음)
+    entrypoint:
+      - sh
+      - -c
+      - |
+        s=/app/data/.kit-secrets
+        [ -s "$$s" ] || { umask 077; printf 'JWT_SECRET=%s\nAPI_KEY_SECRET=%s\n' "$$(head -c 48 /dev/urandom | base64 | tr -d '\n')" "$$(head -c 48 /dev/urandom | base64 | tr -d '\n')" > "$$s"; }
+        set -a; . "$$s"; set +a
+        exec /app/check-permissions.sh node dev/run-standalone.mjs
+    # 포트를 공개하지 않습니다 — Hermes는 네트워크 이름(http://omniroute:20128)으로 접근하고,
+    # 대시보드는 필요할 때만 `ssh -L 20128:127.0.0.1:20128 <vps>` 후 `docker compose port`로 연결합니다.
+    networks: [hermes-kit]
+
+volumes:
+  omniroute-data: {}
+
+networks:
+  hermes-kit: {name: hermes-kit, external: true}

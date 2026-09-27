@@ -359,7 +359,7 @@ class PacksFetch(unittest.TestCase):
             self.assertTrue(self.fp.fetch("o/r", "main", "tok", self.data)[0])
         self.assertEqual(target.read_bytes(), b"v2")
 
-    def test_soul_and_freellmapi_are_not_overwritten(self):
+    def test_soul_and_omniroute_are_not_overwritten(self):
         self.data.mkdir(exist_ok=True)
         (self.data / "soul").mkdir()
         (self.data / "soul" / "SOUL.md").write_text("학생이 고친 버전")
@@ -474,7 +474,7 @@ class Doctor(unittest.TestCase):
 
     def test_optional_addon_absent_is_not_an_error(self):
         with patch("urllib.request.urlopen", side_effect=OSError("no route")):
-            f = self.d.check_optional("http://freellmapi:3001/api/ping", "freellmapi 심화팩")
+            f = self.d.check_optional("http://omniroute:20128/healthz", "OmniRoute 심화팩")
         self.assertEqual(f.status, self.d.SKIP)
 
     def test_report_summarises_the_worst_state(self):
