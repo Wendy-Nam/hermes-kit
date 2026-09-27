@@ -15,7 +15,7 @@
 # 업데이트 전 데이터 볼륨 백업과 현재 이미지 digest를 보관하세요.
 services:
   omniroute:
-    image: ${KIT_OMNIROUTE_IMAGE:-ghcr.io/wendy-nam/hermes-kit:omniroute-rtk-json-2}
+    image: ${KIT_OMNIROUTE_IMAGE:-ghcr.io/wendy-nam/hermes-kit:omniroute-rtk-json-3}
     pull_policy: always
     restart: unless-stopped
     stop_grace_period: 40s

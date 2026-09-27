@@ -1,6 +1,6 @@
 # Hermes tool-result JSON adapter for OmniRoute RTK
 
-The optional student Compose installs `ghcr.io/wendy-nam/hermes-kit:omniroute-rtk-json-2`.
+The optional student Compose installs `ghcr.io/wendy-nam/hermes-kit:omniroute-rtk-json-3`.
 This is an OmniRoute image, not the Hermes runtime image. The base is a pinned
 `next-web` digest, with public compatibility and performance patches. It contains no instructor data,
 keys, routing pools, profiles, or personal plugins.
@@ -52,3 +52,15 @@ docker run --rm --network none \
   -v "$PWD/advanced/omniroute-rtk-envelope/reconcile-runtime-test.cjs:/tmp/reconcile-test.cjs:ro" \
   --entrypoint node kit-omniroute /tmp/reconcile-test.cjs
 ```
+
+## Compression worker dependencies (`omniroute-rtk-json-3`)
+
+OmniRoute 3.8.51's standalone image omits eight packages its own `package.json`
+declares and `open-sse/services/compression/compressionWorker.js` imports
+(`xxhash-wasm`, `uuid`, `@toon-format/toon`, `omniglyph`, `safe-regex`, `smol-toml`,
+`socks`, `yazl`). The worker then fails at import and compression runs on the main
+thread for every streamed token; installing `xxhash-wasm` alone still fails on `uuid`.
+`worker-deps/package-lock.json` pins that set (13 packages with dependencies, all
+MIT/BSD, no install scripts); the build runs `npm ci --ignore-scripts` and copies only
+packages absent from the image, refusing to mix versions. `compression-worker-test.cjs`
+checks the worker comes online in its own thread.
