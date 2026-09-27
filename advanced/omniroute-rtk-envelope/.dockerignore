@@ -2,3 +2,5 @@
 !Dockerfile
 !envelope.cjs
 !patch.cjs
+
+!reconcile-patch.cjs
