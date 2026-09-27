@@ -17,7 +17,7 @@ import yaml
 
 KIT_ROOT = Path('/opt/kit/plugins/kit-setup')
 sys.path.insert(0, str(KIT_ROOT if KIT_ROOT.is_dir() else Path(__file__).resolve().parents[1] / 'plugins/kit-setup'))
-from upstream_omh import CATEGORIES, install_upstream_omh
+from upstream_omh import CATEGORIES, WORKFLOW_SKILLS, install_upstream_omh
 from omh_enhancements import (DEFAULT_EFFORTS, HOOK_FILE, RECEIPT, disable_enhanced_omh,
                               enable_enhanced_omh, sync_base_route)
 
@@ -81,6 +81,13 @@ with tempfile.TemporaryDirectory(prefix='kit-omh-acceptance-') as directory:
     assert '보정이 켜졌습니다' in result['message'], result
     assert (data / RECEIPT).is_file()
     assert_student_state()
+    import glob, subprocess
+    skills = {Path(p).parent.name for p in glob.glob(str(data / '.omh/skills/*/*/SKILL.md'))}
+    assert set(WORKFLOW_SKILLS) <= skills and 'omh-plan' in skills, sorted(skills)
+    cli = str((data / '.local/bin/omh').resolve())
+    subprocess.run([cli, '--hermes-home', directory, '--omh-home', str(data / '.omh'), 'install', '--json'],
+                   check=True, capture_output=True)
+    assert skills == {Path(p).parent.name for p in glob.glob(str(data / '.omh/skills/*/*/SKILL.md'))}
 
     plugin = load_plugin(data, 'enhanced')
     session = {'session_id': 'kit-smoke-session', 'task_id': 'kit-smoke-session'}

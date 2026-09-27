@@ -50,6 +50,15 @@ the upstream hook byte-for-byte. A changed aux model (model selection or OmniRou
 connection) is synced into every task category the student did not assign; routing
 documents edited outside the kit are preserved, never overwritten.
 
+Beyond `--core`, `upstream_omh.WORKFLOW_SKILLS` (plus `KIT_WORKFLOW_SKILLS` for the
+selected job kits) are added with upstream's own installer: their upstream render is
+written, then `install_skill_pack` manifests them, and upstream refreshes on-disk
+skills whatever profile is recorded, so they survive `omh update`. Failure here
+leaves the core pack installed and is reported. For a route whose model family OMH
+cannot name (a combo that may switch vendors), a fixed route floor is appended at
+any effort. Calibration is computed in-process from the OMH venv when the
+interpreter version matches, with the subprocess as fallback, cached per model/effort.
+
 Pinned source: `rlaope/oh-my-hermes` tag `v2.0.5`, commit
 `b84f096e59d50fc933ed4b43fd36675e8cff593a`, codeload archive SHA-256
 `3a27c03301cc7f4dcb96a1476bd5a38bef57117148ba7f7e7aba4f15fffe608a`.
@@ -126,3 +135,13 @@ and metadata, rejects stale evidence, and never calls a management API. Review
 fresh dashboard settings before applying any proposal. Separately verify a small,
 explicitly authorized two-turn tool call before using a model for delegation;
 price verification does not establish tool support or account access.
+
+## Optional JS page extractor
+
+`crawl4ai_setup.install(data_dir)` creates `crawl4ai-env` on the data volume with
+`crawl4ai==0.9.4` and `playwright==1.63.0`, whose chromium-headless-shell revision
+1243 is the one the Hermes image ships; no browser is downloaded. It writes
+`bin/jsextract` (public http(s) only; private, loopback and link-local addresses
+refused) and the `kit-tools/js-page-extract` skill. Default extraction remains
+`web.extract_backend: parallel` (keyless). `uninstall` removes all of it.
+`scripts/jsextract-smoke.py` verifies install, refusal and rendering in the image.

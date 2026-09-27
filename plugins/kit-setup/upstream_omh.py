@@ -27,6 +27,50 @@ CATEGORIES = ('quick', 'deep', 'architect', 'artistry', 'ultrabrain', 'writing',
               'visual-engineering', 'capable', 'simple-work', 'deep-work',
               'unspecified-low', 'unspecified-high')
 # OMH writes these values into delegation.*; its own grammar has no ':' or '@'.
+# OMH workflow skills beyond `--core`, by installed label. The full pack is 124 skills and
+# every enabled skill adds per-turn context, so students get a curated set: the
+# general workflows for everyone plus the ones their job kits use.
+WORKFLOW_SKILLS = ('omh-decide', 'omh-research-brief', 'omh-meeting-brief', 'omh-deliverable-package',
+                   'omh-long-document-reading', 'omh-live-info', 'ulw-plan', 'ulw-interview')
+KIT_WORKFLOW_SKILLS = {'dev': ('omh-code-review', 'omh-verification-gate', 'omh-build-failure-triage'),
+                       'mkt': ('omh-content-operator',), 'pm': ('omh-data-analysis',),
+                       'sales': ('omh-data-analysis',), 'job': ()}
+# Upstream refreshes every skill already on disk, whatever profile is recorded. Writing
+# the chosen skills' own upstream render and then running upstream's installer
+# therefore manifests them and keeps them through `omh update` like any managed skill.
+_SKILL_SCRIPT = '''import json,sys
+from omh.install.installer import builtin_skill_templates, skill_install_relative_dir, install_skill_pack, _installed_skill_names
+from omh.system.paths import resolve_paths
+from omh.local_store import atomic_write_text
+want=set(json.loads(sys.argv[1])); paths=resolve_paths(sys.argv[2], sys.argv[3])
+chosen={skill_install_relative_dir(t.name).name:t for t in builtin_skill_templates() if skill_install_relative_dir(t.name).name in want}
+for t in chosen.values():
+    target=paths.skills_dir/skill_install_relative_dir(t.name)/'SKILL.md'
+    if not target.exists(): atomic_write_text(target, t.content)
+install_skill_pack(paths, profile='core')
+present=_installed_skill_names(paths.skills_dir)
+print(json.dumps({'installed':sorted(n for n in chosen if n in present),'missing':sorted(want-(set(chosen)&present))}))
+'''
+
+
+def workflow_skill_labels(selected_kits):
+    labels = list(WORKFLOW_SKILLS)
+    for kit in selected_kits:
+        labels += KIT_WORKFLOW_SKILLS.get(kit, ())
+    return list(dict.fromkeys(labels))
+
+
+def install_workflow_skills(data, python, selected_kits, env=None):
+    """Add the curated OMH workflow skills with upstream's own installer."""
+    labels = workflow_skill_labels(selected_kits)
+    out = _run([python, '-c', _SKILL_SCRIPT, json.dumps(labels), str(data / '.omh'), str(data)],
+               env or dict(os.environ, HOME=str(data), HERMES_HOME=str(data), OMH_HOME=str(data / '.omh')))
+    result = json.loads(out.strip().splitlines()[-1])
+    if result['missing']:
+        raise RuntimeError('workflow skills missing upstream: ' + ', '.join(result['missing']))
+    return result['installed']
+
+
 TOKEN = re.compile(r'^[A-Za-z0-9][A-Za-z0-9._/-]{0,127}$')
 
 
@@ -250,8 +294,13 @@ def install_upstream_omh(data_dir, *, routing, host_version):
             (routing_dir / 'model-chains.json').write_text(json.dumps(chains, indent=2)+'\n')
             launcher.parent.mkdir(parents=True, exist_ok=True)
             launcher.symlink_to(cli)
+            try:
+                skills = install_workflow_skills(data, str(venv / 'bin/python'), state.get('selected_kits', []), env)
+            except Exception:
+                skills = []  # the core pack works without them; reported below
             receipt = {'version':OMH_VERSION,'source_commit':OMH_COMMIT,'archive_sha256':OMH_SHA256,
-                       'cli':cli,'routing':route,'mode':'upstream-core','live_dispatch_verified':False}
+                       'cli':cli,'routing':route,'mode':'upstream-core','workflow_skills':skills,
+                       'live_dispatch_verified':False}
             state['components']['omh-upstream'] = receipt
             message = 'OMH 기본 팩 설치 완료. 작업 종류별 권장 추론 강도와 모델 보정이 켜졌습니다.'
             try:
@@ -262,6 +311,8 @@ def install_upstream_omh(data_dir, *, routing, host_version):
             except Exception as exc:
                 # The upstream pack works without calibration; say so instead of failing it.
                 message = f'OMH 기본 팩 설치 완료. 모델 보정은 켜지 못했습니다 ({type(exc).__name__}).'
+            if not skills:
+                message += ' 추가 워크플로우 스킬은 설치하지 못했습니다(기본 스킬만 사용).'
             result = {'id':'omh','status':'installed','message':message+' 적용하기(재시작) 후 실제 위임으로 확인해 주세요.'}
             state.setdefault('last_results', {})['omh-upstream'] = result
             _save_state(data,state)

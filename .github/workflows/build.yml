@@ -42,8 +42,12 @@ jobs:
         run: docker run --rm --network none -v "$PWD/scripts/skill-reuse-smoke.py:/tmp/skill-reuse-smoke.py:ro" --entrypoint /opt/hermes/.venv/bin/python hermes-kit:ci /tmp/skill-reuse-smoke.py
       - name: incomplete cron runs cannot become successful ledger entries
         run: docker run --rm --network none -v "$PWD/scripts/cron-outcome-smoke.py:/tmp/cron-outcome-smoke.py:ro" --entrypoint /opt/hermes/.venv/bin/python hermes-kit:ci /tmp/cron-outcome-smoke.py
+      - name: ported server patches (kanban notify, policy hook serialization) behave
+        run: docker run --rm --network none -v "$PWD/scripts/kanban-hook-smoke.py:/tmp/kanban-hook-smoke.py:ro" --entrypoint /opt/hermes/.venv/bin/python hermes-kit:ci /tmp/kanban-hook-smoke.py
       - name: optional OMH enhancement keeps bot profiles intact (real Hermes host)
         run: docker run --rm -v "$PWD/scripts/omh-enhancement-smoke.py:/tmp/omh-enhancement-smoke.py:ro" --entrypoint /opt/hermes/.venv/bin/python hermes-kit:ci /tmp/omh-enhancement-smoke.py
+      - name: opt-in JS page extractor installs on the image Chromium and refuses internal URLs
+        run: docker run --rm -u hermes -v "$PWD/scripts/jsextract-smoke.py:/tmp/jsextract-smoke.py:ro" --entrypoint /opt/hermes/.venv/bin/python hermes-kit:ci /tmp/jsextract-smoke.py
       - name: voice patches behave
         run: docker run --rm --entrypoint sh hermes-kit:ci -c "cd /opt/kit/patches/voice && /opt/hermes/.venv/bin/python verify.py --root /opt/hermes"
       - name: secret scan (nothing personal or secret in the public image)
