@@ -129,3 +129,15 @@ def missing_keys(packs, env: dict) -> list[KeySpec]:
     """Keys of required packs that have no value yet. Empty means the student can restart the bot."""
     return [k for p in packs if p.required for k in p.keys
             if not k.optional and not env.get(k.env)]
+
+
+def missing_requirements(packs, env: dict) -> list[str]:
+    problems = [f"{k.label} 입력이 필요합니다" for k in missing_keys(packs, env)]
+    groups = {}
+    for pack in packs:
+        if pack.required_one_of:
+            groups.setdefault(pack.required_one_of, []).append(pack)
+    for group in groups.values():
+        if not any(all(env.get(k.env) for k in p.keys if not k.optional) for p in group):
+            problems.append("보조 모델 중 하나를 연결해 주세요: " + " / ".join(p.title for p in group))
+    return problems

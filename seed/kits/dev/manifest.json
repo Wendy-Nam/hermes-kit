@@ -1,0 +1,8 @@
+{
+  "schema_version": "kit-component/v1",
+  "id": "dev",
+  "version": "1.0.0",
+  "files": {
+    "SKILL.md": "2383c8370c8563f650928701947934be138ec96357b219a917f64912d81e467c"
+  }
+}

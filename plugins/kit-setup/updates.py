@@ -56,19 +56,31 @@ def check(current: str) -> tuple[bool, str, str]:
 
 
 def install_cron(data_dir) -> tuple[bool, str]:
-    """Weekly no-agent job. Idempotent, like the backup job."""
-    import json
     from pathlib import Path
+    from maintenance import install_job
+    return install_job(data_dir, "kit-update-check", "hermes-kit 업데이트 확인",
+                       "0 9 * * 1", Path(__file__), deliver="auto")
 
-    jobs_file = Path(data_dir) / "cron" / "jobs.json"
-    jobs_file.parent.mkdir(parents=True, exist_ok=True)
-    jobs = json.loads(jobs_file.read_text()) if jobs_file.exists() else []
-    if isinstance(jobs, dict):
-        jobs = jobs.get("jobs", [])
-    if any(j.get("id") == "kit-update-check" for j in jobs):
-        return False, "업데이트 확인 크론이 이미 있습니다"
-    jobs.append({"id": "kit-update-check", "name": "hermes-kit 업데이트 확인",
-                 "schedule": "0 9 * * 1", "no_agent": True,
-                 "command": str(Path(__file__).resolve())})
-    jobs_file.write_text(json.dumps(jobs, ensure_ascii=False, indent=2))
-    return True, "주간 업데이트 확인 크론을 등록했습니다"
+
+def main():
+    import os
+    import sys
+    from pathlib import Path
+    home = Path(os.environ.get("HERMES_HOME") or "/opt/data")
+    version_file = Path("/opt/kit/RELEASE_VERSION")
+    try:
+        current = version_file.read_text().strip() if version_file.exists() else (home / ".kit-release-version").read_text().strip()
+    except OSError:
+        print("업데이트 확인 실패: 키트 릴리스 버전을 읽지 못했습니다", file=sys.stderr)
+        return 1
+    available, tag, message = check(current)
+    if available:
+        print(message)
+    elif not tag:
+        print(message, file=sys.stderr)
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -1,10 +1,11 @@
 # syntax=docker/dockerfile:1
 # hermes-kit image: upstream Hermes (pinned) + voice patches + selected core patches + rtk + kit seed.
-# Build: set -a; . ./versions.env; set +a; docker build --build-arg HERMES_BASE_IMAGE --build-arg RTK_VERSION --build-arg KIT_VERSION -t hermes-kit:dev .
+# Build: set -a; . ./versions.env; set +a; docker build --build-arg HERMES_BASE_IMAGE --build-arg HERMES_VERSION --build-arg RTK_VERSION --build-arg KIT_VERSION -t hermes-kit:dev .
 ARG HERMES_BASE_IMAGE
 FROM ${HERMES_BASE_IMAGE}
 ARG RTK_VERSION
 ARG KIT_VERSION
+ARG HERMES_VERSION
 USER root
 
 # rtk, checksum-verified (python urllib: the base image's tool set is not guaranteed)
@@ -30,7 +31,7 @@ COPY patches /opt/kit/patches
 RUN set -eu; PY=/opt/hermes/.venv/bin/python; \
     export HERMES_HOME=/tmp/kit-build-home HOME=/tmp/kit-build-home; mkdir -p /tmp/kit-build-home; \
     sh /opt/kit/patches/voice/apply.sh; \
-    for f in hook-overlap-skip lifecycle-guard-sqlite kanban-interval budget-caps skills-view-cap cron-max-turns skills-compact; do \
+    for f in hook-overlap-skip lifecycle-guard-sqlite kanban-interval budget-caps skills-view-cap cron-max-turns skills-compact vision-inbound; do \
       $PY /opt/kit/patches/core/patch-$f.py; \
     done; \
     cd /opt/hermes && $PY -c "import gateway.run, agent.system_prompt, tools.skills_tool, tools.budget_config, cron.scheduler"; \
@@ -56,4 +57,4 @@ EOF
 COPY bin /opt/kit/bin
 COPY plugins /opt/kit/plugins
 COPY rootfs/etc/cont-init.d/10-kit-seed /etc/cont-init.d/10-kit-seed
-RUN chmod 0755 /etc/cont-init.d/10-kit-seed /opt/kit/bin/*.py && echo "${KIT_VERSION}" > /opt/kit/VERSION && rtk --version
+RUN chmod 0755 /etc/cont-init.d/10-kit-seed /opt/kit/bin/*.py && echo "${KIT_VERSION}" > /opt/kit/VERSION && echo "${HERMES_VERSION}-k${KIT_VERSION}" > /opt/kit/RELEASE_VERSION && rtk --version

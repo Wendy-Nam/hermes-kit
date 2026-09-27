@@ -62,7 +62,7 @@ def configure_app(token: str) -> tuple[str | None, str | None]:
         })
     except Exception as e:
         # Not fatal: the student can still invite the bot, they may just have to tick a box.
-        log.warning("install_params update failed (%s) — invite link still usable", e)
+        log.warning("install_params update failed (%s) — invite link still usable", type(e).__name__)
     return invite_url(str(app.get("id"))), None
 
 

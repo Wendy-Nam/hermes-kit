@@ -157,7 +157,36 @@ def copy_for_instructor(findings) -> str:
     return mask("\n".join(f"{ICON[f.status]} {f.name}: {f.detail}" for f in findings))
 
 
-def collect(data_dir: Path, env_file: Path, process=None) -> list[Finding]:
+
+def check_components(data_dir):
+    from bootstrap import component_status
+    return [Finding('스킬 '+r['id'], OK if r['status']=='installed' else BAD, r['message'])
+            for r in component_status(data_dir)]
+
+
+def check_maintenance(data_dir):
+    import json
+    try:
+        path=Path(data_dir)/'cron/jobs.json'
+        raw=json.loads(path.read_text()) if path.exists() else []
+        jobs=raw.get('jobs',[]) if isinstance(raw,dict) else raw
+        names={(j.get('origin') or {}).get('kit_job') for j in jobs if j.get('enabled',True)}
+        missing={'kit-backup','kit-update-check'}-names
+        return Finding('백업·업데이트 예약', WARN if missing else OK,
+            '미등록 항목이 있습니다. /setup 적용하기로 등록하세요' if missing else '주간 작업 등록됨 (복원 검증과는 별도)')
+    except Exception:
+        return Finding('백업·업데이트 예약',BAD,'예약 정보를 읽을 수 없습니다')
+
+
+def check_models(data_dir):
+    from model_setup import probe
+    result=[]
+    for role,name in [('main','대화 모델'),('aux','보조 모델')]:
+        ok,msg=probe(data_dir,role=role)
+        result.append(Finding(name,OK if ok else BAD,msg))
+    return result
+
+def collect(data_dir: Path, env_file: Path, process=None, run_models=False) -> list[Finding]:
     """Run every check. Order is what a student reads first: setup, then keys, then extras."""
     from env_store import get_env
 
@@ -165,6 +194,9 @@ def collect(data_dir: Path, env_file: Path, process=None) -> list[Finding]:
     findings = [check_kit_version(data_dir), check_env_file(env_file), check_disk(data_dir),
                 check_gateway(process)]
     findings += check_keys(env, env_file)
+    findings += check_components(data_dir)
+    findings.append(check_maintenance(data_dir))
+    if run_models: findings += check_models(data_dir)
     findings.append(check_optional("http://omniroute:20128/healthz", "OmniRoute 심화팩"))
     return findings
 
@@ -190,7 +222,7 @@ async def doctor_command(interaction, data_dir: Path, env_file: Path, process=No
         return
 
     await interaction.response.defer(ephemeral=True, thinking=True)
-    findings = await asyncio.to_thread(collect, data_dir, env_file, process)
+    findings = await asyncio.to_thread(collect, data_dir, env_file, process, True)
     await interaction.followup.send(report(findings)[:1900], view=DoctorView(findings),
                                    ephemeral=True)
 

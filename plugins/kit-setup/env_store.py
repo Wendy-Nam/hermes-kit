@@ -5,9 +5,21 @@ matter are: never lose or reorder what is already there, and never leave a
 half-written file behind if the process dies mid-write.
 """
 import os
+import fcntl
+from functools import wraps
 import tempfile
 from pathlib import Path
 
+
+
+def _serialized(fn):
+    @wraps(fn)
+    def wrapped(path, *args, **kwargs):
+        path=Path(path);path.parent.mkdir(parents=True,exist_ok=True)
+        with path.with_name('.kit-env.lock').open('a') as lock:
+            fcntl.flock(lock,fcntl.LOCK_EX)
+            return fn(path,*args,**kwargs)
+    return wrapped
 
 def get_env(path: Path) -> dict[str, str]:
     out = {}
@@ -19,6 +31,7 @@ def get_env(path: Path) -> dict[str, str]:
     return out
 
 
+@_serialized
 def set_env(path: Path, updates: dict[str, str]) -> None:
     path = Path(path)
     for k, v in updates.items():
@@ -47,6 +60,7 @@ def set_env(path: Path, updates: dict[str, str]) -> None:
         raise
 
 
+@_serialized
 def drop_env(path: Path, names) -> list[str]:
     """Remove keys from .env, leaving every other line byte-identical (comments included).
 

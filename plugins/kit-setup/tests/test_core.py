@@ -160,7 +160,7 @@ class Packs(unittest.TestCase):
     def test_kit_selection_pulls_in_base_and_its_features(self):
         ps, ks = packs.load_packs(v.VALIDATORS), packs.load_kits()
         self.assertEqual([p.id for p in packs.packs_for_kits(["job"], ps, ks)],
-                         [p.id for p in ps if p.id in {"base", "proxy"}])
+                         [p.id for p in ps if p.id in {"base"}])
 
     def test_kit_selection_is_stable(self):
         ps, ks = packs.load_packs(v.VALIDATORS), packs.load_kits()
@@ -285,35 +285,31 @@ class ApplyFlow(unittest.TestCase):
         self.assertEqual(env_store.get_env(self.tmp / ".env"),
                          {"DISCORD_BOT_TOKEN": "keepme", "GEMINI_API_KEY": "AIza-real"})
 
-    def test_env_refs_are_left_for_the_env_file_not_written_to_config(self):
-        with patch.object(self.du.subprocess, "run") as run:
-            self.du._apply([(self.spec, "x")], {"a": "1", "b": "${COMMANDCODE_API_KEY}"})
-        keys = [c.args[0][3] for c in run.call_args_list if c.args and c.args[0]]
-        self.assertIn("a", keys)
-        self.assertNotIn("b", keys)   # writing the literal "${...}" would store a useless string
+    def test_env_refs_stay_literal_in_config_without_expanding_secrets(self):
+        import config_store
+        self.du._apply([(self.spec, "x")], {"mcp.headers.key": "${COMMANDCODE_API_KEY}"})
+        self.assertEqual(config_store.read(self.tmp)['mcp']['headers']['key'], "${COMMANDCODE_API_KEY}")
 
-    def test_a_failed_config_set_is_reported_not_claimed_as_applied(self):
-        """A green tick on a setting that did not stick is worse than an honest red one."""
-        import subprocess as sp
-        with patch.object(self.du.subprocess, "run",
-                          return_value=sp.CompletedProcess([], 1, "", "boom")):
+    def test_failed_atomic_config_write_is_not_claimed_as_applied(self):
+        import config_store
+        with patch.object(config_store, "write", side_effect=OSError("disk full")):
             lines = self.du._apply([(self.spec, "x")], {"stt.provider": "groq"})
         failed = [l for l in lines if "stt.provider" in l][0]
         self.assertIn("설정 적용 실패", failed)
         self.assertNotIn("✅", failed)
-
-    def test_a_missing_hermes_binary_is_reported_not_raised(self):
-        with patch.object(self.du.subprocess, "run", side_effect=FileNotFoundError("no hermes")):
-            lines = self.du._apply([(self.spec, "x")], {"a": "1"})
-        self.assertIn("설정 적용 실패", "\n".join(lines))
         self.assertEqual(env_store.get_env(self.tmp / ".env"), {"GEMINI_API_KEY": "x"})
 
-    def test_successful_config_set_is_still_claimed(self):
-        import subprocess as sp
-        with patch.object(self.du.subprocess, "run",
-                          return_value=sp.CompletedProcess([], 0, "", "")):
-            lines = self.du._apply([(self.spec, "x")], {"stt.provider": "groq"})
+    def test_malformed_config_is_not_silently_replaced(self):
+        (self.tmp/'config.yaml').write_text('not: [valid')
+        lines = self.du._apply([(self.spec,"x")],{"stt.provider":"groq"})
+        self.assertIn("설정 적용 실패", "\n".join(lines))
+        self.assertEqual((self.tmp/'config.yaml').read_text(),'not: [valid')
+
+    def test_successful_config_write_is_still_claimed(self):
+        import config_store
+        lines = self.du._apply([(self.spec, "x")], {"stt.provider": "groq"})
         self.assertIn("✅ 설정 적용: stt.provider", "\n".join(lines))
+        self.assertEqual(config_store.read(self.tmp)['stt']['provider'], 'groq')
 
 
 class PacksFetch(unittest.TestCase):
@@ -348,15 +344,21 @@ class PacksFetch(unittest.TestCase):
         self.assertFalse(ok)
         self.assertIn("KIT_ACCESS_CODE", msg)
 
+    def _bundle(self, text, version="1.0.0"):
+        import hashlib
+        def build(tf):
+            self._add(tf, "manifest.json", json.dumps({"schema_version":"kit-bundle/v1","version":version,"components":["job"]}).encode())
+            self._add(tf, "kits/job/manifest.json", json.dumps({"schema_version":"kit-component/v1","id":"job","version":version,"files":{"SKILL.md":hashlib.sha256(text).hexdigest()}}).encode())
+            self._add(tf, "kits/job/SKILL.md", text)
+        return self._tarball(build)
+
     def test_installs_kit_skills_and_replaces_them_on_a_later_run(self):
-        blob = self._tarball(lambda tf: self._add(tf, "skills/kit/base/SKILL.md", b"v1"))
-        with patch.object(self.fp, "_download", return_value=blob):
-            self.assertTrue(self.fp.fetch("o/r", "main", "tok", self.data)[0])
-        target = self.data / "skills" / "kit" / "base" / "SKILL.md"
+        with patch.object(self.fp, "_download", return_value=self._bundle(b"v1")):
+            self.assertTrue(self.fp.fetch("o/r", "a"*40, "tok", self.data)[0])
+        target = self.data / "skills/kit/job/SKILL.md"
         self.assertEqual(target.read_bytes(), b"v1")
-        blob2 = self._tarball(lambda tf: self._add(tf, "skills/kit/base/SKILL.md", b"v2"))
-        with patch.object(self.fp, "_download", return_value=blob2):
-            self.assertTrue(self.fp.fetch("o/r", "main", "tok", self.data)[0])
+        with patch.object(self.fp, "_download", return_value=self._bundle(b"v2", "1.0.1")):
+            self.assertTrue(self.fp.fetch("o/r", "b"*40, "tok", self.data)[0])
         self.assertEqual(target.read_bytes(), b"v2")
 
     def test_soul_and_omniroute_are_not_overwritten(self):
@@ -365,7 +367,7 @@ class PacksFetch(unittest.TestCase):
         (self.data / "soul" / "SOUL.md").write_text("학생이 고친 버전")
         blob = self._tarball(lambda tf: self._add(tf, "soul/SOUL.md", b"author"))
         with patch.object(self.fp, "_download", return_value=blob):
-            self.fp.fetch("o/r", "main", "tok", self.data)
+            self.fp.fetch("o/r", "a"*40, "tok", self.data)
         self.assertEqual((self.data / "soul" / "SOUL.md").read_text(), "학생이 고친 버전")
 
     def test_a_symlink_in_the_tarball_aborts_everything(self):
@@ -386,28 +388,28 @@ class PacksFetch(unittest.TestCase):
 
     def test_a_failed_download_leaves_the_previous_skills_intact(self):
         import urllib.error
-        blob = self._tarball(lambda tf: self._add(tf, "skills/kit/base/SKILL.md", b"v1"))
-        with patch.object(self.fp, "_download", return_value=blob):
-            self.fp.fetch("o/r", "main", "tok", self.data)
-        good = (self.data / "skills" / "kit" / "base" / "SKILL.md").read_bytes()
+        with patch.object(self.fp, "_download", return_value=self._bundle(b"v1")):
+            self.fp.fetch("o/r", "a"*40, "tok", self.data)
+        target = self.data / "skills/kit/job/SKILL.md"
+        good = target.read_bytes()
         err = urllib.error.HTTPError("u", 404, "Not Found", {}, None)
         with patch.object(self.fp, "_download", side_effect=err):
-            ok, msg = self.fp.fetch("o/r", "main", "tok", self.data)
+            ok, msg = self.fp.fetch("o/r", "a"*40, "tok", self.data)
         self.assertFalse(ok)
         self.assertIn("404", msg)
-        self.assertEqual((self.data / "skills" / "kit" / "base" / "SKILL.md").read_bytes(), good)
+        self.assertEqual(target.read_bytes(), good)
 
     def test_expired_token_says_so(self):
         import urllib.error
         err = urllib.error.HTTPError("u", 401, "Bad credentials", {}, None)
         with patch.object(self.fp, "_download", side_effect=err):
-            ok, msg = self.fp.fetch("o/r", "main", "expired", self.data)
+            ok, msg = self.fp.fetch("o/r", "a"*40, "expired", self.data)
         self.assertFalse(ok)
         self.assertIn("만료", msg)
 
     def test_network_error_never_raises(self):
         with patch.object(self.fp, "_download", side_effect=TimeoutError("no route")):
-            ok, msg = self.fp.fetch("o/r", "main", "tok", self.data)
+            ok, msg = self.fp.fetch("o/r", "a"*40, "tok", self.data)
         self.assertFalse(ok)
         self.assertIn("실패", msg)
 
@@ -563,13 +565,12 @@ class Backup(unittest.TestCase):
         self.assertFalse(ok)
         self.assertEqual(list(self.dest.glob("*.tar.gz")), [])
 
-    def test_cron_registration_is_idempotent_and_uses_no_agent(self):
-        ok, msg = self.b.install_cron(self.data)
-        self.assertTrue(ok, msg)
-        self.assertFalse(self.b.install_cron(self.data)[0])
-        jobs = json.loads((self.data / "cron" / "jobs.json").read_text())
-        self.assertEqual(len(jobs), 1)
-        self.assertTrue(jobs[0]["no_agent"])
+    def test_cron_registration_uses_supported_maintenance_api(self):
+        import maintenance
+        with patch.object(maintenance, "install_job", return_value=(True,"ok")) as install:
+            self.assertTrue(self.b.install_cron(self.data)[0])
+            self.assertEqual(install.call_args.args[1], "kit-backup")
+
 
 
 class Updates(unittest.TestCase):
@@ -609,14 +610,12 @@ class Updates(unittest.TestCase):
         with patch.object(updates, "latest_release", return_value=(None, "GitHub에 연결하지 못했습니다")):
             self.assertFalse(updates.check("0.21.2-k1")[0])
 
-    def test_update_cron_is_idempotent_and_no_agent(self):
-        import updates
-        data = Path(tempfile.mkdtemp())
-        self.assertTrue(updates.install_cron(data)[0])
-        self.assertFalse(updates.install_cron(data)[0])
-        jobs = json.loads((data / "cron" / "jobs.json").read_text())
-        self.assertEqual(len(jobs), 1)
-        self.assertTrue(jobs[0]["no_agent"])
+    def test_update_cron_uses_supported_maintenance_api(self):
+        import updates, maintenance
+        with patch.object(maintenance, "install_job", return_value=(True,"ok")) as install:
+            self.assertTrue(updates.install_cron(Path(tempfile.mkdtemp()))[0])
+            self.assertEqual(install.call_args.args[1], "kit-update-check")
+
 
 
 class Entrypoints(unittest.TestCase):

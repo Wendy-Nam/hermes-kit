@@ -1,0 +1,8 @@
+{
+  "schema_version": "kit-component/v1",
+  "id": "job",
+  "version": "1.0.0",
+  "files": {
+    "SKILL.md": "ca7765a8712589def0f816b3bf6dc56aced9b468e15515c56cd881a3a784ca12"
+  }
+}

@@ -13,7 +13,11 @@ log() { echo "[kit] $*"; }
 
 new="$(cat "$K/VERSION")"
 old="$(cat "$D/.kit-version" 2>/dev/null || echo none)"
-[ "$new" = "$old" ] && { log "kit $new already seeded"; exit 0; }
+if [ "$new" = "$old" ]; then
+  as_h "$PY" "$D/plugins/kit-setup/bootstrap.py" || log "component retry incomplete; use /setup"
+  log "kit $new already seeded"
+  exit 0
+fi
 log "seeding kit $new (previous: $old)"
 
 if [ "$old" = none ]; then
@@ -26,15 +30,7 @@ if [ "$old" = none ]; then
   ( cd /opt/hermes/skills && find . -name SKILL.md | sed 's|/SKILL.md$||; s|^\./||' ) | while read -r s; do
     grep -qxF "$s" "$K/seed/bundled-keep.txt" || rm -rf "${D:?}/skills/$s"
   done
-  # Public skills repo (D9). Best effort: a boot without network must still finish, so this
-  # only runs when it is not there yet.
-  # --force: Hermes' scanner blocks any community skill that reads an API key from the env ("caution"
-  # verdict); this is the kit author's own reviewed repo. The exit code does not say "blocked", so check the file.
-  if [ ! -f "$D/skills/media/youtube-summary/SKILL.md" ]; then
-    out=$(as_h "$H" skills install Wendy-Nam/hermes-skills-kr/youtube-summary --category media --yes --force 2>&1) || true
-    [ -f "$D/skills/media/youtube-summary/SKILL.md" ] \
-      || log "youtube-summary install failed (continuing; the skill repo may be unreachable): $(printf '%s' "$out" | tail -1)"
-  fi
+
 fi
 
 # Vault templates: only where the vault does not exist yet (never touch a user's notes).
@@ -47,22 +43,14 @@ done
 # kit-setup: the /setup and /doctor Discord commands. Copied per kit version — kit code,
 # unlike rtk's own plugin below. The packs fetch below imports it, so it goes first.
 if [ -d "$K/plugins/kit-setup" ]; then
-  as_h mkdir -p "$D/plugins/kit-setup" || log "kit-setup dir create failed (continuing)"
-  as_h cp -r "$K/plugins/kit-setup/." "$D/plugins/kit-setup/" || log "kit-setup copy failed (continuing)"
+  as_h mkdir -p "$D/plugins/kit-setup"
+  as_h cp -r "$K/plugins/kit-setup/." "$D/plugins/kit-setup/"
   as_h find "$D/plugins/kit-setup" -name __pycache__ -type d -exec rm -rf {} + 2>/dev/null || true
   log "kit-setup plugin installed"
 fi
 
-# Private packs repo (Phase 3, Task 10) — needs the plugin copied just above.
-# Best effort: no network, or a token that expired at the end of the cohort, must not fail boot.
-as_h env KIT_ACCESS_CODE="${KIT_ACCESS_CODE:-}" "$PY" -c '
-import sys, os
-sys.path.insert(0, "/opt/data/plugins/kit-setup")
-from pathlib import Path
-from fetch_packs import fetch
-print("[kit] " + fetch("Wendy-Nam/hermes-kit-packs", "main",
-                       os.environ.get("KIT_ACCESS_CODE", ""), Path("/opt/data"))[1])
-' 2>/dev/null || log "private packs fetch skipped"
+# Component failures remain retryable, independently of the core seed marker.
+as_h "$PY" "$D/plugins/kit-setup/bootstrap.py" || log "component retry incomplete; use /setup"
 
 # rtk's own Hermes plugin (accepts rewrite exit codes 0 and 3, fails open); refreshed per kit version.
 as_h rtk init --agent hermes >/dev/null && log "rtk hermes plugin installed"

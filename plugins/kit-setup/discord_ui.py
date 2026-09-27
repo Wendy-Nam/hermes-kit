@@ -82,32 +82,12 @@ def _write(values: dict, config: dict) -> list[str]:
     from env_store import set_env
 
     set_env(ENV_FILE, values)
-    # Record what these settings look like *before* changing them, so /setup's "연결 해제"
-    # can put them back. Without this a disconnect could only delete the keys and would leave
-    # `stt.provider: groq` behind, looking configured with no credentials to run on.
+    from config_store import write
     try:
-        import disconnect
-        # Same directory as .env, not the module-level DATA: those can differ under test, and
-        # a snapshot that lands next to the wrong .env cannot restore anything.
-        disconnect.snapshot(ENV_FILE.parent, config, _read_config())
+        write(ENV_FILE.parent, config)
+        return [f"{TICK} 설정 적용: {k}" for k in config]
     except Exception:
-        pass    # a missing snapshot only costs the ability to revert later
-
-    lines = []
-    for k, v in config.items():
-        if "${" in str(v):       # a value that refers back to an env var keeps that reference
-            continue
-        try:
-            r = subprocess.run([HERMES, "config", "set", k, str(v), "--force"],
-                               capture_output=True, text=True, timeout=60, check=False)
-            ok = r.returncode == 0
-        except Exception:
-            ok = False
-        # Never claim success for a setting that did not stick: a student who sees a green tick
-        # on "stt.provider" and finds voice still off will not re-run it.
-        lines.append(f"{TICK} 설정 적용: {k}" if ok else
-                     f"{CROSS} 설정 적용 실패: {k} — 키는 저장됐지만 이 설정은 반영되지 않았습니다")
-    return lines
+        return [f"{CROSS} 설정 적용 실패: {k} — 키는 저장됐지만 설정은 반영되지 않았습니다" for k in config]
 
 
 async def _verify(entries) -> list[tuple[str, bool, str]]:
@@ -121,6 +101,12 @@ async def _verify(entries) -> list[tuple[str, bool, str]]:
     async def one(spec, value):
         return spec.env, await asyncio.to_thread(v.VALIDATORS[spec.validator], value)
 
+    proxy_names = {"WEBSHARE_PROXY_USERNAME", "WEBSHARE_PROXY_PASSWORD"}
+    proxy_entries = {s.env: val for s, val in entries if s.env in proxy_names}
+    if proxy_entries:
+        ok, msg = await asyncio.to_thread(v.webshare_credentials,
+            proxy_entries.get("WEBSHARE_PROXY_USERNAME", ""), proxy_entries.get("WEBSHARE_PROXY_PASSWORD", ""))
+        return [(name, ok, msg) for name in sorted(proxy_names)]
     results = await asyncio.gather(*(one(s, val) for s, val in entries), return_exceptions=True)
     out = []
     for r in results:
@@ -196,7 +182,7 @@ async def setup_command(interaction, packs_list, kits_list, bot):
                 if waiting else
                 "2️⃣ 필요한 키가 모두 있습니다. 그대로 적용해도 됩니다.")
 
-    view = HomeView(packs_list, channel_id=interaction.channel_id)
+    view = HomeView(packs_list, channel_id=interaction.channel_id, owner_id=interaction.user.id)
     await interaction.followup.send("\n".join(head), view=view, ephemeral=True)
 
 
@@ -261,7 +247,7 @@ def build(bot, adapter):
         if channel is None:
             log.info("kit-setup: home channel %s not available after restart", channel_id)
             return
-        await channel.send("준비 끝! 이제 질문을 해 보세요. 다시 설정하려면 `/setup`을 실행하세요.")
+        await channel.send("설정을 적용하고 다시 연결했습니다. 질문을 해 보세요. 상태 확인은 `/doctor`, 변경은 `/setup`입니다.")
 
     bot.add_listener(on_guild_join, "on_guild_join")
     asyncio.get_event_loop().create_task(sync_all())

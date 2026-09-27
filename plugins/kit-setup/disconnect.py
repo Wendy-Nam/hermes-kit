@@ -10,6 +10,8 @@ writes the new .env atomically like every other write.
 """
 import json
 import logging
+import os
+import tempfile
 from pathlib import Path
 
 log = logging.getLogger(__name__)
@@ -19,19 +21,31 @@ SNAPSHOT = ".kit-config-snapshot.json"      # in HERMES_HOME, next to .env
 
 def _load(data_dir: Path) -> dict:
     try:
-        return json.loads((Path(data_dir) / SNAPSHOT).read_text(encoding="utf-8"))
-    except (OSError, ValueError):
+        value = json.loads((Path(data_dir) / SNAPSHOT).read_text(encoding="utf-8"))
+    except FileNotFoundError:
         return {}
+    if not isinstance(value, dict):
+        raise ValueError("복원 기록 형식이 잘못되었습니다")
+    return value
 
 
 def _save(data_dir: Path, snap: dict) -> None:
-    p = Path(data_dir) / SNAPSHOT
+    """Persist the recovery baseline atomically; failure must abort configuration edits.
+
+    Callers performing configuration changes hold config_store.locked throughout the
+    snapshot/read/write transaction. This helper does not nest that same lock.
+    """
+    root = Path(data_dir)
+    fd, temporary = tempfile.mkstemp(prefix='.kit-snapshot-', dir=root)
     try:
-        p.write_text(json.dumps(snap, ensure_ascii=False, indent=2), encoding="utf-8")
-        p.chmod(0o600)
-    except OSError as e:
-        # A missing snapshot only costs us the ability to revert later; the keys are still safe.
-        log.warning("config snapshot not saved: %s", e)
+        with os.fdopen(fd, 'w', encoding='utf-8') as stream:
+            json.dump(snap, stream, ensure_ascii=False, indent=2)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.chmod(temporary, 0o600)
+        os.replace(temporary, root / SNAPSHOT)
+    finally:
+        Path(temporary).unlink(missing_ok=True)
 
 
 def snapshot(data_dir: Path, config: dict, current: dict) -> None:

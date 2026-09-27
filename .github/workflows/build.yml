@@ -21,7 +21,11 @@ jobs:
       - name: build (patch anchors fail the build on base-version drift)
         run: |
           set -a; . ./versions.env; set +a
-          docker build --build-arg HERMES_BASE_IMAGE --build-arg RTK_VERSION --build-arg KIT_VERSION -t hermes-kit:ci .
+          docker build --build-arg HERMES_BASE_IMAGE --build-arg HERMES_VERSION --build-arg RTK_VERSION --build-arg KIT_VERSION -t hermes-kit:ci .
+      - name: setup tests against the shipped Hermes runtime
+        run: |
+          docker run --rm --network none --entrypoint /opt/hermes/.venv/bin/python hermes-kit:ci -m unittest discover -s /opt/kit/plugins/kit-setup/tests -v
+          docker run --rm --network none -v "$PWD/scripts/setup-smoke.py:/tmp/setup-smoke.py:ro" --entrypoint /opt/hermes/.venv/bin/python hermes-kit:ci /tmp/setup-smoke.py
       - name: voice patches behave
         run: docker run --rm --entrypoint sh hermes-kit:ci -c "cd /opt/kit/patches/voice && /opt/hermes/.venv/bin/python verify.py --root /opt/hermes"
       - name: secret scan (nothing personal or secret in the public image)

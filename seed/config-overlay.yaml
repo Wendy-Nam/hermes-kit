@@ -27,3 +27,7 @@ voice:
   auto_voice_reply: false
 web:
   search_backend: ddgs
+
+plugins:
+  enabled:
+    - kit-setup
