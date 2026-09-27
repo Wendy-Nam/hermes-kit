@@ -64,17 +64,24 @@ OMNIROUTE_STATE = HOME / '.kit-omniroute.json'
 _CACHE = {}
 _LOCK = threading.Lock()
 _MODULES = []
+# OMH writes its calibration for high effort and above. At medium the same family
+# guidance is borrowed (as on the author's server) without raising the real effort;
+# low stays uncalibrated so quick lanes stay short.
+BORROW = ('medium',)
 # Added when OMH cannot name the serving model's family, e.g. a combo that may switch
 # vendors between dispatches: invariants that hold whichever model answers.
 FLOOR = ("Route floor (the serving model may change within this route): run one full verification pass "
          "before reporting; change files with targeted edits instead of rewriting whole files; never "
          "claim completion without execution evidence.")
 _SCRIPT = """import hashlib,json,sys
+BORROW=('medium',)
 from omh.coding import unit_prompt_protocol as p
 from omh.coding.model_routing import model_family
 r=json.load(sys.stdin)
 f=model_family(r['model']) or 'unknown'
-g=p.calibration_for_route({'selected_model':r['model'],'selected_reasoning_effort':r['reasoning_effort'],'model_family':f})
+route={'selected_model':r['model'],'selected_reasoning_effort':r['reasoning_effort'],'model_family':f}
+g=p.calibration_for_route(route)
+if not g and r['reasoning_effort'] in BORROW: g=p.calibration_for_route(dict(route,selected_reasoning_effort='high'))
 print(json.dumps({'guidance':g,'family':f,'guidance_sha256':hashlib.sha256(g.encode()).hexdigest()}))
 """
 
@@ -125,7 +132,10 @@ def calibrate(model, effort, config):
     if modules:
         p, model_family = modules
         family = model_family(model) or 'unknown'
-        guidance = p.calibration_for_route({'selected_model':model,'selected_reasoning_effort':effort,'model_family':family})
+        route = {'selected_model':model,'selected_reasoning_effort':effort,'model_family':family}
+        guidance = p.calibration_for_route(route)
+        if not guidance and effort in BORROW:
+            guidance = p.calibration_for_route(dict(route, selected_reasoning_effort='high'))
         d = {'guidance':guidance,'family':family}
         with _LOCK:
             if len(_CACHE)>=64: _CACHE.clear()

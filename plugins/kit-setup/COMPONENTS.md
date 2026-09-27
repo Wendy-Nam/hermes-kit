@@ -42,8 +42,9 @@ never published).
 plus per-task chains saved in /setup (one to five models each, merged across saves,
 each probed with the student's keys first), and (b) one fail-open addition to the
 upstream `pre_tool_call` hook: for the route upstream prepared it appends OMH's
-native `calibration_for_route` text to each child's context. That text exists only
-at `high` effort and above; the kit's own OmniRoute combo is calibrated as its
+native `calibration_for_route` text to each child's context. OMH writes it for
+`high` and above; at `medium` the family text is borrowed without raising the effort (as on
+the author's server), `low` gets none; the kit's own OmniRoute combo is calibrated as its
 single underlying model. The hook never blocks a dispatch and never writes config.
 It is enabled with the basic pack and can be turned off in /setup, which restores
 the upstream hook byte-for-byte. A changed aux model (model selection or OmniRoute

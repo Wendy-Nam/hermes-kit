@@ -187,6 +187,17 @@ class Runtime(unittest.TestCase):
         with patch.object(runtime.subprocess,'run',side_effect=AssertionError('subprocess not expected')):
             for _ in range(3):self.assertEqual(runtime.calibrate('gpt-6-astra','high',{'python':'/unused'})['guidance'],'X')
         self.assertEqual(len(calls),1)
+    def test_medium_borrows_family_calibration_low_does_not(self):
+        seen=[]
+        def calibration_for_route(route):
+            seen.append(route['selected_reasoning_effort'])
+            return 'FAMILY' if route['selected_reasoning_effort']=='high' else ''
+        runtime=types.ModuleType('kit_omh_test.kit_enhanced3');runtime.__file__=self.r.__file__;runtime.__package__='kit_omh_test'
+        exec(compile(enhance.RUNTIME_SOURCE,'kit_enhanced.py','exec'),runtime.__dict__)
+        runtime._MODULES.append((types.SimpleNamespace(calibration_for_route=calibration_for_route),lambda model:'gpt'))
+        self.assertEqual(runtime.calibrate('gpt-6-sol','medium',{})['guidance'],'FAMILY')
+        self.assertEqual(runtime.calibrate('gpt-6-sol','low',{})['guidance'],'')
+        self.assertEqual(seen,['medium','high','low'])
     def test_never_blocks(self):
         self.assertIsNone(self.r.guard('delegate_task',{'goal':'g'}))  # parent inheritance: nothing prepared
         self.route={'provider':'gemini','model':'gemini-3-flash','reasoning_effort':'low'}
