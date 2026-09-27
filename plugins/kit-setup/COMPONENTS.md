@@ -40,12 +40,18 @@ never published).
 
 `omh_enhancements` owns only (a) those two documents, composed from the aux model
 plus per-task chains saved in /setup (one to five models each, merged across saves,
-each probed with the student's keys first), and (b) one fail-open addition to the
-upstream `pre_tool_call` hook: for the route upstream prepared it appends OMH's
-native `calibration_for_route` text to each child's context. OMH writes it for
+each probed with the student's keys first), and (b) one addition to the upstream
+`pre_tool_call` hook. A spawn whose live delegation keys OMH did not write for this
+session (upstream's locked `route-restore.json` record, dropped at turn end) is sent
+back once per session turn asking for `omh_delegate_route`; the retry dispatches, so
+a model that cannot route (tool missing, chain exhausted to the baseline) is never
+stuck. For a routed spawn it appends OMH's native `calibration_for_route` text to
+each child's context. OMH writes it for
 `high` and above; at `medium` the family text is borrowed without raising the effort (as on
 the author's server), `low` gets none; the kit's own OmniRoute combo is calibrated as its
-single underlying model. The hook never blocks a dispatch and never writes config.
+single underlying model. Internal errors dispatch unchanged and the hook never writes config. Enabling also appends a
+marked `omh_delegate_route` rule to a SOUL that never mentions it (students seeded
+before k7); boot upgrades an earlier calibration receipt in place, keeping task chains.
 It is enabled with the basic pack and can be turned off in /setup, which restores
 the upstream hook byte-for-byte. A changed aux model (model selection or OmniRoute
 connection) is synced into every task category the student did not assign; routing
@@ -55,7 +61,8 @@ Beyond `--core`, `upstream_omh.WORKFLOW_SKILLS` (plus `KIT_WORKFLOW_SKILLS` for 
 selected job kits) are added with upstream's own installer: their upstream render is
 written, then `install_skill_pack` manifests them, and upstream refreshes on-disk
 skills whatever profile is recorded, so they survive `omh update`. Failure here
-leaves the core pack installed and is reported. For a route whose model family OMH
+leaves the core pack installed and is reported. `omh update` replaces the hook file:
+calibration and route requests stop, and /setup reports the files as changed. For a route whose model family OMH
 cannot name (a combo that may switch vendors), a fixed route floor is appended at
 any effort. Calibration is computed in-process from the OMH venv when the
 interpreter version matches, with the subprocess as fallback, cached per model/effort.
