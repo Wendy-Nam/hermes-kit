@@ -30,11 +30,13 @@ EOF
 COPY patches /opt/kit/patches
 RUN set -eu; PY=/opt/hermes/.venv/bin/python; \
     export HERMES_HOME=/tmp/kit-build-home HOME=/tmp/kit-build-home; mkdir -p /tmp/kit-build-home; \
+    $PY /opt/kit/patches/core/patch-terminal-failure-status.py --root /opt/hermes --apply; \
+    $PY /opt/kit/patches/core/patch-process-hint-names.py --root /opt/hermes --apply --enforce-hash; \
     sh /opt/kit/patches/voice/apply.sh; \
-    for f in hook-overlap-skip hook-policy-serialization lifecycle-guard-sqlite kanban-interval kanban-progress-notify kanban-heartbeat-note budget-caps skills-view-cap cron-max-turns cron-iteration-outcome skills-compact vision-inbound skill-context-reuse; do \
+    for f in discord-video-fit hook-overlap-skip hook-policy-serialization lifecycle-guard-sqlite kanban-interval kanban-progress-notify kanban-heartbeat-note budget-caps skills-view-cap cron-max-turns cron-iteration-outcome skills-compact vision-inbound skill-context-reuse; do \
       $PY /opt/kit/patches/core/patch-$f.py; \
     done; \
-    cd /opt/hermes && $PY -c "import gateway.run, gateway.kanban_watchers_notifier, hermes_cli.plugins_dispatch, agent.prompt_builder, agent.system_prompt, tools.skills_tool, tools.budget_config, cron.scheduler"; \
+    cd /opt/hermes && $PY -c "import gateway.run, gateway.kanban_watchers_notifier, tools.terminal_tool, hermes_cli.plugins_dispatch, agent.prompt_builder, agent.system_prompt, tools.skills_tool, tools.budget_config, cron.scheduler"; \
     rm -rf /tmp/kit-build-home; \
     leaked="$(find /opt/data -mindepth 1 -user root)"; [ -z "$leaked" ] || { echo "build leaked into /opt/data: $leaked"; exit 1; }
 
