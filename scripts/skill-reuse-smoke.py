@@ -39,7 +39,12 @@ with tempfile.TemporaryDirectory() as directory:
     reopened = SessionDB(path,read_only=True)
     assert reopened.get_session('upgrade-fixture')['system_prompt'] == expected
     reopened.close()
-new_prompt = build_skills_system_prompt(available_tools={'skill_view'},available_toolsets={'skills'})
-assert 'reuse-or-load rule' in new_prompt
-assert 'task, you MUST load it with skill_view' not in new_prompt
+with tempfile.TemporaryDirectory() as directory:
+    skills = Path(directory)/'skills'
+    sample = skills/'example'
+    sample.mkdir(parents=True)
+    (sample/'SKILL.md').write_text('---\nname: example\ndescription: Synthetic test workflow\n---\nUse the fixture.\n')
+    new_prompt = build_skills_system_prompt(available_tools={'skill_view'},available_toolsets={'skills'},skills_dir_override=skills)
+    assert 'reuse-or-load rule' in new_prompt
+    assert 'task, you MUST load it with skill_view' not in new_prompt
 print('skill reuse: fresh prompt, normalized old-session restore, persistence and reopen passed')
