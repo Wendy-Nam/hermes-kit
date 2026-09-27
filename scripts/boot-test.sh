@@ -17,7 +17,8 @@ state() {
     cd /opt/data; cat .kit-version; md5sum config.yaml SOUL.md; find skills -name SKILL.md | sort
     ls plugins vaults/*/.obsidian/plugins; stat -c "%U %n" config.yaml SOUL.md vaults/work plugins/rtk-rewrite plugins/kit-setup
     /opt/hermes/.venv/bin/python -c "import yaml;c=yaml.safe_load(open(\"config.yaml\"));assert c[\"agent\"][\"max_turns\"]==20 and \"rtk-rewrite\" in c[\"plugins\"][\"enabled\"];print(\"overlay ok\")"
-    test -f plugins/kit-setup/plugin.yaml && test -f plugins/kit-setup/packs.json && echo "kit-setup present"'
+    test -f plugins/kit-setup/plugin.yaml && test -f plugins/kit-setup/packs.json && echo "kit-setup present" \
+      && test -f skills/media/youtube-summary/SKILL.md && echo "youtube-summary present"'
 }
 docker volume create "$VOL" >/dev/null
 boot; s1=$(state); boot; s2=$(state)

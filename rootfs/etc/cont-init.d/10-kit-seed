@@ -28,9 +28,12 @@ if [ "$old" = none ]; then
   done
   # Public skills repo (D9). Best effort: a boot without network must still finish, so this
   # only runs when it is not there yet.
-  if [ ! -d "$D/skills/youtube-summary" ]; then
-    as_h "$H" skills install Wendy-Nam/hermes-skills-kr/youtube-summary --yes >/dev/null 2>&1 \
-      || log "youtube-summary install failed (continuing; the skill repo may be unreachable)"
+  # --force: Hermes' scanner blocks any community skill that reads an API key from the env ("caution"
+  # verdict); this is the kit author's own reviewed repo. The exit code does not say "blocked", so check the file.
+  if [ ! -f "$D/skills/media/youtube-summary/SKILL.md" ]; then
+    out=$(as_h "$H" skills install Wendy-Nam/hermes-skills-kr/youtube-summary --category media --yes --force 2>&1) || true
+    [ -f "$D/skills/media/youtube-summary/SKILL.md" ] \
+      || log "youtube-summary install failed (continuing; the skill repo may be unreachable): $(printf '%s' "$out" | tail -1)"
   fi
 fi
 
