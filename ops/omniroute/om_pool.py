@@ -1,13 +1,14 @@
 """Max-pool Hermes combos for OmniRoute, ranked by the freellmapi premium live catalog and gated by real probes.
 Files in /docker/omniroute/migrate: models.txt (om_models.py), fl_catalog.json (fl_catalog.mjs), hermes-tools.json.
 usage:
-  om_pool.py plan            -> candidates.json (+ counts)            no network
+  om_pool.py plan            -> candidates.json (+ counts)            fetch current Cline pricing
   om_pool.py probe [pfx...]  -> probe.json  (Hermes 25-tool call / vision / plain call per unique model, hermes key;
                                              optional provider prefixes limit the run, e.g. `probe zai-web lmarena`)
   om_pool.py apply [--dry]   -> PUT every combo = head + subscription tier + probed pool + reserve   (stdin: admin pw)
 Order per combo: curated head (proven 2026-09-26) -> subscription/web accounts (only where volume is low and data is
 not private) -> free pool sorted by the premium catalog's intelligence (or speed) rank -> E6-3 reserve last.
 Gemini-family ids are kept out of tool-loop combos (OmniRoute drops the Gemini 3 thought_signature)."""
+from decimal import Decimal, InvalidOperation
 import base64, concurrent.futures as cf, json, os, struct, sys, time, urllib.error, urllib.request, zlib
 
 MIG = "/docker/omniroute/migrate"
@@ -28,10 +29,10 @@ PFX = {"agnes": "agnes", "aion": "aion", "anyapi": "anyapi", "bai": "bai", "groq
        "experiential": "experiential", "lucidity": "lucidity", "moondream": "moondream", "septor": "septor", "waterfall": "waterfall",
        "xkiro": "xkiro", "github": "github-models", "sail": "sail", "zhipu": "zhipu"}
 # auggie/devin-cli need their CLI inside the container: left out. zai-web needs Playwright Chromium -> the `-web` image
-# Cline: free only (owner, 2026-09-27). A paid id answers 402 on this account and OmniRoute then locks the WHOLE Cline
-# connection for minutes, taking the free ones down too -> never list a paid Cline id. Ids from api.cline.bot/api/v1/models;
-# deepseek v4/v4.1 flash carry no ":free" suffix but answer at a negative balance, i.e. free.
-CLINE_FREE = ["cline/deepseek/deepseek-v4.1-flash", "cline/deepseek/deepseek-v4-flash", "cline/nvidia/nemotron-3-ultra-550b-a55b:free",
+# Cline: curated candidates only; every phase revalidates all advertised price fields.
+# A successful request or a :free suffix is not price evidence. Cache prices, when
+# advertised, must also be zero. Missing cache fields are not a zero-price claim.
+CLINE_FREE = ["cline/nvidia/nemotron-3-ultra-550b-a55b:free",
               "cline/nvidia/nemotron-3-super-120b-a12b:free", "cline/qwen/qwen3.8-27b:free", "cline/google/gemma-4-31b-it:free",
               "cline/inclusionai/ling-3.0-flash-fin:free", "cline/poolside/laguna-s-2.1:free", "cline/thinkingmachines/inkling:free",
               "cline/nvidia/nemotron-3.5-lightning:free"]
@@ -62,13 +63,13 @@ TRAINS = {"kilo-gateway", "kilo-anon", "lmarena", "aihorde"}   # aihorde: volunt
 # name: (kind, sort, min_ctx, head, subscription tier, pool platforms (None=all, []=none), reserve, cap, extra)
 C = {
     "solar-pro4": ("tools", "ir", 128000, ["upstage/solar-pro4"], SUB_MAIN, None, [RES_CF], 40, {"context_length": 131072}),
-    # general chat (default profile): flat-rate Codex first (99% cache), GOAT deepseek when Codex limits hit, then the old
+    # general chat (default profile): user prefers DeepSeek conversation style; Codex fallback, then the old
     # main. The RP channel stays on solar-pro4 via discord.channel_overrides (frontier models refuse there, a refusal is a 200)
-    "hermes-chat": ("tools", "ir", 128000, ["codex/gpt-6-luna", "cline/deepseek/deepseek-v4.1-flash", "command-code/deepseek/deepseek-v4.1-flash", "upstage/solar-pro4"],
+    "hermes-chat": ("tools", "ir", 128000, ["command-code/deepseek/deepseek-v4.1-flash", "codex/gpt-6-luna", "upstage/solar-pro4"],
                     ["claude/claude-sonnet-5"] + AG_MAIN + ["deepseek-web/deepseek-v4-pro"] + CLINE_FREE, None, [RES_CF], 30,
                     {"context_length": 131072}),
     # free-only lane for omh delegation (owner: free models used actively, 2026-09-27); paid combos follow in the omh chain
-    "hermes-free": ("tools", "ir", 64000, ["cline/deepseek/deepseek-v4.1-flash", "unorouter/kimi-k3:free", "experiential/gpt-5.6-luna",
+    "hermes-free": ("tools", "ir", 64000, ["unorouter/kimi-k3:free", "experiential/gpt-5.6-luna",
                                            "cline/nvidia/nemotron-3-ultra-550b-a55b:free", "cline/nvidia/nemotron-3-super-120b-a12b:free",
                                            "nvidia/nvidia/nemotron-3-ultra-550b-a55b"], CLINE_FREE, None, [RES_XK], 40, {}),
     "hermes-fast": ("tools", "sr", 32000, [MIN8, MIN14, "groq/openai/gpt-oss-120b", "cerebras/gpt-oss-120b"], [], None, [RES_CF], 30, {}),
@@ -98,12 +99,52 @@ C = {
 UNLISTED_OK = {"upstage/solar-pro4"} | set(CLINE_FREE)   # Upstage /models omits solar-pro4; OmniRoute's Cline list is curated (13) but ids pass through
 
 
+CLINE_CATALOG_URL = "https://api.cline.bot/api/v1/ai/cline/models"
+
+
+def cline_zero_price(row):
+    """Require input/output prices and reject any advertised nonzero/unknown price."""
+    prices = row.get("pricing")
+    if not isinstance(prices, dict) or not {"prompt", "completion"} <= prices.keys():
+        return False
+    try:
+        # Reject bool/null/NaN/infinity and malformed values, including cache prices.
+        return all(not isinstance(v, bool) and Decimal(str(v)).is_finite()
+                   and Decimal(str(v)) == 0 for v in prices.values())
+    except (InvalidOperation, ValueError, TypeError):
+        return False
+
+
+def cline_free_catalog():
+    """Fetch fresh public prices; failure aborts before probes or combo mutations."""
+    try:
+        with urllib.request.urlopen(CLINE_CATALOG_URL, timeout=30) as response:
+            rows = json.load(response)["data"]
+        if not isinstance(rows, list) or not rows or any(
+                not isinstance(r, dict) or not isinstance(r.get("id"), str) for r in rows):
+            raise ValueError("invalid catalog")
+        # Duplicate IDs must not allow a free row to shadow a paid/unknown row.
+        grouped = {}
+        for row in rows:
+            grouped.setdefault(row["id"], []).append(row)
+        return {"cline/" + mid for mid, versions in grouped.items()
+                if all(cline_zero_price(row) for row in versions)}
+    except Exception:
+        raise RuntimeError("Cline pricing unavailable: refusing to probe or change combos") from None
+
+
+def cline_allowed(model, free):
+    return not model.startswith("cline/") or model in free
+
+
 def gemini(m):
     return "gemini" in m.lower() or m.startswith("gemini/")
 
 
 def plan():
+    free = cline_free_catalog()
     known = {l.replace("\t", "/", 1).strip() for l in open(f"{MIG}/models.txt") if l.strip()} | UNLISTED_OK
+    known = {m for m in known if cline_allowed(m, free)}
     cat = json.load(open(f"{MIG}/fl_catalog.json"))["models"]
     out = {}
     for name, (kind, sort, min_ctx, head, sub, plats, reserve, cap, extra) in C.items():
@@ -188,11 +229,14 @@ def probe_one(key, tools, img, m, kinds):
 
 
 def probe():
+    free = cline_free_catalog()
     cand = json.load(open(f"{MIG}/candidates.json"))
     old = json.load(open(f"{MIG}/probe.json")) if os.path.exists(f"{MIG}/probe.json") else {}
     need = {}
     for c in cand.values():
         for m in c["head"] + c["sub"] + c["pool"] + c["reserve"]:
+            if not cline_allowed(m, free):
+                continue
             if not (old.get(m, {}).get(c["kind"]) or {}).get("ok"):   # incremental: passed (model, kind) pairs are kept
                 need.setdefault(m, set()).add(c["kind"])
     only = set(sys.argv[2:])
@@ -227,8 +271,9 @@ def probe():
 
 def apply(dry):
     import http.cookiejar
+    free = cline_free_catalog()
     cand, pr = json.load(open(f"{MIG}/candidates.json")), json.load(open(f"{MIG}/probe.json"))
-    passed = lambda m, k: bool((pr.get(m, {}).get(k) or {}).get("ok"))
+    passed = lambda m, k: cline_allowed(m, free) and bool((pr.get(m, {}).get(k) or {}).get("ok"))
     op = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
 
     def req(meth, p, b=None):

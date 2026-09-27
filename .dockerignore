@@ -8,3 +8,4 @@ tests
 *.pyc
 .scratch*
 ops
+optional-packs

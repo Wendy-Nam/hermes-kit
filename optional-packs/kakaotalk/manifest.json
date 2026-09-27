@@ -1,0 +1,17 @@
+{
+  "schema_version": "kit-component/v1",
+  "id": "kakaotalk",
+  "version": "0.1.0",
+  "status": "design-only",
+  "default_enabled": false,
+  "upstream": {
+    "repository": "https://github.com/agent-messenger/agent-messenger",
+    "reviewed_commit": "505738a15d47a9e1d76f16302288bc347d427d84",
+    "reviewed_source_version": "2.38.0"
+  },
+  "files": {
+    "SKILL.md": "0c0df8ac59bcd2cb1f91f243388bb8d7672b6eb04b785cd1ab08a6eee0c1fd9e",
+    "policy.example.json": "ed5b91790207002d69933bc302c574e21f38f84c459f7a53a53d31a21ae53994",
+    "references/harness.md": "b9801bb74dfb0b5c62985ccd2028d0e08c06939a4b7d2f4bc0a6d2bc7aec6fc0"
+  }
+}

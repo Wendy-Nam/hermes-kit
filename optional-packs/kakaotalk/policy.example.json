@@ -1,0 +1,16 @@
+{
+  "schema_version": "kit-kakaotalk-policy-design/v1",
+  "enabled": false,
+  "topology": "pc-companion",
+  "accounts": [],
+  "allowed_rooms": [],
+  "write_enabled": false,
+  "subscribe_enabled": false,
+  "auto_reply_enabled": false,
+  "max_history_pages": 4,
+  "history_page_size": 50,
+  "history_timeout_seconds": 20,
+  "raw_retention_hours": 24,
+  "draft_retention_hours": 24,
+  "delivery_metadata_retention_days": 7
+}
