@@ -55,7 +55,7 @@ CHAIN_SCHEMA = 'mixture_chain_overrides/v1'
 # Generated into the installed public plugin; no owner-specific prompts, endpoints,
 # routes, credentials or personal skill data are embedded.
 RUNTIME_SOURCE = r'''"""Kit calibration over upstream OMH routing. Fail-open: never blocks a dispatch."""
-import hashlib, json, subprocess, threading
+import hashlib, json, subprocess, sys, threading
 from copy import deepcopy
 from pathlib import Path
 HOME = Path(__file__).resolve().parents[2]
@@ -63,6 +63,12 @@ SETTINGS = HOME / '.omh/routing/kit-enhanced.json'
 OMNIROUTE_STATE = HOME / '.kit-omniroute.json'
 _CACHE = {}
 _LOCK = threading.Lock()
+_MODULES = []
+# Added when OMH cannot name the serving model's family, e.g. a combo that may switch
+# vendors between dispatches: invariants that hold whichever model answers.
+FLOOR = ("Route floor (the serving model may change within this route): run one full verification pass "
+         "before reporting; change files with targeted edits instead of rewriting whole files; never "
+         "claim completion without execution evidence.")
 _SCRIPT = """import hashlib,json,sys
 from omh.coding import unit_prompt_protocol as p
 from omh.coding.model_routing import model_family
@@ -94,10 +100,37 @@ def family_model(route):
             pass
     return model
 
+def _in_process(config):
+    """OMH's pure-Python package, imported once from its own venv when the interpreter
+    matches; the subprocess below is the fallback, so a mismatch only costs latency."""
+    with _LOCK:
+        if not _MODULES:
+            _MODULES.append(None)
+            try:
+                site = Path(config['python']).parent.parent / 'lib' / f'python{sys.version_info[0]}.{sys.version_info[1]}' / 'site-packages'
+                if (site / 'omh').is_dir():
+                    if str(site) not in sys.path: sys.path.append(str(site))
+                    from omh.coding import unit_prompt_protocol as p
+                    from omh.coding.model_routing import model_family
+                    _MODULES[0] = (p, model_family)
+            except Exception:
+                _MODULES[0] = None
+        return _MODULES[0]
+
 def calibrate(model, effort, config):
     key=(model,effort)
     with _LOCK:
         if key in _CACHE: return _CACHE[key]
+    modules=_in_process(config)
+    if modules:
+        p, model_family = modules
+        family = model_family(model) or 'unknown'
+        guidance = p.calibration_for_route({'selected_model':model,'selected_reasoning_effort':effort,'model_family':family})
+        d = {'guidance':guidance,'family':family}
+        with _LOCK:
+            if len(_CACHE)>=64: _CACHE.clear()
+            _CACHE[key]=d
+        return d
     result=subprocess.run([config['python'],'-c',_SCRIPT],input=json.dumps({'model':model,'reasoning_effort':effort}),
                           text=True,capture_output=True,timeout=10,check=False)
     if result.returncode or len(result.stdout)>65536: raise RuntimeError('calibration unavailable')
@@ -111,7 +144,9 @@ def calibrate(model, effort, config):
 
 def guidance_for(route, config):
     if not isinstance(route,dict) or not route.get('model'): return ''
-    return calibrate(family_model(route), str(route.get('reasoning_effort') or ''), config)['guidance']
+    d = calibrate(family_model(route), str(route.get('reasoning_effort') or ''), config)
+    parts = [d['guidance'].strip()] + ([FLOOR] if d.get('family') in (None, '', 'unknown') else [])
+    return '\n\n'.join(part for part in parts if part)
 
 def guard(tool_name, args, **kwargs):
     """Append calibration for the route upstream prepared. Any failure dispatches unchanged."""

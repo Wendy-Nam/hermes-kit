@@ -153,7 +153,8 @@ class Runtime(unittest.TestCase):
         self.r.settings=lambda:{'enabled':True,'python':'/unused'}
         self.calls=[]
         def calibration(model,effort,config):
-            self.calls.append((model,effort));return {'guidance':'NATIVE CALIBRATION' if effort=='high' else ''}
+            self.calls.append((model,effort))
+            return {'guidance':'NATIVE CALIBRATION' if effort=='high' else '','family':'unknown' if model.startswith('combo') else 'gpt'}
         self.r.calibrate=calibration
         self.state=home/'.kit-omniroute.json';self.r.OMNIROUTE_STATE=self.state
     def tearDown(self):self.modules.stop();self.tmp.cleanup()
@@ -170,6 +171,22 @@ class Runtime(unittest.TestCase):
         self.state.write_text(json.dumps({'active':{'name':'hermes-kit-abc','model':'gemini-3-pro'}}))
         self.route={'provider':'kit-omniroute','model':'hermes-kit-abc','reasoning_effort':'high'}
         self.r.guard('delegate_task',{'goal':'g'});self.assertEqual(self.calls[-1],('gemini-3-pro','high'))
+    def test_unknown_family_gets_floor_at_any_effort(self):
+        self.route={'provider':'kit-omniroute','model':'combo-mixed','reasoning_effort':'low'}
+        change=self.r.guard('delegate_task',{'goal':'g'})
+        self.assertEqual(change['args']['context'],self.r.FLOOR)
+        self.route['reasoning_effort']='high'
+        context=self.r.guard('delegate_task',{'goal':'g'})['args']['context']
+        self.assertTrue(context.startswith('NATIVE CALIBRATION') and context.endswith(self.r.FLOOR))
+    def test_in_process_calibration_is_cached(self):
+        calls=[]
+        protocol=types.SimpleNamespace(calibration_for_route=lambda route:calls.append(route) or 'X')
+        runtime=types.ModuleType('kit_omh_test.kit_enhanced2');runtime.__file__=self.r.__file__;runtime.__package__='kit_omh_test'
+        exec(compile(enhance.RUNTIME_SOURCE,'kit_enhanced.py','exec'),runtime.__dict__)
+        runtime._MODULES.append((protocol,lambda model:'gpt'))
+        with patch.object(runtime.subprocess,'run',side_effect=AssertionError('subprocess not expected')):
+            for _ in range(3):self.assertEqual(runtime.calibrate('gpt-6-astra','high',{'python':'/unused'})['guidance'],'X')
+        self.assertEqual(len(calls),1)
     def test_never_blocks(self):
         self.assertIsNone(self.r.guard('delegate_task',{'goal':'g'}))  # parent inheritance: nothing prepared
         self.route={'provider':'gemini','model':'gemini-3-flash','reasoning_effort':'low'}

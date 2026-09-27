@@ -283,6 +283,14 @@ class ActionButton(discord.ui.Button):
                 '본인이 연결한 제공자만 쓰며, 모델마다 짧은 테스트 요청을 한 번씩 보냅니다. '
                 '설정 뒤 적용하기로 재시작하세요. 기본 대화 모델은 바꾸지 않습니다.',
                 view=OmhOptionsView(interaction.user.id,self.home),ephemeral=True)
+        if a=='extras':
+            from crawl4ai_setup import status
+            installed=status(ENV_FILE.parent).get('installed')
+            return await interaction.response.send_message(
+                'Cline 무료 후보: 공개 가격이 0인 모델 목록을 조회합니다.\n'
+                'JS 페이지 추출기: 스크립트로 내용을 그리는 페이지를 로컬 브라우저로 읽는 보조 도구입니다. '
+                '디스크 약 1GB를 쓰고, 기본 웹 읽기가 빈 결과를 줄 때만 사용합니다. 현재: '+('설치됨' if installed else '미설치'),
+                view=ExtrasView(interaction.user.id,self.home),ephemeral=True)
         if a=='model':return await interaction.response.send_modal(ModelModal())
         if a=='sync':return await interaction.response.send_modal(TextActionModal(a,'PC 노트 동기화','내 PC Syncthing 기기 ID',max_length=63))
         if a=='import':return await interaction.response.send_modal(TextActionModal(a,'대화 ZIP 가져오기','personal/Inbox/import의 ZIP 파일명',max_length=180))
@@ -324,6 +332,12 @@ class ActionButton(discord.ui.Button):
                 checked=datetime.fromtimestamp(snapshot['checked_at'],ZoneInfo('Asia/Seoul')).strftime('%m/%d %H:%M KST')
                 msg=('Cline 공개 가격이 0인 후보 · '+checked+'\n'+
                      '\n'.join(candidates)+'\n캐시 가격 미표기는 무료 보장이 아닙니다. 이미지·음악 모델도 포함될 수 있습니다. 대시보드에서 본인 계정을 연결한 뒤 모델의 도구 사용을 별도로 확인하세요. 유료 모델을 자동 대체 경로에 넣지 마세요.')
+            elif a=='jsextract':
+                from crawl4ai_setup import install
+                ok,msg=await asyncio.to_thread(install,ENV_FILE.parent)
+            elif a=='jsextract-remove':
+                from crawl4ai_setup import uninstall
+                ok,msg=await asyncio.to_thread(uninstall,ENV_FILE.parent)
             elif a=='omh-basic':
                 from upstream_omh import install_upstream_omh
                 from pathlib import Path
@@ -346,7 +360,7 @@ class HomeView(OwnedView):
         self.add_item(PackSelect(packs,self));self.add_item(KitSelect())
         rows=[('model','두뇌 선택',2),('login','ChatGPT 로그인',2),('check','연결 확인',2),('retry','설치 재시도',2),('sync','PC 동기화',2),
               ('import','대화 가져오기',3),('backup','지금 백업',3),('disconnect','연결 해제',3),('proactive','일반 선톡 켜기',3),('stop','선톡 끄기',3),
-              ('omh','OMH 설정',4),('omni','OmniRoute 연결',4),('vision','이미지 연결',4),('cline','Cline 무료 후보',4)]
+              ('omh','OMH 설정',4),('omni','OmniRoute 연결',4),('vision','이미지 연결',4),('extras','추가 기능',4)]
         for action,label,row in rows:self.add_item(ActionButton(action,label,row,self))
         apply=ApplyButton(self);apply.row=4;self.add_item(apply)
     def refresh(self):
@@ -409,6 +423,13 @@ class OmhEnableButton(discord.ui.Button):
         try:result=await asyncio.to_thread(enable_enhanced_omh,ENV_FILE.parent)
         except Exception as exc:result={'message':f'켜지 못했습니다 ({type(exc).__name__}).'}
         await interaction.followup.send(result['message'][:1800],ephemeral=True)
+
+class ExtrasView(OwnedView):
+    def __init__(self,owner_id,home):
+        super().__init__(owner_id,timeout=900)
+        self.add_item(ActionButton('cline','Cline 무료 후보',0,home))
+        self.add_item(ActionButton('jsextract','JS 페이지 추출기 설치',0,home))
+        self.add_item(ActionButton('jsextract-remove','JS 추출기 제거',0,home))
 
 class OmhOptionsView(OwnedView):
     def __init__(self,owner_id,home):
