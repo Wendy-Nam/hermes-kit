@@ -25,8 +25,6 @@ services:
     environment:
       INITIAL_PASSWORD: ${KIT_OMNIROUTE_PASSWORD}
       REQUIRE_API_KEY: "true"      # /v1 는 Hermes용 추론 키가 있어야만 응답
-      # 전체 카탈로그의 시작 시 컨텍스트 재계산이 서버를 막는 문제를 피합니다. 일반 모델 동기화는 유지됩니다.
-      CONTEXT_WINDOW_RECONCILE_INTERVAL: "0"
       TZ: Asia/Seoul
     # JWT·API 키 서명 비밀값은 학생이 만들지 않게 합니다. 볼륨에 처음 기동할 때 생성하고 이후 재사용합니다.
     # (ponytail: 비밀값과 데이터가 같은 디스크 — 단일 사용자 VPS에선 .env도 같은 디스크라 차이 없음)

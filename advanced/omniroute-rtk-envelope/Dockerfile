@@ -3,5 +3,6 @@ FROM ${OMNIROUTE_BASE_IMAGE}
 USER root
 COPY envelope.cjs /app/hermes-rtk-envelope.cjs
 COPY patch.cjs /tmp/patch-hermes-rtk.cjs
-RUN node /tmp/patch-hermes-rtk.cjs && rm /tmp/patch-hermes-rtk.cjs
+COPY reconcile-patch.cjs /tmp/patch-hermes-reconcile.cjs
+RUN node /tmp/patch-hermes-rtk.cjs && node /tmp/patch-hermes-reconcile.cjs && rm /tmp/patch-hermes-rtk.cjs /tmp/patch-hermes-reconcile.cjs
 USER node

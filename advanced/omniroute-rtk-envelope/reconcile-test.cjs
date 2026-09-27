@@ -1,0 +1,8 @@
+'use strict';
+const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),os=require('node:os'),path=require('node:path');
+const {patch,before,after}=require('./reconcile-patch.cjs');
+function fixture(){const dir=fs.mkdtempSync(path.join(os.tmpdir(),'reconcile-patch-'));fs.writeFileSync(path.join(dir,'snapshot.js'),'// 838997:(a,b,c)=>\n');return dir;}
+function source(){return '// 488705:(a,b,c)=>\nconst exports={runContextWindowReconcile:0};async function j(){let a=[],b=function(a){return a'+before+'});}';}
+test('patches exactly once and is idempotent',()=>{const dir=fixture();try{const file=path.join(dir,'reconcile.js');fs.writeFileSync(file,source());patch(dir);assert(fs.readFileSync(file,'utf8').includes(after));const once=fs.readFileSync(file,'utf8');patch(dir);assert.equal(fs.readFileSync(file,'utf8'),once);}finally{fs.rmSync(dir,{recursive:true,force:true})}});
+test('unsupported or partial upstream fails without writing',()=>{for(const mutate of [s=>s.replace('f.w8','f.changed'),s=>s.replace('return i(b,','const __hermesReconcileSnapshot=0;return i(b,')]){const dir=fixture();try{const file=path.join(dir,'reconcile.js'),original=mutate(source());fs.writeFileSync(file,original);assert.throws(()=>patch(dir));assert.equal(fs.readFileSync(file,'utf8'),original);}finally{fs.rmSync(dir,{recursive:true,force:true})}}});
+test('missing snapshot API fails closed',()=>{const dir=fixture();try{fs.unlinkSync(path.join(dir,'snapshot.js'));fs.writeFileSync(path.join(dir,'reconcile.js'),source());assert.throws(()=>patch(dir),/snapshot module missing/);}finally{fs.rmSync(dir,{recursive:true,force:true})}});

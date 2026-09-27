@@ -18,11 +18,13 @@ jobs:
         with:
           node-version: '22'
       - name: envelope preservation and patch compatibility
-        run: node --test advanced/omniroute-rtk-envelope/test.cjs
+        run: node --test advanced/omniroute-rtk-envelope/test.cjs advanced/omniroute-rtk-envelope/reconcile-test.cjs
       - name: build isolated public adapter
         run: docker build --label org.opencontainers.image.source=https://github.com/Wendy-Nam/hermes-kit -t omniroute-adapter:ci advanced/omniroute-rtk-envelope
       - name: actual RTK runtime across all three API formats
         run: docker run --rm --network none -v "$PWD/advanced/omniroute-rtk-envelope/runtime-test.cjs:/tmp/runtime-test.cjs:ro" --entrypoint node omniroute-adapter:ci /tmp/runtime-test.cjs
+      - name: actual context reconciliation preserves overrides and refreshes discovery
+        run: docker run --rm --network none -v "$PWD/advanced/omniroute-rtk-envelope/reconcile-runtime-test.cjs:/tmp/reconcile-test.cjs:ro" --entrypoint node omniroute-adapter:ci /tmp/reconcile-test.cjs
       - name: adapter contains only public code
         run: |
           test "$(docker inspect omniroute-adapter:ci --format '{{.Config.User}}')" = node
