@@ -1,6 +1,6 @@
 # OmniRoute 업데이트
 
-학생용 심화 Compose는 `ghcr.io/wendy-nam/hermes-kit:omniroute-rtk-json-1`을 기본으로 사용한다. `next-web` 기반 이미지를 digest로 고정하고 [Hermes JSON RTK 어댑터](../../advanced/omniroute-rtk-envelope/README.md)를 포함한다. `pull_policy: always`로 설치·재배포 때 최신 이미지를 확인한다. `docker restart`만으로 새 이미지를 설치하지는 않는다.
+학생용 심화 Compose는 `ghcr.io/wendy-nam/hermes-kit:omniroute-rtk-json-2`을 기본으로 사용한다. `next-web` 기반 이미지를 digest로 고정하고 [Hermes JSON RTK 어댑터](../../advanced/omniroute-rtk-envelope/README.md)를 포함한다. `pull_policy: always`로 설치·재배포 때 최신 이미지를 확인한다. `docker restart`만으로 새 이미지를 설치하지는 않는다.
 
 공식 채널은 다음과 같다.
 

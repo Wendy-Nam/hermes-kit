@@ -36,6 +36,6 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           printf '%s' "$GH_TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
-          image=ghcr.io/wendy-nam/hermes-kit:omniroute-rtk-json-1
+          image=ghcr.io/wendy-nam/hermes-kit:omniroute-rtk-json-2
           docker tag omniroute-adapter:ci "$image"
           docker push "$image"
