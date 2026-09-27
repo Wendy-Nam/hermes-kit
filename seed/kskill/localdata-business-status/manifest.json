@@ -1,0 +1,9 @@
+{
+  "schema_version": "kit-component/v1",
+  "id": "localdata-business-status",
+  "version": "1.20260919.0",
+  "files": {
+    "SKILL.md": "a6e4c61da3f26e0a260736bca19a531544aaf9266a5da06a02cf1b9cb4daf43e",
+    "scripts/localdata_business_status.py": "23824e8d263fb302cf1404261c96c1507f6e3412303ad790a6c5cce7881f628d"
+  }
+}

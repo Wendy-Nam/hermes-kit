@@ -21,6 +21,10 @@ def component_status(data_dir):
             healthy=path.is_file() and last.get('status')!='failed'
             rows.append({'id':kit,'required':True,'status':'installed' if healthy else 'failed',
                          'message':f'{kit}: 설치됨' if healthy else f'{kit}: 설치 또는 업데이트를 재시도해 주세요'})
+        last=state.get('last_results',{}).get('k-skill')
+        if last:
+            # Optional add-on: reported, never blocks setup completion.
+            rows.append({'id':'k-skill','required':False,'status':last.get('status'),'message':last.get('message','')})
     except Exception:
         rows.append({'id':'components','required':True,'status':'failed','message':'설치 상태를 읽을 수 없습니다. 진단이 필요합니다.'})
     return rows

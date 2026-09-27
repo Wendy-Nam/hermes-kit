@@ -1,0 +1,11 @@
+{
+  "schema_version": "kit-component/v1",
+  "id": "danawa-price-search",
+  "version": "1.20260919.0",
+  "files": {
+    "SKILL.md": "cfa66019a31ad1c66b5b6c365c1be15c8af1c0f056b0b6aa392578c3ee65c91e",
+    "references/DISCLAIMER.md": "6d4c4cb5bad66aa6314f0de88e466f7e25f99adfe10fd6a2fad5d6d18bb1a907",
+    "references/TRADEMARK-LEGAL-STATEMENT.md": "e46030f7969a094046edf29c3872cec28ffdaff360d3442b3cfb756eabefc593",
+    "scripts/danawa_search.py": "02ee2a8fec31e3ad30440be933906118edd69276e167593c17512a65e9e5a184"
+  }
+}

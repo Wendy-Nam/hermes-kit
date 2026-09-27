@@ -1,0 +1,9 @@
+{
+  "schema_version": "kit-component/v1",
+  "id": "kstartup-search",
+  "version": "1.20260919.0",
+  "files": {
+    "SKILL.md": "6cb69232f02092c889f5506149176aee325d503adf4babf10f7fa9c458fd2506",
+    "scripts/run_kstartup.py": "5edf5e6176eb02b30935dc6f61c1332d5c4b2276bb51c2d33f4840d2ed26b793"
+  }
+}

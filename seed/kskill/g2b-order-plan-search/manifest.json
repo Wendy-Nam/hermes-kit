@@ -1,0 +1,9 @@
+{
+  "schema_version": "kit-component/v1",
+  "id": "g2b-order-plan-search",
+  "version": "1.20260919.0",
+  "files": {
+    "SKILL.md": "2bcf6e98ec1992b25ba67914c9d1ced4090146aff106782921d0799148cf1f2f",
+    "scripts/g2b_order_plan.py": "be71bbe492cc112007fcf08f5095b0aaf91fe582fddc62ff2a2531dadb83d934"
+  }
+}

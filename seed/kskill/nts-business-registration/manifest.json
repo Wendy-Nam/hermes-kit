@@ -1,0 +1,9 @@
+{
+  "schema_version": "kit-component/v1",
+  "id": "nts-business-registration",
+  "version": "1.20260919.0",
+  "files": {
+    "SKILL.md": "ee890ae08c1006b314ca45a66afc09b5907b51801ff75906e1e5a1720b53a727",
+    "scripts/nts_business_registration.py": "ad9c46a5262e0c0170637d319cb8b0d7c41149e9785f82a3e76bc7faf9242ec9"
+  }
+}

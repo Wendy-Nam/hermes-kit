@@ -1,0 +1,9 @@
+{
+  "schema_version": "kit-component/v1",
+  "id": "national-pension-workplace",
+  "version": "1.20260919.0",
+  "files": {
+    "SKILL.md": "d1d0517ee2e33dadd092d73b381624cb6265fba2ceca8c2b97cb821f89773a64",
+    "scripts/national_pension_workplace.py": "36c428d167ad13a18f4d471eeb30be7ba5a1020dda299c90caeb3d400b758432"
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "schema_version": "kit-component/v1",
+  "id": "naver-news-search",
+  "version": "1.20260919.0",
+  "files": {
+    "SKILL.md": "2ce5cf1e075cba4f23f3974d3100e678a8a7d918c1e8645e53a6465b5be47c0a",
+    "references/DISCLAIMER.md": "36e8393f185e3f6a74fdfe0cc0774d0946d6bee64e89a25419b1e6eeec56594c",
+    "references/TRADEMARK-LEGAL-STATEMENT.md": "736a04ea003c401cfe51ee1b0b3dca0db035479016c4532bdd828ee4058abbee"
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "schema_version": "kit-component/v1",
+  "id": "government-support-survey",
+  "version": "1.20260919.0",
+  "files": {
+    "SKILL.md": "a6b36de5a0f17ed10b57e6023ff5f5b97ad53135deabf35fc8b671d7ad57dcf6",
+    "references/NOTICE.md": "1b0f2c63fa28943507be9dff572223ae409e830b0e380161bae1340de0c147b5",
+    "scripts/run_survey.py": "581e590c6fccab647643f10e30f0fe0a6d91f7e7d51fdbc0cc6de3018d2e8fff"
+  }
+}

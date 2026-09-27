@@ -175,11 +175,45 @@ def retry_components(data_dir, *, selected_kits=None, seed_dir=Path('/opt/kit/se
             results.append(result)
             state.setdefault('last_results', {})[kit] = result
             _save_state(data, state)
+        if (Path(seed_dir) / 'kskill').is_dir():  # absent in images before k7
+            results.append(_install_kskills(data, state, Path(seed_dir) / 'kskill'))
+            _save_state(data, state)
     if private_token:
         from fetch_packs import fetch
         ok, message = fetch(private_repo, private_ref or '', private_token, data)
         results.append({'id': 'private-packs', 'status': 'installed' if ok else 'unavailable', 'message': message})
     return results
+
+
+def kskill_names(selected_kits):
+    """Vendored k-skill skills for everyone plus the selected job kits, with dependencies."""
+    spec = json.loads(Path(__file__).with_name('kskills.json').read_text())
+    names = list(spec['common'])
+    for kit in selected_kits:
+        names += spec['kits'].get(kit, [])
+    for name in list(names):
+        names += spec['requires'].get(name, [])
+    return list(dict.fromkeys(names))
+
+
+def _install_kskills(data, state, source):
+    """One summary row: each skill is its own verified component under skills/k-skill."""
+    names = kskill_names(state.get('selected_kits', []))
+    failed = []
+    for name in names:
+        try:
+            result = _install(source / name, data / 'skills' / 'k-skill' / name, name, state)
+        except Exception:
+            result = {'status': 'failed'}
+        if result['status'] == 'failed':
+            failed.append(name)
+    if failed:
+        result = {'id': 'k-skill', 'status': 'failed',
+                  'message': '한국형 스킬 일부 설치 실패: ' + ', '.join(failed) + '. 설치 재시도를 눌러 주세요.'}
+    else:
+        result = {'id': 'k-skill', 'status': 'installed', 'message': f'한국형 스킬 {len(names)}개 설치 확인'}
+    state.setdefault('last_results', {})['k-skill'] = result
+    return result
 
 
 def install_optional(package_id, data_dir, *, trusted_registry=None):

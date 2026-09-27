@@ -1,0 +1,9 @@
+{
+  "schema_version": "kit-component/v1",
+  "id": "biz-health-check",
+  "version": "1.20260919.0",
+  "files": {
+    "SKILL.md": "647d65fa7ab835958d1a7bebf5312c833f395740c8ec1516c71263a67ed712cf",
+    "scripts/biz_health_check.py": "42d37c31911595195e0526feb7e0ceddb8bad4dcbc7c9d192e0a992b478b3c5c"
+  }
+}

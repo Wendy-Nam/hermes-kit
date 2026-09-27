@@ -1,0 +1,27 @@
+{
+  "source": {
+    "repo": "NomaDamas/k-skill",
+    "commit": "9fade13b1066bc58fd820fe659145a9a21974138",
+    "date": "2026-09-19",
+    "license": "MIT"
+  },
+  "common": [
+    "korea-weather",
+    "fine-dust-location",
+    "naver-news-search",
+    "geeknews-search",
+    "korean-holiday-calendar",
+    "korean-spell-check"
+  ],
+  "kits": {
+    "job": ["job-posting-match", "daangn-jobs-search", "national-pension-workplace", "biz-health-check", "korean-humanizer"],
+    "sales": ["biz-health-check", "g2b-order-plan-search", "government-support-survey", "localdata-business-status"],
+    "mkt": ["naver-shopping-search", "naver-blog-research", "danawa-price-search", "korean-humanizer", "store-longevity-radar"],
+    "pm": ["government-support-survey", "kstartup-search", "korean-law-search"],
+    "dev": ["kr-whois-lookup"]
+  },
+  "requires": {
+    "biz-health-check": ["nts-business-registration", "national-pension-workplace", "fsc-corporate-info",
+                         "g2b-sanctioned-supplier", "nts-tax-delinquency", "localdata-business-status"]
+  }
+}
