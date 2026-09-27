@@ -19,7 +19,7 @@ RENAME = {"auto": "hermes-public", "auto:hermes-fast": "hermes-fast",
           "deepseek/deepseek-v4-pro": "command-code/deepseek/deepseek-v4-pro",
           "moonshotai/Kimi-K2.7-Code": "command-code/moonshotai/Kimi-K2.7-Code",
           "moonshotai/Kimi-K3": "command-code/moonshotai/Kimi-K3",
-          "openai/gpt-oss-120b": "cloudflare-ai/@cf/openai/gpt-oss-120b",
+          "openai/gpt-oss-120b": "hermes-fast",   # the cloudflare id has "@", which omh rejects (whole file ignored)
           # bare names freellmapi resolved itself; OmniRoute aliases match the model part of ANY prefix
           # (an alias hijacked claude/claude-sonnet-5 on 2026-09-27), so omh gets combo names instead
           "claude-sonnet-5": "hermes-ultrabrain", "gpt-5.3-codex": "hermes-coding", "gemini-2.5-flash": "hermes-writing",
@@ -90,9 +90,13 @@ def cron(path):
 def omh():
     p = f"{DATA}/.omh/routing/model-providers.json"
     d = json.load(open(p)); n = 0
-    for alias, r in d.get("models", {}).items():
+    for alias, r in list(d.get("models", {}).items()):
         if r.get("provider") == "freellmapi":
             r["provider"], r["model"] = "omniroute", rename(r["model"]); n += 1
+            # model-chains.json below is renamed to hermes-*, so the new names need their own route keys
+            d["models"].setdefault(r["model"], {"model": r["model"], "provider": "omniroute"})
+    bad = [k for k, r in d["models"].items() if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._/:-]{0,127}", r["model"])]
+    assert not bad, f"omh would ignore the whole routes file; non-token models: {bad}"
     save(p, json.dumps(d, ensure_ascii=False, indent=2) + "\n", f"{n} model routes")
     p = f"{DATA}/.omh/routing/model-chains.json"
     d = json.load(open(p)); n = 0
