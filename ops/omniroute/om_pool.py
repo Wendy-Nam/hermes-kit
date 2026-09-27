@@ -54,6 +54,11 @@ TRAINS = {"kilo-gateway", "kilo-anon", "lmarena", "aihorde"}   # aihorde: volunt
 # name: (kind, sort, min_ctx, head, subscription tier, pool platforms (None=all, []=none), reserve, cap, extra)
 C = {
     "solar-pro4": ("tools", "ir", 128000, ["upstage/solar-pro4"], SUB_MAIN, None, [RES_CF], 40, {"context_length": 131072}),
+    # general chat (default profile): flat-rate Codex first (99% cache), GOAT deepseek when Codex limits hit, then the old
+    # main. The RP channel stays on solar-pro4 via discord.channel_overrides (frontier models refuse there, a refusal is a 200)
+    "hermes-chat": ("tools", "ir", 128000, ["codex/gpt-6-luna", "command-code/deepseek/deepseek-v4.1-flash", "upstage/solar-pro4"],
+                    ["claude/claude-sonnet-5"] + AG_MAIN + ["deepseek-web/deepseek-v4-pro"] + CLINE_FREE, None, [RES_CF], 30,
+                    {"context_length": 131072}),
     "hermes-fast": ("tools", "sr", 32000, [MIN8, MIN14, "groq/openai/gpt-oss-120b", "cerebras/gpt-oss-120b"], [], None, [RES_CF], 30, {}),
     "hermes-private": ("tools", "ir", 32000, [MI + "codestral-latest", MIN8, MIN14], [], ["mistral", "cloudflare-ai"], [RES_CF], 30,
                        {"allowedProviders": ["mistral", "cloudflare-ai"]}),
@@ -232,6 +237,8 @@ def apply(dry):
             print(f"  skip {name}: only {len(models)} passing models, keeping the current combo"); continue
         body = {"name": name, "strategy": "priority", "models": models, **c["extra"],
                 "description": (existing.get(name) or {}).get("description")}
+        if not body["description"]:
+            body.pop("description")   # the schema takes a string or nothing, not null (new combos have none)
         tag = f"{name:26} {len(models):3} models (head {sum(passed(m, k) for m in c['head'])}/{len(c['head'])}, sub {sum(passed(m, k) for m in c['sub'])}/{len(c['sub'])}, pool {len(pool)})"
         if dry:
             print("  plan", tag); continue
