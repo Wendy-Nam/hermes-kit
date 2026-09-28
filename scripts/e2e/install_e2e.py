@@ -320,8 +320,12 @@ def stage3a():
     req = _omni()
     node = req('POST', '/api/provider-nodes', {'name': 'student-node', 'prefix': 'fake', 'apiType': 'chat',
                                                'baseUrl': 'http://kit-hermes:8099/v1', 'type': 'openai-compatible'})['node']['id']
-    req('POST', '/api/providers', {'provider': node, 'apiKey': 'student-key', 'name': 'student-connection', 'priority': 1})
-    from omniroute_mode import connect_mode
+    req('POST', '/api/providers', {'provider': node, 'apiKey': 'student-key', 'name': 'student-connection', 'priority': 1,
+                                   'defaultModel': 'fake-model'})
+    from omniroute_mode import connect_mode, list_models
+    ok, rows = list_models(ROOT, OMNI_PW)
+    check('omniroute mode: dashboard models listed for the picker', ok and 'fake/fake-model' in [v for v, _ in rows], rows)
+    check('omniroute mode: wrong password lists nothing', list_models(ROOT, 'wrong-password')[0] is False)
     config_store.write(ROOT, {'delegation.provider': 'commandcode', 'delegation.model': 'student-aux'}, remember=False)
     ok, msg = connect_mode(ROOT, 'wrong-password', 'fake/fake-model')
     check('omniroute mode: wrong password changes nothing', not ok and config_store.read(ROOT)['model']['provider'] == 'commandcode', msg)

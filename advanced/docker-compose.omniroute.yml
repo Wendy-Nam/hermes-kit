@@ -39,7 +39,8 @@ services:
         [ -s "$$s" ] || { umask 077; printf 'JWT_SECRET=%s\nAPI_KEY_SECRET=%s\n' "$$(head -c 48 /dev/urandom | base64 | tr -d '\n')" "$$(head -c 48 /dev/urandom | base64 | tr -d '\n')" > "$$s"; }
         set -a; . "$$s"; set +a
         exec /app/check-permissions.sh node dev/run-standalone.mjs
-    # 대시보드는 VPS 내부에만 바인딩합니다. SSH 터널 뒤 localhost:20128로 접속합니다.
+    # 대시보드는 VPS 내부에만 바인딩합니다. 접속은 디스코드 /setup → OmniRoute 연결 → 대시보드 열기(15분 링크).
+    # SSH를 쓸 수 있으면 아래 터널로도 됩니다.
     # ssh -L 20128:127.0.0.1:20128 <vps>
     ports: ["127.0.0.1:20128:20128"]
     networks: [hermes-kit]

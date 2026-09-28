@@ -79,7 +79,7 @@
 | Composio 앱 연동 | Composio Connect에서 `ck_` 키 발급 → **서비스 키 입력 · 변경** → Composio에서 쓸 앱(Gmail 등) 권한을 학생 본인이 허용 | "오늘 받은 메일 제목만 보여줘" 같은 읽기 요청 하나 |
 | 일반 선톡 | **고급 설정 → 일반 선톡 켜기** → 주제·시각 | 테스트 채널에서만 켜고, 확인 후 필요 없으면 **선톡 끄기** |
 | PC 노트 동기화 | **PC 옵시디언에서 노트 보기** 또는 [기기 연결 안내](student-sync-import.md) | PC와 서버 양쪽에 파일이 도착하는지 |
-| OmniRoute | [심화 Compose](../advanced/docker-compose.omniroute.yml)를 **두 번째 프로젝트**로 배포(`KIT_OMNIROUTE_PASSWORD`) → 학생이 대시보드에서 제공자 연결 → **고급 설정 → OmniRoute 연결 → OmniRoute 모드**에 모델 ID 입력 | 결과 메시지에 대화·강한 작업 모델과 대체 경로가 나오는지, 적용 후 대화가 되는지 |
+| OmniRoute | [심화 Compose](../advanced/docker-compose.omniroute.yml)를 **두 번째 프로젝트**로 배포(`KIT_OMNIROUTE_PASSWORD`) → **고급 설정 → OmniRoute 연결 → 1. 대시보드 열기**(15분 링크)에서 학생이 계정 연결 → **2. 모델 고르기**에서 목록 선택 | 결과 메시지에 대화·강한 작업 모델과 대체 경로가 나오는지, 적용 후 대화가 되는지 |
 | 백업 | 적용 시 주간 백업이 등록됨. **지금 백업**으로 한 번 실행 | 서버 밖 사본은 PC 동기화나 다운로드로 따로 확보 |
 
 ## 4. 원격 지원할 때
