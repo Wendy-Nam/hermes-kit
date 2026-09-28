@@ -116,4 +116,107 @@ class DiscordLayout(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(views.ApiModelModal('commandcode',api).model.default,model_setup.RECOMMENDED['commandcode'])
         wizard.stop()
 
+class InviteCommand(unittest.IsolatedAsyncioTestCase):
+    """/invite hands out the only way into a new server and PATCHes the Discord application, so
+    it is held to exactly the terms /setup is. The old `guild is not None and …` guard skipped
+    the check entirely in a DM, where guild is None."""
+
+    def _interaction(self, guild, user_id):
+        import discord_ui, owner
+
+        class Response:
+            def __init__(self): self.sent = []
+
+            async def send_message(self, content, **kw): self.sent.append((content, kw))
+
+            async def defer(self, **kw): pass
+
+        class Followup:
+            def __init__(self): self.sent = []
+
+            async def send(self, content, **kw): self.sent.append((content, kw))
+
+        import types
+        followup = Followup()
+        inter = types.SimpleNamespace(guild=guild, user=types.SimpleNamespace(id=user_id),
+                                     channel_id=1, response=Response(), followup=followup)
+        return inter, followup, discord_ui, owner
+
+    async def test_dm_is_refused_before_any_check_is_skipped(self):
+        inter, _, discord_ui, owner = self._interaction(None, 999)
+        with patch.object(owner, "invite_link") as link:
+            await discord_ui.invite_command(inter, Path("/tmp"))
+        link.assert_not_called()
+        self.assertIn("서버에서만", inter.response.sent[0][0])
+
+    async def test_a_non_owner_is_refused_and_never_reaches_the_link(self):
+        import types
+        guild = types.SimpleNamespace(owner_id=1)
+        inter, _, discord_ui, owner = self._interaction(guild, 2)
+        with patch.object(owner, "is_approved", return_value=False), \
+             patch.object(owner, "invite_link") as link:
+            await discord_ui.invite_command(inter, Path("/tmp"))
+        link.assert_not_called()
+        self.assertIn("소유자만", inter.response.sent[0][0])
+
+    async def test_the_owner_gets_the_link_and_it_is_never_cut_in_half(self):
+        import types
+        guild = types.SimpleNamespace(owner_id=1)
+        inter, followup, discord_ui, owner = self._interaction(guild, 1)
+        url = "https://discord.com/oauth2/authorize?client_id=1&permissions=8&scope=bot"
+        # A long note must eat the space, never the URL: a truncated link looks valid and 404s.
+        with patch.object(owner, "invite_link", return_value=(url, "설명 " * 900)):
+            await discord_ui.invite_command(inter, Path("/tmp"))
+        body = followup.sent[0][0]
+        self.assertLessEqual(len(body), 1900)
+        self.assertIn(url, body)
+
+    async def test_no_token_gives_the_portal_recipe_and_no_half_link(self):
+        import types
+        guild = types.SimpleNamespace(owner_id=1)
+        inter, followup, discord_ui, owner = self._interaction(guild, 1)
+        with patch.object(owner, "invite_link", return_value=(None, "URL Generator 를 사용하세요")):
+            await discord_ui.invite_command(inter, Path("/tmp"))
+        body = followup.sent[0][0]
+        self.assertIn("URL Generator", body)
+        self.assertNotIn("client_id=", body)
+
+
+class OnboardingCopy(unittest.TestCase):
+    """The /setup and 고급 설정 copy is the only manual a student has. Discord rejects a
+    message over 2000 characters outright, and an over-long guide fails at the worst
+    possible moment: the first time a confused student presses the button."""
+
+    def _views(self):
+        import discord  # noqa: F401  (absent outside the gateway; the test skips below)
+        from views import ADVANCED_GUIDE, wizard_text
+        return ADVANCED_GUIDE, wizard_text
+
+    def setUp(self):
+        try:
+            self.guide, self.wizard_text = self._views()
+        except ImportError:
+            self.skipTest("discord.py is not installed in this environment")
+
+    def test_advanced_guide_fits_a_discord_message(self):
+        self.assertLess(len(self.guide), 1900)
+
+    def test_wizard_text_fits_a_discord_message(self):
+        status = {'model': False, 'gemini': False, 'kits': False, 'recommended': False}
+        self.assertLess(len(self.wizard_text(status)), 1900)
+
+    def test_advanced_guide_names_every_button_on_the_home_screen(self):
+        from views import HomeView  # noqa: F401  (import proves the module still loads)
+        for label in ('서비스 키 입력 · 변경', '두뇌 선택', '연결 확인', '설치 재시도', 'PC 동기화',
+                      '대화 가져오기', '지금 백업', '연결 해제', '일반 선톡 켜기', '선톡 끄기',
+                      'OMH 설정', 'OmniRoute 연결', '이미지 연결', '추가 기능'):
+            self.assertIn(label, self.guide, f"{label} is on HomeView but undocumented")
+
+    def test_advanced_guide_keeps_the_omniroute_three_step_order(self):
+        # The recurring failure is stopping after step 2 and reporting "nothing changed".
+        guide = self.guide
+        self.assertLess(guide.index('대시보드 열기'), guide.index('모델 고르기'))
+        self.assertIn('적용하기(재시작)', guide)
+
+
 if __name__=='__main__':unittest.main()

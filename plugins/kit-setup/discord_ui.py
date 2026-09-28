@@ -161,11 +161,43 @@ async def setup_command(interaction, packs_list, kits_list, bot):
     note = "주인으로 등록했어요." if registered else "이미 주인으로 등록되어 있어요."
 
     # The bot is already in this server (the command came through it), so no invite step here.
-    # Intents and install params are set at boot by bootstrap.configure_app.
+    # Intents and install params are set at boot by bootstrap.configure_app. A student who cannot
+    # find the boot log line is told about /invite rather than left hunting through container logs.
     from views import WizardView, wizard_text
     view = WizardView(packs_list, channel_id=interaction.channel_id, owner_id=interaction.user.id)
-    head = [note, "", wizard_text(view.status)]
+    head = [note, "", wizard_text(view.status),
+            "", "로그에서 `[kit] 봇 초대:` 링크를 못 찾았거나 다른 서버에 다시 초대하려면 `/invite` 를 사용하세요."]
     await interaction.followup.send("\n".join(head), view=view, ephemeral=True)
+
+
+async def invite_command(interaction, data_dir: Path):
+    """`/invite` — reprint the invite link when the boot log line is gone.
+
+    Registered on the same terms as /setup: the person who owns the server is the person who
+    may add the bot, and the link is the only way into a fresh server. The message is ephemeral
+    so a link never sits in a channel a student shares by screenshot.
+    """
+    import owner as owner_mod
+
+    # Same terms as /setup, checked the same way. A `guild is not None and …` guard would skip
+    # the check entirely in a DM, and this command PATCHes the Discord application.
+    guild = interaction.guild
+    if guild is None:
+        return await interaction.response.send_message("서버에서만 실행할 수 있습니다.", ephemeral=True)
+    if interaction.user.id != guild.owner_id and not owner_mod.is_approved(interaction.user.id):
+        return await interaction.response.send_message(
+            "이 서버의 소유자만 실행할 수 있습니다.", ephemeral=True)
+    await interaction.response.defer(ephemeral=True, thinking=True)
+    url, note = await asyncio.to_thread(owner_mod.invite_link, data_dir)
+    if not url:
+        body = "\n".join(p for p in (note, "링크를 만들지 못했습니다. 위 안내대로 직접 만들어 주세요.") if p)
+    else:
+        # The URL goes first and is never truncated. A link cut in half is worse than no link:
+        # it looks clickable and lands on a 404, so the student blames the kit.
+        room = 1900 - len(url) - 2
+        parts = [url] + ([note[:room]] if room > 0 and note else [])
+        body = "\n\n".join(parts)
+    await interaction.followup.send(body[:1900], ephemeral=True)
 
 
 def build(bot, adapter):
@@ -194,11 +226,16 @@ def build(bot, adapter):
     async def doctor(interaction: dc.Interaction):
         await doctor_mod.doctor_command(interaction, DATA, ENV_FILE)
 
+    async def invite(interaction: dc.Interaction):
+        await invite_command(interaction, DATA)
+
     commands = [
         app_commands.Command(name="setup", description="키 입력 · 검증 · 적용 (서버 소유자 전용)",
                              callback=setup),
         app_commands.Command(name="doctor", description="무엇이 안 되는지 스스로 진단 (키는 가려짐)",
                              callback=doctor),
+        app_commands.Command(name="invite", description="봇 초대 링크 다시 보기 (로그를 못 찾았을 때)",
+                             callback=invite),
     ]
 
     async def sync_guild(guild):

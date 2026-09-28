@@ -303,7 +303,10 @@ class ActionButton(discord.ui.Button):
                 '디스크 약 1GB를 쓰고, 기본 웹 읽기가 빈 결과를 줄 때만 사용합니다. 현재: '+('설치됨' if installed else '미설치'),
                 view=ExtrasView(interaction.user.id,self.home),ephemeral=True)
         if a=='model':return await interaction.response.send_modal(ModelModal())
-        if a=='sync':return await interaction.response.send_modal(TextActionModal(a,'PC 노트 동기화','내 PC Syncthing 기기 ID',max_length=63))
+        if a=='sync':
+            # The modal alone asks for a device id with no idea what it is; the steps come first.
+            from onboarding import sync_guide
+            return await interaction.response.send_message(sync_guide(),view=NotesView(interaction.user.id),ephemeral=True)
         if a=='import':return await interaction.response.send_modal(TextActionModal(a,'대화 ZIP 가져오기','personal/Inbox/import의 ZIP 파일명',max_length=180))
         if a=='proactive':return await interaction.response.send_modal(ProactiveModal(self.home.channel_id))
         if a=='omni':
@@ -454,6 +457,26 @@ class OmhOptionsView(OwnedView):
 # ── First-run wizard ───────────────────────────────────────────────────────────────────────────
 # Four numbered steps in the order they must happen; everything else lives behind 고급 설정.
 
+ADVANCED_GUIDE = (
+    "**고급 설정** — 처음 설치라면 1~4를 먼저 끝내고 여기로 오세요. 아래는 전부 선택이며, "
+    "지금 안 눌러도 기본 대화·위임·영상 요약은 동작합니다.\n"
+    "· **서비스 키 입력 · 변경** — 보조 모델·음성·프록시·수집·Composio 키. 입력 즉시 검증되며 "
+    "실패한 키는 저장되지 않습니다.\n"
+    "· **두뇌 선택 / ChatGPT 로그인** — 대화 모델과 위임용 보조 모델을 바꾸거나 다시 로그인합니다.\n"
+    "· **연결 확인** — 저장된 키와 모델로 실제 요청을 보내 봅니다.\n"
+    "· **설치 재시도** — 스킬 설치가 네트워크 문제로 실패했을 때 이어서 합니다.\n"
+    "· **PC 동기화 / 대화 가져오기** — PC 옵시디언과 노트를 맞추고, 대화 ZIP를 가져옵니다.\n"
+    "· **지금 백업** — 수동 백업. 적용 시 주간 백업·업데이트 확인이 등록됩니다.\n"
+    "· **연결 해제** — 키트가 설정한 키와 설정을 되돌립니다. OAuth 권한은 해당 서비스에서 해제합니다.\n"
+    "· **일반 선톡 켜기** / **선톡 끄기** — 하루 한 번 짧은 글쓰기. 테스트 채널에서만 켜세요.\n"
+    "· **OMH 설정** — 위임 모델·추론 강도·작업별 보정. OMH를 업데이트하면 꺼지므로 건드리지 마세요.\n"
+    "· **OmniRoute 연결** — 심화 Compose를 먼저 배포한 뒤에만. 대시보드 열기 → 모델 고르기 → "
+    "**이 화면의 적용하기(재시작)**까지 세 단계가 모두 필요합니다.\n"
+    "· **이미지 연결** — 이미지 읽기를 실제로 시험한 모델만 등록합니다.\n"
+    "· **추가 기능** — JS로 그려지는 페이지를 읽는 도구(디스크 약 1GB)."
+)
+
+
 def wizard_text(status):
     mark = lambda done: '✅' if done else '⬜'
     return ('**설정 순서** — 위에서부터 하나씩 누르세요.\n'
@@ -461,7 +484,8 @@ def wizard_text(status):
             f"{mark(status['gemini'])} 2. Gemini 키 입력 (영상 요약용, 무료)\n"
             f"{mark(status['kits'])} 3. 직무 선택\n"
             f"{mark(status['recommended'])} 4. 권장 설정 적용 — OMH·역할 프로필(조사·코딩·콘텐츠)을 설치하고 재시작합니다\n"
-            '노트를 PC 옵시디언에서 보려면 **PC 옵시디언에서 노트 보기** 버튼을, 나머지 기능은 **고급 설정**을 누르세요.')
+            '끝나면 `/doctor`와 실제 질문 하나로 확인합니다. PC 옵시디언 노트는 **PC 옵시디언에서 노트 보기**, '
+            '나머지 기능은 **고급 설정**을 누르세요.')
 
 
 class WizardView(OwnedView):
@@ -501,17 +525,18 @@ class WizardButton(discord.ui.Button):
                 '사용할 API 제공자를 고르세요. 키와 모델을 한 번에 입력합니다.',
                 view=ApiProviderView(view.owner_id, view.packs), ephemeral=True)
         if a == 'notes':
-            return await interaction.response.send_message(
-                '**PC에서 옵시디언으로 노트 보기**\n'
-                '1. PC에 Syncthing(https://syncthing.net/downloads/)과 Obsidian(https://obsidian.md)을 설치합니다.\n'
-                '2. Syncthing 화면의 **동작 → ID 표시**에서 장치 ID를 복사하고 아래 버튼에 붙여 넣습니다.\n'
-                '3. PC Syncthing에 뜨는 서버 장치와 `hermes-work`·`hermes-personal` 공유를 수락하고, 빈 폴더 두 개를 고릅니다.\n'
-                '4. Obsidian에서 **폴더를 보관소로 열기**로 두 폴더를 각각 엽니다. 플러그인 설정은 이미 들어 있습니다.',
+            from onboarding import sync_guide
+            return await interaction.response.send_message(sync_guide(),
                 view=NotesView(view.owner_id), ephemeral=True)
         if a == 'advanced':
-            return await interaction.response.send_message(
-                '고급 설정입니다. 처음 설치라면 설정 순서 1~4를 먼저 끝내세요.',
-                view=HomeView(view.packs, channel_id=view.channel_id, owner_id=view.owner_id), ephemeral=True)
+            # Two messages on purpose: what each optional feature *is* (with whether it is on),
+            # then what each button does. One message cannot hold both under Discord's limit.
+            from onboarding import feature_guide
+            await interaction.response.defer(ephemeral=True, thinking=True)
+            await interaction.followup.send(feature_guide(root), ephemeral=True)
+            return await interaction.followup.send(
+                ADVANCED_GUIDE, view=HomeView(view.packs, channel_id=view.channel_id,
+                                              owner_id=view.owner_id), ephemeral=True)
         await interaction.response.defer(ephemeral=True, thinking=True)
         if a == 'codex':
             from oauth_login import login_codex

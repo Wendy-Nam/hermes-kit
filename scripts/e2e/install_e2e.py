@@ -110,7 +110,7 @@ def stage1():
 
     state = {}
 
-    @step('discord: build() registers /setup and /doctor on guild join')
+    @step('discord: build() registers /setup, /doctor and /invite on guild join')
     def _():
         import discord_ui
         loop = asyncio.new_event_loop(); asyncio.set_event_loop(loop)
@@ -126,9 +126,26 @@ def stage1():
         guild = discord.Object(id=1)
         run(listeners['on_guild_join'](guild))
         names = sorted(c.name for c in client.tree.get_commands(guild=guild))
-        check('discord: guild commands are setup and doctor', names == ['doctor', 'setup'], names)
+        # /invite is the recovery path for the one install step a student cannot undo:
+        # the boot log line with the invite link scrolls away and never comes back.
+        check('discord: guild commands are doctor, invite and setup', names == ['doctor', 'invite', 'setup'], names)
         state['setup'] = next(c for c in client.tree.get_commands(guild=guild) if c.name == 'setup')
         state['doctor'] = next(c for c in client.tree.get_commands(guild=guild) if c.name == 'doctor')
+        state['invite'] = next(c for c in client.tree.get_commands(guild=guild) if c.name == 'invite')
+
+    @step('/invite: non-owner is refused, owner is told how to make a link by hand')
+    def _():
+        import owner
+        i, sent = interaction(user_id=5, owner_id=42)
+        run(state['invite'].callback(i))
+        check('/invite: non-owner refused', '소유자만' in text(sent), text(sent))
+        # This container runs with DISCORD_BOT_TOKEN=dummy, so there is no real link to print.
+        # The answer must still be actionable rather than a bare failure.
+        i, sent = interaction()
+        run(state['invite'].callback(i))
+        body = text(sent)
+        check('/invite: explains the Portal route when no token is available',
+              'URL Generator' in body and 'client_id=' not in body, body)
 
     @step('/setup: non-owner is refused')
     def _():
@@ -210,7 +227,13 @@ def stage1():
               'Obsidian' in text(sent) and type(sent[-1][2].get('view')).__name__ == 'NotesView', text(sent))
         i, sent = interaction()
         run(button(state['view'], 'advanced').callback(i))
-        check('advanced: old home screen opens', type(sent[-1][2].get('view')).__name__ == 'HomeView', text(sent))
+        body = text(sent)
+        # The feature guide is the first message; the button guide carries the home screen.
+        check('advanced: explains the optional features before the buttons',
+              '선택 기능 안내' in body and 'Composio 앱 연동' in body, body)
+        check('advanced: a configured key reads as 설정됨, not as a value',
+              '설정됨' in body and 'cc-e2e-test' not in body, body)
+        check('advanced: old home screen opens', type(sent[-1][2].get('view')).__name__ == 'HomeView', body)
 
     @step('wizard: status reflects steps 1-3')
     def _():
@@ -264,6 +287,9 @@ def stage1():
         body = text(sent)
         check('/doctor: answered', bool(body), body)
         check('/doctor: no raw key in output', 'cc-e2e-test' not in body and 'AIza-e2e-test' not in body, body[-300:])
+        # The one install step a student cannot redo. This container runs on the dummy token, so
+        # the kit must report it plainly instead of implying a working link.
+        check('/doctor: reports the invite link', '봇 초대 링크' in body, body[-300:])
 
 
 # ── stage 2: after the container restart ────────────────────────────────────────────────────

@@ -16,7 +16,7 @@
 |---|---|
 | VPS | Docker를 쓸 수 있는 VPS, RAM 4GB 이상, 디스크 여유 6GB 이상. 7GB 미만이면 Compose가 스왑 2GB를 자동으로 만들고 역할 작업을 하나씩 돌립니다. OmniRoute도 4GB에서 쓸 수 있습니다(2GB 상한) |
 | Discord | 본인 계정과 **본인이 소유한 서버** 하나 (없으면 새로 만들기) |
-| 대화 모델 | ChatGPT 구독(로그인으로 연결) 또는 OpenCode Go·Command Code API 키 중 하나 |
+| 대화 모델 | ChatGPT 구독(로그인으로 연결) 또는 ChatGPT 로그인이 가능한 제공자. 비용 최소 선택지는 [대화 모델 가이드](student-model-guide.md) |
 | Gemini 키 | https://aistudio.google.com/apikey 에서 무료 키 발급 (영상 요약용, `AIza`로 시작) |
 | 선택 | 음성(Groq), 차단 우회(Webshare), SNS 수집(Apify), Composio 앱 연동 키 — 당일 없어도 됨 |
 
@@ -40,11 +40,12 @@
 2. 환경변수 `DISCORD_BOT_TOKEN`에 토큰 입력(입력란이 자동으로 안 생기면 프로젝트 환경변수에서 직접 추가) → 배포.
 3. 컨테이너 상태: `hermes`와 `syncthing`은 실행 중, `syncthing-init`과 `swap-init`은 **종료(0)가 정상**입니다(한 번 설정하고 끝나는 컨테이너). `swap-init` 로그에 스왑을 켰는지, 필요 없어서 건너뛰었는지 나옵니다.
 
-확인 지점: hermes 컨테이너 로그에 `[kit] 봇 초대:` 줄이 보인다.
+확인 지점: hermes 컨테이너 로그에 `[kit] 봇 초대:` 줄이 보인다. 로그를 닫아 버렸다면 `/doctor`의 **봇 초대 링크** 항목이나 `docker compose exec hermes /opt/hermes/.venv/bin/python /opt/data/plugins/kit-setup/owner.py`로 링크를 다시 얻을 수 있습니다.
 
 ### 2-3. 봇 초대 (5분)
 
 1. 로그의 `[kit] 봇 초대:` 링크를 열어 **본인 서버**를 고르고 승인. 권한·인텐트 설정은 키트가 대신 합니다.
+   - 로그가 회전했거나 닫아 버린 경우: 이미 다른 서버에 초대했다면 Discord에서 **`/invite`**. 아직 초대하지 못했다면 `/invite` 가 Developer Portal의 URL Generator 절차를 알려 줍니다(k16부터).
 2. 서버 멤버 목록에 봇이 온라인으로 보이는지 확인.
 
 확인 지점: 채팅창에 `/setup`, `/doctor`가 뜬다(처음엔 1~2분 걸릴 수 있음).
@@ -78,7 +79,7 @@
 | OMH·역할 프로필 | 설정 순서 4단계에서 이미 설치됨 | "자료 세 개를 나눠서 조사해줘"처럼 위임이 필요한 요청 하나. 에이전트가 `omh_delegate_route`로 작업 종류를 정한 뒤 위임하는지 |
 | Composio 앱 연동 | Composio Connect에서 `ck_` 키 발급 → **서비스 키 입력 · 변경** → Composio에서 쓸 앱(Gmail 등) 권한을 학생 본인이 허용 | "오늘 받은 메일 제목만 보여줘" 같은 읽기 요청 하나 |
 | 일반 선톡 | **고급 설정 → 일반 선톡 켜기** → 주제·시각 | 테스트 채널에서만 켜고, 확인 후 필요 없으면 **선톡 끄기** |
-| PC 노트 동기화 | **PC 옵시디언에서 노트 보기** 또는 [기기 연결 안내](student-sync-import.md) | PC와 서버 양쪽에 파일이 도착하는지 |
+| PC 노트 동기화 | **고급 설정 → 선택 기능 안내**에서 현재 상태를 보고, **PC 옵시디언에서 노트 보기** 또는 [기기 연결 안내](student-sync-import.md) | PC와 서버 양쪽에 파일이 도착하는지. 안내의 "연결된 장치 N대"는 Syncthing 설정만 센 값이므로 PC 폴더 확인으로 끝냅니다 |
 | OmniRoute | [심화 Compose](../advanced/docker-compose.omniroute.yml)를 **두 번째 프로젝트**로 배포(`KIT_OMNIROUTE_PASSWORD` — 비우면 기동을 거부합니다). **기본 프로젝트를 먼저 배포한 뒤** 진행하세요. → **고급 설정 → OmniRoute 연결 → 1. 대시보드 열기**(15분 링크)에서 학생이 계정 연결 → **2. 모델 고르기**에서 목록 선택 → **3. `고급 설정`의 `적용하기 (재시작)`** ← 이 재시작을 빼먹으면 "연결했는데 변화가 없다"가 됩니다 | "적용했습니다" 메시지에 대화·강한 작업 모델과 대체 경로가 나오는지, **재시작 후** 대화가 OmniRoute를 거치는지. 기본 프로젝트를 `down`으로 지우면 대시보드 네트워크가 사라지므로 금지 |
 | 백업 | 적용 시 주간 백업이 등록됨. **지금 백업**으로 한 번 실행 | 서버 밖 사본은 PC 동기화나 다운로드로 따로 확보 |
 
@@ -96,7 +97,9 @@
 
 | 증상 | 원인 | 대응 |
 |---|---|---|
-| 로그에 `[kit] 봇 초대:`가 없고 "봇 토큰이 거부됐습니다" | 토큰 오타·만료 | Developer Portal에서 **Reset Token** → 환경변수 교체 → 재배포 |
+| 로그에 `[kit] 봇 초대:`가 없고 "봇 토큰이 거부됐습니다" | 토큰 오타·만료 | Developer Portal에서 **Reset Token** → 환경변수 교체 → 재배포. 아직 초대 전이라면 `/invite` 가 URL Generator 절차를 안내 |
+| 로그를 닫아 버려 초대 링크를 못 찾음 (k16~) | 첫 부팅 로그가 회전 | `/invite`(이미 초대한 경우) 또는 `docker compose exec hermes /opt/hermes/.venv/bin/python /opt/data/plugins/kit-setup/owner.py`. 키트가 데이터 볼륨(`/opt/data/.kit-invite-url`)에도 저장해 둡니다 |
+| "이 서버의 소유자만 실행할 수 있습니다." (`/invite`) | `/setup`을 연 사람이 서버 소유자가 아님 | 서버 소유자 계정으로 실행. 두 명령 모두 소유자 전용이며 `/invite` 결과는 ephemeral이라 채널에 남지 않습니다 |
 | 봇은 온라인인데 일반 메시지에 반응 없음 | Message Content Intent 꺼짐 | Portal에서 켜고 저장 → 컨테이너 재시작 |
 | `/setup`이 안 보임 | 명령 동기화 지연, 초대 누락 | 1~2분 대기 → Discord 새로고침 → 초대 링크로 다시 초대 |
 | "이 서버의 소유자만 실행할 수 있습니다." | 소유자가 아닌 계정 | 서버 소유자 계정으로 실행(학생 본인 서버인지 확인) |
@@ -114,8 +117,39 @@
 데이터 볼륨은 유지되고 설정·키·노트는 그대로입니다. 공지 전에 해당 버전의 릴리스 노트(`docs/*-release.md`)에
 학생이 따로 눌러야 할 것이 있는지 확인해 같이 알립니다. 실행 중인 컨테이너는 스스로 업데이트하지 않습니다.
 
-## 7. 기수 시작 전 강사 리허설
+## 7. 강사·운영자 출시 기준
 
-README의 "강사·운영자 출시 기준"을 새 VPS·새 Discord 앱으로 한 번 끝까지 따라가고 소요 시간과 막힌 곳을
+현재 검증은 격리된 이미지·가짜 상위 API·단위 테스트를 포함합니다. **학생의 실제 OAuth 로그인, 유료 계정 권한, Discord 전체 설정 완료, 실제 PC 동기화 성공을 입증하는 결과는 아닙니다.** OMH 설치 점검과 실제 학생 작업의 위임 성공도 구분합니다. 구현·검증 범위는 [구성요소 계약](../plugins/kit-setup/COMPONENTS.md)에 기록되어 있습니다.
+
+기수에 배포하기 전에 다음을 완료합니다.
+
+1. 새 VPS·새 Discord 앱으로 README만 따라 설치하고 소요 시간을 기록합니다. 기본 대화, 보조 위임, 영상 요약, 선택 서비스의 실제 응답을 확인합니다.
+2. 키 오류·모델 ID 오류·네트워크 단절 후 재시도, 재부팅, 일반 선톡 켜기와 끄기를 확인합니다. 선톡 검증은 테스트 채널에서 명시적으로 선택한 경우에만 진행합니다.
+3. 실제 PC에서 양방향 동기화를 확인하고 샘플 대화 ZIP을 가져옵니다. 백업을 새 디렉터리에 복구해 노트와 중지된 크론을 확인합니다.
+4. `versions.env`, Compose 이미지 태그, 릴리스 안내를 맞춥니다. 공개 게시를 결정한 뒤 버전 태그를 푸시합니다. 현재 CI는 `v*` 태그에서 모든 검증을 통과해야 GHCR에 게시하며, 일반 브랜치 푸시는 이미지를 게시하지 않습니다. 태그를 푸시할 수 없는 환경에서는 Actions의 `build`를 main에서 수동 실행하고 `release`에 `versions.env`와 같은 버전(예: `0.21.2-k16`)을 입력합니다. 같은 검증을 통과한 뒤 게시하고 `v*` 태그를 기록합니다.
+5. GitHub 패키지의 공개 접근을 확인하고, 로그인하지 않은 새 환경에서 정확한 버전 이미지를 내려받아 부팅합니다. 이전 이미지와 데이터 백업을 보존한 뒤 수강생에게 게시 완료를 안내합니다.
+
+개발 검증은 다음과 같이 실행합니다. Docker 이미지 빌드와 부팅 시험은 Docker가 실행 중인 환경에서 수행합니다.
+
+```sh
+python3 -m pip install pyyaml
+python3 -m unittest discover -s tests -v
+python3 -m unittest discover -s plugins/kit-setup/tests -v
+set -a
+. ./versions.env
+set +a
+docker build --build-arg HERMES_BASE_IMAGE --build-arg HERMES_VERSION \
+  --build-arg RTK_VERSION --build-arg KIT_VERSION -t hermes-kit:check .
+sh scripts/secret-scan.sh hermes-kit:check
+sh scripts/boot-test.sh hermes-kit:check
+```
+
+## 8. 학생 안내문 versioning
+
+학생에게 버전별 내역을 설명할 때는 README가 아니라 [CHANGELOG](CHANGELOG.md)를 씁니다. README는 현재 버전의 준비물·설치 4단계·필수 키·선택 기능만 담고, "이전 버전을 받은 학생에게 무엇을 말해야 하는지"는 CHANGELOG의 해당 항목에 있습니다.
+
+## 9. 기수 시작 전 강사 리허설
+
+README를 새 VPS·새 Discord 앱으로 한 번 끝까지 따라가고 소요 시간과 막힌 곳을
 이 문서에 반영합니다. 강사 서버는 로컬 이미지(`hermes-agent:baseline-*`)로 돌아 공식 이미지와 소스가 다른 부분이
 있으므로, 강사 서버에서 되는 것이 학생 이미지에서도 된다고 가정하지 않습니다.

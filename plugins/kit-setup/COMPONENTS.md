@@ -22,6 +22,40 @@ uses the above manifest. Validate the entire bundle before installing its
 components. Each component is an independent transaction; the bundle is not a
 cross-component transaction. Private bundles never install plugins or scripts.
 
+## Invite link and `/invite`
+
+The bot invite link used to exist only as one `[kit] 봇 초대:` line in the first boot
+log, which a student cannot get back. `owner.invite_link(data_dir)` is the single
+answer path for all three callers: boot, the `/invite` slash command, and
+`python owner.py` inside the container.
+
+A live `configure_app` lookup wins, so a link saved before an application was
+recreated cannot become the wrong answer; `.kit-invite-url` on the data volume
+(0600) is the fallback when Discord is unreachable. The stored value is a public
+client id plus a permission integer — the token is never written, logged or
+printed. `bot_token()` treats the `dummy` token CI boots with as no token, so a
+test run can never report a working link.
+
+Without a working token the kit returns the Developer Portal URL Generator recipe
+and no URL: an application id is never guessed, since a wrong one would point the
+student at a stranger's application. `/invite` is guild-owner only, like `/setup`,
+and its reply is ephemeral so a capability link never sits in a shared channel.
+`doctor.check_invite` reports whether the link is stored, still derivable, or
+impossible, which is the difference between a five-second fix and a support ticket.
+
+## 선택 기능 안내 (`onboarding`)
+
+`onboarding.feature_guide(data_dir)` renders one line per optional feature — what
+it does, which key turns it on, where that key is issued, and whether it is
+configured. Only key *names* are read, never values. The PC notes line counts
+devices in Syncthing's own `config.xml` and says so in words; a device count is
+never presented as evidence that a file arrived on a PC.
+
+The guide is budgeted to fit one Discord message: head and tail are reserved
+first, and a feature that would not fit is dropped whole rather than truncated
+mid-sentence. `views.ADVANCED_GUIDE` (what each button on the home screen does)
+is a separate message for the same reason — one message cannot hold both.
+
 ## Optional upstream OMH
 
 `upstream_omh.install_upstream_omh(data_dir, routing=..., host_version=...)`

@@ -6,10 +6,15 @@ so the manual does not have a checkbox checklist for a non-developer to get wron
 """
 import json
 import logging
+import os
+from pathlib import Path
 import urllib.error
 import urllib.request
 
 log = logging.getLogger(__name__)
+
+# Where boot keeps the link so it survives a log the student can no longer scroll back to.
+INVITE_FILE = ".kit-invite-url"
 
 # Every permission the bot needs across the kit: text, threads, embeds, files, history,
 # voice, slash commands. Summed so a student never has to tick boxes in the Developer Portal.
@@ -43,6 +48,16 @@ def invite_url(app_id: str) -> str:
             f"&permissions={PERMS}&scope=bot%20applications.commands")
 
 
+PORTAL_STEPS = (
+    "링크를 직접 만들려면 Discord Developer Portal에서:\n"
+    "1) 내 앱 → 해당 봇 → **OAuth2 → URL Generator**\n"
+    "2) Scopes: `bot`, `applications.commands` 를 모두 체크\n"
+    "3) Bot Permissions: `Administrator` 를 체크 (키트가 필요한 권한을 대신 설정합니다)\n"
+    "4) **Copy Link**를 브라우저에 붙여 넣어 본인 서버를 고르고 승인합니다.\n"
+    "5) 그다음 Discord에서 `/setup` 을 실행합니다."
+)
+
+
 def configure_app(token: str) -> tuple[str | None, str | None]:
     """Set intents + install params via the API. Returns (invite_url, error_message).
 
@@ -64,6 +79,91 @@ def configure_app(token: str) -> tuple[str | None, str | None]:
         # Not fatal: the student can still invite the bot, they may just have to tick a box.
         log.warning("install_params update failed (%s) — invite link still usable", type(e).__name__)
     return invite_url(str(app.get("id"))), None
+
+
+def remember_invite(data_dir, url: str) -> bool:
+    """Keep the link on the data volume. Returns whether it was written.
+
+    The link itself is a public client id plus a permission number, not a credential — but it is
+    the only way into a brand new server, so it is stored 0600 like every other kit file, and the
+    token never comes near it.
+    """
+    if not isinstance(url, str) or not url.startswith("https://discord.com/oauth2/authorize?"):
+        return False
+    path = Path(data_dir) / INVITE_FILE
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, "w") as f:
+            f.write(url)
+        return True
+    except OSError:
+        log.warning("invite link could not be saved — it is still in the container log")
+        return False
+
+
+def remembered_invite(data_dir) -> str | None:
+    """The saved link, or None. Never raises: this runs on a student's first boot.
+
+    The write side already refuses anything that is not an invite URL, so this check is not
+    about the kit's own writes — it is about a file that was edited, truncated by a full disk, or
+    restored from a backup. An arbitrary string printed as a link sends the student somewhere
+    that is not Discord, so only a recognisable invite URL is handed back.
+    """
+    try:
+        saved = (Path(data_dir) / INVITE_FILE).read_text(encoding="utf-8").strip()
+    except OSError:
+        return None
+    return saved if saved.startswith("https://discord.com/oauth2/authorize?") else None
+
+
+def bot_token(data_dir) -> str:
+    """The bot token from .env, else the environment Compose injected. Never logged or printed."""
+    from env_store import get_env
+
+    try:
+        stored = get_env(Path(data_dir) / ".env").get("DISCORD_BOT_TOKEN", "")
+    except Exception:
+        stored = ""
+    token = (stored or os.environ.get("DISCORD_BOT_TOKEN", "")).strip()
+    return "" if token in ("dummy", "") else token
+
+
+def invite_link(data_dir) -> tuple[str | None, str]:
+    """(url, message) for a student who cannot find the link in the log.
+
+    A fresh lookup wins, so a link saved before the app was recreated cannot become the wrong
+    answer; the saved one is the fallback when Discord is unreachable. `dummy` — the token CI boots
+    with — counts as no token at all, so a test run never reports success.
+    """
+    saved = remembered_invite(data_dir)
+    token = bot_token(data_dir)
+    if not token:
+        if saved:
+            return saved, "저장해 둔 링크입니다. (봇 토큰은 현재 환경변수에 없습니다.)"
+        return None, ("봇 토큰을 찾지 못했습니다. Hostinger Compose의 DISCORD_BOT_TOKEN 환경변수를 "
+                      "확인하고 컨테이너를 다시 시작하세요.\n\n" + PORTAL_STEPS)
+    url, error = configure_app(token)
+    if url:
+        remember_invite(data_dir, url)
+        return url, ""
+    if saved:
+        return saved, f"새 링크를 받아오지 못했습니다 ({error}). 대신 예전에 저장한 링크를 보여드립니다."
+    # A rejected token cannot reveal the application id, and guessing one would point the
+    # student at a stranger's app. The Portal recipe is the only honest answer here.
+    return None, f"{error or '초대 링크를 만들지 못했습니다.'}\n\n{PORTAL_STEPS}"
+
+
+def main() -> int:
+    """`python owner.py` inside the container: print the invite link again, token never shown."""
+    data = Path(os.environ.get("HERMES_HOME") or "/opt/data")
+    url, note = invite_link(data)
+    if note:
+        print(note)
+    if not url:
+        return 1
+    print(url)
+    return 0
 
 
 def ensure_owner(user_id: str, name: str) -> bool:
@@ -93,3 +193,9 @@ def is_approved(user_id: str) -> bool:
         if str(got) == uid:
             return True
     return False
+
+
+# Reached from the host when the log line is gone:
+#   docker compose exec hermes /opt/hermes/.venv/bin/python /opt/data/plugins/kit-setup/owner.py
+if __name__ == "__main__":
+    raise SystemExit(main())

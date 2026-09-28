@@ -238,6 +238,103 @@ class Owner(unittest.TestCase):
         self.assertTrue(owner.is_approved("7"))
         self.assertFalse(owner.is_approved("8"))
 
+    def test_invite_link_fetches_and_then_serves_from_disk(self):
+        # The first call needs a live token; after that the log can be lost forever.
+        with tempfile.TemporaryDirectory() as td:
+            url = "https://discord.com/oauth2/authorize?client_id=1&permissions=8&scope=bot"
+            with patch.object(owner, "bot_token", return_value="good-token"), \
+                 patch.object(owner, "configure_app", return_value=(url, None)):
+                got, note = owner.invite_link(td)
+            self.assertEqual(got, url)
+            self.assertEqual(note, "")
+            saved = Path(td) / owner.INVITE_FILE
+            self.assertTrue(saved.is_file())
+            self.assertEqual(stat.S_IMODE(os.stat(saved).st_mode), 0o600,
+                             "the invite link must not be world-readable")
+            with patch.object(owner, "bot_token", return_value="good-token"), \
+                 patch.object(owner, "configure_app", return_value=(None, "HTTP 401")):
+                again, _ = owner.invite_link(td)
+            self.assertEqual(again, url)
+
+    def test_invite_link_refuses_a_dummy_token(self):
+        # CI boots with DISCORD_BOT_TOKEN=dummy; a "success" there would be a false green.
+        with tempfile.TemporaryDirectory() as td, \
+             patch.dict(os.environ, {"DISCORD_BOT_TOKEN": "dummy"}):
+            with patch.object(owner, "configure_app") as called:
+                url, note = owner.invite_link(td)
+        self.assertIsNone(url)
+        self.assertNotIn("client_id=", note)
+        called.assert_not_called()
+
+    def test_invite_link_falls_back_to_portal_steps_without_inventing_an_id(self):
+        with tempfile.TemporaryDirectory() as td, patch.object(owner, "bot_token", return_value="bad"):
+            with patch.object(owner, "configure_app", return_value=(None, "봇 토큰이 거부됐습니다 (HTTP 401)")):
+                url, note = owner.invite_link(td)
+        self.assertIsNone(url)
+        self.assertIn("HTTP 401", note)
+        self.assertIn("URL Generator", note)
+        self.assertNotIn("client_id=", note)
+
+    def test_remembered_invite_never_returns_a_foreign_url(self):
+        with tempfile.TemporaryDirectory() as td:
+            self.assertFalse(owner.remember_invite(td, "https://evil.example/steal"))
+            self.assertIsNone(owner.remembered_invite(td))
+
+    def test_a_damaged_invite_file_is_refused_rather_than_printed(self):
+        # A truncated or hand-edited file must not be handed to the student as a link. The write
+        # side filters, so this covers a full disk, a bad restore, or an edit outside the kit.
+        url = "https://discord.com/oauth2/authorize?client_id=1&permissions=8&scope=bot"
+        with tempfile.TemporaryDirectory() as td:
+            path = Path(td) / owner.INVITE_FILE
+            for damaged in ("https://discord.com/oauth2/authorize", "not a url at all",
+                             "https://evil.example/oauth2/authorize?client_id=1",
+                             "discord.com/oauth2/authorize?client_id=1"):
+                path.write_text(damaged)
+                self.assertIsNone(owner.remembered_invite(td), damaged)
+            # Trailing whitespace is what read_text().strip() exists for; a real link keeps it.
+            path.write_text(url + "\n\n")
+            self.assertEqual(owner.remembered_invite(td), url)
+
+    def test_doctor_does_not_claim_a_stored_link_is_verified(self):
+        # "저장되어 있습니다" is true; "works" is not, and a student who made a new Discord app
+        # has an old client id. The wording must not promise more than the file can show.
+        with tempfile.TemporaryDirectory() as td:
+            import doctor
+            url = "https://discord.com/oauth2/authorize?client_id=1&permissions=8&scope=bot"
+            (Path(td) / owner.INVITE_FILE).write_text(url)
+            finding = doctor.check_invite(Path(td))
+            self.assertIn("저장되어 있습니다", finding.detail)
+            self.assertNotIn("정상", finding.detail)
+
+
+class DoctorInvite(unittest.TestCase):
+    """/doctor is what a stuck student sends. The one step they cannot redo — the invite —
+    must be reported in a way that leads somewhere."""
+
+    def _finding(self, td, token):
+        import doctor
+        with patch.object(owner, "bot_token", return_value=token):
+            return doctor.check_invite(Path(td))
+
+    def test_saved_link_is_ok_and_names_the_command(self):
+        with tempfile.TemporaryDirectory() as td:
+            owner.remember_invite(td, owner.invite_url("123"))
+            finding = self._finding(td, "good")
+        self.assertEqual(finding.status, "ok")
+        self.assertIn("/invite", finding.detail)
+
+    def test_derivable_but_unsaved_is_a_warning_not_an_error(self):
+        with tempfile.TemporaryDirectory() as td:
+            finding = self._finding(td, "good")
+        self.assertEqual(finding.status, "warn")
+        self.assertIn("/invite", finding.detail)
+
+    def test_no_token_is_reported_plainly_and_never_as_a_working_link(self):
+        with tempfile.TemporaryDirectory() as td:
+            finding = self._finding(td, "")
+        self.assertEqual(finding.status, "skip")
+        self.assertNotIn("client_id=", finding.detail)
+
 
 class ApplyFlow(unittest.TestCase):
     """The rule that matters: a pack is saved only when every one of its keys verifies."""

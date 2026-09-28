@@ -26,8 +26,37 @@ def _request(api_url, key, method, endpoint, payload=None):
         return json.loads(body) if body else None
 
 
+CONFIG_PATH = Path("/opt/syncthing-config/config.xml")
+
+
+def _config_root(config_path):
+    """Parsed config.xml, or a ValueError.
+
+    The API key is read from here and never written: config.xml is Syncthing's own file, and the
+    kit changes devices and folders only through the REST API.
+    """
+    raw = Path(config_path).read_bytes()
+    if len(raw) > 2 * 1024 * 1024 or b"<!DOCTYPE" in raw.upper():
+        raise ValueError("invalid configuration")
+    return ET.fromstring(raw)
+
+
+def paired_device_count(*, config_path=None) -> int:
+    """Devices the server currently knows, including itself.
+
+    Read-only, ids only. A count says the server was told about a device — never that a file
+    arrived on a PC, which only the student's own folder check can show.
+    The device id is the `id` *attribute* of a root-level <device>, not a child element. Reading
+    it as <deviceID> silently yields zero on every real config.xml, which would report "아직 PC
+    없음" to a student whose PC is already paired. The test fixture below is a real
+    `syncthing generate` output for the same reason.
+    """
+    return sum(1 for d in _config_root(config_path or CONFIG_PATH).findall("device")
+               if (d.get("id") or "").strip())
+
+
 def pair_device(device_id: str, name="내 PC", *,
-                config_path=Path("/opt/syncthing-config/config.xml"),
+                config_path=CONFIG_PATH,
                 api_url="http://syncthing:8384") -> tuple[bool, str]:
     """Success means sharing configured, not that the PC accepted or synced it."""
     if not isinstance(device_id, str) or not re.fullmatch(r"[A-Za-z0-9 -]{52,80}", device_id):
@@ -36,10 +65,7 @@ def pair_device(device_id: str, name="내 PC", *,
         return False, "동기화 API 주소는 키트 내부 주소만 허용합니다."
     changed = False
     try:
-        raw = Path(config_path).read_bytes()
-        if len(raw) > 2 * 1024 * 1024 or b"<!DOCTYPE" in raw.upper():
-            raise ValueError("invalid configuration")
-        key = ET.fromstring(raw).findtext("gui/apikey")
+        key = _config_root(config_path).findtext("gui/apikey")
         if not key:
             raise ValueError("missing API key")
         def call(method, endpoint, payload=None):
