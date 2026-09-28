@@ -12,6 +12,7 @@ import roles
 FAKE = '''#!/bin/sh
 # hermes profile create <role> ... : make the profile home like the real CLI does
 mkdir -p "$HERMES_HOME/profiles/$3" && printf 'model:\\n  default: stale\\n' > "$HERMES_HOME/profiles/$3/config.yaml"
+cp "$HERMES_HOME/SOUL.md" "$HERMES_HOME/profiles/$3/SOUL.md"   # --clone copies the default SOUL
 '''
 
 

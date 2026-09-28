@@ -69,7 +69,8 @@ def ensure_roles(data_dir, *, hermes=HERMES):
     rows = []
     for role, desc in ROLES.items():
         home = _profile(root, role)
-        if not home.is_dir():
+        created = not home.is_dir()
+        if created:
             env = {**os.environ, 'HERMES_HOME': str(root), 'HOME': str(root)}
             r = subprocess.run([hermes, 'profile', 'create', role, '--clone', '--no-alias',
                                 '--description', desc], env=env, capture_output=True, text=True, timeout=120)
@@ -77,8 +78,9 @@ def ensure_roles(data_dir, *, hermes=HERMES):
                 rows.append(f'{role}: 만들지 못했습니다')
                 continue
         soul = home / 'SOUL.md'
-        # A role SOUL stays kit-owned only while it keeps the marker; a student's rewrite is kept.
-        if not soul.is_file() or MARK in soul.read_text(encoding='utf-8'):
+        # --clone copies the default SOUL, so a new profile always gets the role SOUL. Afterwards it
+        # stays kit-owned only while it keeps the marker; a student's rewrite is kept.
+        if created or not soul.is_file() or MARK in soul.read_text(encoding='utf-8'):
             _atomic(soul, SOUL.format(role=role, desc=desc))
         rows.append(f'{role}: 준비됨')
     soul = root / 'SOUL.md'
