@@ -283,11 +283,85 @@ def stage2():
     config_store.write(ROOT, {'model.default': 'changed-model'}, remember=False)
     sync_roles(ROOT)
     check('roles: follow a main model change', config_store.read(ROOT / 'profiles/coder')['model']['default'] == 'changed-model')
+    config_store.write(ROOT, {'model.default': 'deepseek/deepseek-v4.1-flash'}, remember=False)
+    sync_roles(ROOT)
+
+
+# ── stage 3: OmniRoute mode against a real OmniRoute container ─────────────────────────────
+OMNI_PW = os.environ.get('E2E_OMNI_PASSWORD', 'e2e-omniroute-password')
+
+
+def _omni():
+    import http.cookiejar, urllib.request
+    op = urllib.request.build_opener(urllib.request.ProxyHandler({}), urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
+    def req(method, path, body=None):
+        r = urllib.request.Request('http://omniroute:20128' + path, method=method, headers={'Content-Type': 'application/json'},
+                                   data=None if body is None else json.dumps(body).encode())
+        with op.open(r, timeout=90) as x:
+            return json.loads(x.read() or b'{}')
+    req('POST', '/api/auth/login', {'password': OMNI_PW})
+    return req
+
+
+def fake_calls():
+    p = Path('/tmp/fake-openai-calls.jsonl')
+    return p.read_text().splitlines() if p.exists() else []
+
+
+def chat_turn():
+    r = subprocess.run(['/opt/hermes/.venv/bin/hermes', '--cli', 'chat', '-q', 'Reply with only: OK'],
+                       capture_output=True, text=True, timeout=300, env={**os.environ, 'PYTHONPATH': ''})
+    return r.returncode == 0 and 'OK' in r.stdout, (r.stdout + r.stderr)[-400:]
+
+
+def stage3a():
+    import config_store
+    # What a student does in the dashboard: connect a provider (here the local fake, as a custom node).
+    req = _omni()
+    node = req('POST', '/api/provider-nodes', {'name': 'student-node', 'prefix': 'fake', 'apiType': 'chat',
+                                               'baseUrl': 'http://kit-hermes:8099/v1', 'type': 'openai-compatible'})['node']['id']
+    req('POST', '/api/providers', {'provider': node, 'apiKey': 'student-key', 'name': 'student-connection', 'priority': 1})
+    from omniroute_mode import connect_mode
+    ok, msg = connect_mode(ROOT, 'wrong-password', 'fake/fake-model')
+    check('omniroute mode: wrong password changes nothing', not ok and config_store.read(ROOT)['model']['provider'] == 'commandcode', msg)
+    ok, msg = connect_mode(ROOT, OMNI_PW, 'nothere/model-x')
+    check('omniroute mode: unknown provider refused', not ok and 'nothere/model-x' in msg, msg)
+    ok, msg = connect_mode(ROOT, OMNI_PW, 'fake/fake-model', 'fake/fake-model')
+    cfg = config_store.read(ROOT)
+    check('omniroute mode: tool-tested and connected', ok, msg)
+    check('omniroute mode: chat through the chat combo', cfg['model']['provider'] == 'kit-omniroute'
+          and cfg['model']['default'].endswith('-chat'), cfg.get('model'))
+    check('omniroute mode: previous direct model kept as fallback',
+          cfg.get('fallback_providers') == [{'provider': 'commandcode', 'model': 'deepseek/deepseek-v4.1-flash'}], cfg.get('fallback_providers'))
+    check('omniroute mode: delegation on the strong combo', cfg['delegation']['model'].endswith('-strong'), cfg.get('delegation'))
+    from roles import sync_roles
+    from bootstrap import rtk_follows_route
+    sync_roles(ROOT)
+    coder = config_store.read(ROOT / 'profiles/coder')
+    check('omniroute mode: roles on the strong combo with the fallback',
+          coder['model']['default'].endswith('-strong') and coder.get('fallback_providers') == cfg['fallback_providers'], coder.get('model'))
+    check('omniroute mode: Hermes RTK off (OmniRoute compresses)', rtk_follows_route(ROOT) is False)
+    # The fallback is the direct Command Code model; in this test it is the same local fake.
+    config_store.write(ROOT, {'providers.commandcode.api': FAKE}, remember=False)
+    before = len(fake_calls())
+    ok, out = chat_turn()
+    check('omniroute mode: a real Hermes turn answers through OmniRoute', ok and len(fake_calls()) > before, out)
+
+
+def stage3b():
+    import config_store
+    ok, out = chat_turn()
+    check('omniroute down: the bot still answers on the direct fallback', ok, out)
+    from omniroute_mode import leave_mode
+    ok, msg = leave_mode(ROOT)
+    cfg = config_store.read(ROOT)
+    check('omniroute mode off: chat back on the direct model', ok and cfg['model']['provider'] == 'commandcode'
+          and not cfg.get('fallback_providers'), cfg.get('model'))
 
 
 if __name__ == '__main__':
     asyncio.set_event_loop(asyncio.new_event_loop())
-    {'stage1': stage1, 'stage2': stage2}[sys.argv[1]]()
+    {'stage1': stage1, 'stage2': stage2, 'stage3a': stage3a, 'stage3b': stage3b}[sys.argv[1]]()
     failed = [r for r in results if not r[0]]
     print(f'\n== {len(results) - len(failed)}/{len(results)} passed')
     for _, name, detail in failed:

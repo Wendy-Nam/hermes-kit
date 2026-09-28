@@ -50,6 +50,20 @@ class Roles(unittest.TestCase):
         self.assertEqual(config_store.read(self.root / 'profiles/research')['model']['default'], 'x')
         self.assertEqual((self.root / 'profiles/coder/SOUL.md').read_text(), 'my own coder')
 
+    def test_roles_follow_delegation_and_kanban_cap_follows_memory(self):
+        low = self.root / 'meminfo-4g'; low.write_text('MemTotal:        3995000 kB\n')
+        high = self.root / 'meminfo-8g'; high.write_text('MemTotal:        8120000 kB\n')
+        roles.ensure_roles(self.root, hermes=str(self.hermes))
+        config_store.write(self.root, {'delegation.provider': 'kit-omniroute', 'delegation.model': 'hermes-kit-x-strong',
+                                       'fallback_providers': [{'provider': 'openai-codex', 'model': 'gpt-6-luna'}]}, remember=False)
+        roles.sync_roles(self.root, meminfo=str(low))
+        coder = config_store.read(self.root / 'profiles/coder')
+        self.assertEqual(coder['model'], {'provider': 'kit-omniroute', 'default': 'hermes-kit-x-strong'})
+        self.assertEqual(coder['fallback_providers'], [{'provider': 'openai-codex', 'model': 'gpt-6-luna'}])
+        self.assertEqual(config_store.read(self.root)['kanban']['max_spawn'], 1)
+        roles.sync_roles(self.root, meminfo=str(high))
+        self.assertEqual(config_store.read(self.root)['kanban']['max_spawn'], 3)
+
     def test_failed_create_is_reported_not_raised(self):
         bad = self.root / 'bad'; bad.write_text('#!/bin/sh\nexit 1\n'); bad.chmod(0o755)
         self.assertTrue(all('못했' in r for r in roles.ensure_roles(self.root, hermes=str(bad))))
