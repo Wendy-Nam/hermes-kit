@@ -52,6 +52,22 @@ def ensure_setup_enabled(data_dir):
     if 'kit-setup' not in enabled:
         config_store.write(data_dir,{'plugins.enabled':[*enabled,'kit-setup']},remember=False)
 
+RTK_PLUGIN='rtk-rewrite'
+
+def rtk_follows_route(data_dir):
+    """OmniRoute compresses terminal results itself; with the main model routed through it, Hermes
+    RTK would compress the same output twice. Direct providers keep Hermes RTK, the only compression
+    they get. Runs after `rtk init` (which re-enables the plugin every boot) and on every apply."""
+    from config_store import read, write
+    root=Path(data_dir);config=read(root)
+    model=config.get('model') or {}
+    via_omniroute=isinstance(model,dict) and (model.get('provider') in ('omniroute','kit-omniroute') or ':20128' in str(model.get('base_url') or ''))
+    enabled=list((config.get('plugins') or {}).get('enabled') or [])
+    want=[p for p in enabled if p!=RTK_PLUGIN] if via_omniroute else \
+        enabled+([RTK_PLUGIN] if (root/'plugins'/RTK_PLUGIN).is_dir() and RTK_PLUGIN not in enabled else [])
+    if want!=enabled:write(root,{'plugins.enabled':want},remember=False)
+    return RTK_PLUGIN in want
+
 def boot(data_dir):
     root=Path(data_dir)
     ensure_setup_enabled(root)
@@ -59,6 +75,10 @@ def boot(data_dir):
     from omh_enhancements import upgrade_enhanced_omh
     upgraded=upgrade_enhanced_omh(root)
     if upgraded:print('[kit] OMH 보정 갱신: '+upgraded['status'])
+    try:
+        from roles import sync_roles
+        sync_roles(root)
+    except Exception as exc:print('[kit] 역할 프로필 동기화 실패: '+type(exc).__name__)
     # Invitation exists before Discord /setup becomes reachable. Token is never printed.
     env=get_env(root/'.env')
     token=env.get('DISCORD_BOT_TOKEN') or os.environ.get('DISCORD_BOT_TOKEN','')
@@ -73,4 +93,7 @@ def boot(data_dir):
     if version.exists():(root/'.kit-release-version').write_text(version.read_text())
 
 if __name__=='__main__':
-    boot(Path(os.environ.get('HERMES_HOME','/opt/data')))
+    import sys
+    home=Path(os.environ.get('HERMES_HOME','/opt/data'))
+    if sys.argv[1:]==['rtk']:print('[kit] Hermes RTK: '+('켜짐' if rtk_follows_route(home) else 'OmniRoute가 압축하므로 꺼짐'))
+    else:boot(home)

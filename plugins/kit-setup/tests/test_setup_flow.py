@@ -26,6 +26,21 @@ class SetupFlow(unittest.TestCase):
         bootstrap.ensure_setup_enabled(self.root)
         bootstrap.ensure_setup_enabled(self.root)
         self.assertEqual(config_store.read(self.root)['plugins']['enabled'],['rtk-rewrite','kit-setup'])
+    def test_hermes_rtk_is_off_only_while_the_main_model_goes_through_omniroute(self):
+        (self.root/'plugins/rtk-rewrite').mkdir(parents=True)
+        config_store.write(self.root,{'plugins.enabled':['kit-setup','rtk-rewrite']},remember=False)
+        self.assertTrue(bootstrap.rtk_follows_route(self.root))
+        config_store.write(self.root,{'model.provider':'omniroute','model.default':'hermes-chat'},remember=False)
+        self.assertFalse(bootstrap.rtk_follows_route(self.root))
+        self.assertEqual(config_store.read(self.root)['plugins']['enabled'],['kit-setup'])
+        config_store.write(self.root,{'model.provider':'openai-codex'},remember=False)
+        self.assertTrue(bootstrap.rtk_follows_route(self.root))
+        self.assertEqual(config_store.read(self.root)['plugins']['enabled'],['kit-setup','rtk-rewrite'])
+    def test_wizard_does_not_count_hermes_default_model_as_connected(self):
+        config_store.write(self.root,{'model.provider':'auto','model.default':'anthropic/claude-opus-4.6'},remember=False)
+        self.assertFalse(readiness.wizard_status(self.root)['model'])
+        config_store.write(self.root,{'model.provider':'commandcode'},remember=False)
+        self.assertTrue(readiness.wizard_status(self.root)['model'])
     def test_bad_new_model_does_not_replace_working_configuration(self):
         before=(self.root/'config.yaml').read_bytes()
         with patch.object(model_setup,'probe',return_value=(False,'rejected')):
@@ -93,5 +108,12 @@ class DiscordLayout(unittest.IsolatedAsyncioTestCase):
         for cls in (views.ModelModal,views.OmniModal):
             self.assertLessEqual(len(cls().children),5)
         view.stop()
+        wizard=views.WizardView(packs.load_packs(),owner_id=123,channel_id=456)
+        ids=[c.custom_id for c in wizard.children if getattr(c,'custom_id',None)]
+        self.assertEqual(len(ids),len(set(ids)))
+        self.assertIn('4. 권장 설정 적용',views.wizard_text(wizard.status))
+        api=next(p for p in packs.load_packs() if p.id=='sub-commandcode')
+        self.assertEqual(views.ApiModelModal('commandcode',api).model.default,model_setup.RECOMMENDED['commandcode'])
+        wizard.stop()
 
 if __name__=='__main__':unittest.main()

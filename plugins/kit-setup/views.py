@@ -102,31 +102,43 @@ class ApplyButton(discord.ui.Button):
         self.home = home
 
     async def callback(self, interaction):
-        from env_store import set_env
-        from readiness import check
-        from maintenance import install_all
         await interaction.response.defer(ephemeral=True, thinking=True)
-        ok, messages = await asyncio.to_thread(check, ENV_FILE.parent)
-        if not ok:
-            await interaction.followup.send("아직 적용할 수 없습니다:\n" + "\n".join(messages), ephemeral=True)
-            return
-        results = await asyncio.to_thread(install_all, ENV_FILE.parent)
-        failed = [msg for _, msg in results if '실패' in msg]
-        if failed:
-            await interaction.followup.send("유지보수 설정을 완료하지 못했습니다:\n" + "\n".join(failed), ephemeral=True)
-            return
-        channel_id = str(self.home.channel_id or "")
-        set_env(ENV_FILE, {"DISCORD_HOME_CHANNEL": channel_id})
-        PENDING.write_text(channel_id, encoding="utf-8")
-        await interaction.followup.send("연결 확인이 끝났습니다. 재시작 후 적용 결과를 알려드릴게요.",
-                                                ephemeral=True)
-        await asyncio.sleep(1)
-        if not restart_gateway():
-            # No stale marker left behind: otherwise the next unrelated restart greets
-            # the channel for a setup that never completed.
-            PENDING.unlink(missing_ok=True)
-            await interaction.followup.send(
-                "재시작하지 못했습니다. Hostinger에서 컨테이너를 다시 시작해 주세요.", ephemeral=True)
+        await apply_and_restart(interaction, self.home.channel_id)
+
+
+async def apply_and_restart(interaction, channel_id):
+    """Check, install maintenance, sync role profiles, restart. The interaction is already deferred."""
+    from env_store import set_env
+    from readiness import check
+    from maintenance import install_all
+    from roles import sync_roles
+    ok, messages = await asyncio.to_thread(check, ENV_FILE.parent)
+    if not ok:
+        await interaction.followup.send("아직 적용할 수 없습니다:\n" + "\n".join(messages), ephemeral=True)
+        return
+    results = await asyncio.to_thread(install_all, ENV_FILE.parent)
+    failed = [msg for _, msg in results if '실패' in msg]
+    if failed:
+        await interaction.followup.send("유지보수 설정을 완료하지 못했습니다:\n" + "\n".join(failed), ephemeral=True)
+        return
+    try:
+        from bootstrap import rtk_follows_route
+        await asyncio.to_thread(sync_roles, ENV_FILE.parent)
+        await asyncio.to_thread(rtk_follows_route, ENV_FILE.parent)
+    except Exception:
+        log.exception("role/rtk sync failed")  # previous state stays; boot retries
+    channel_id = str(channel_id or "")
+    set_env(ENV_FILE, {"DISCORD_HOME_CHANNEL": channel_id})
+    PENDING.write_text(channel_id, encoding="utf-8")
+    await interaction.followup.send("연결 확인이 끝났습니다. 재시작 후 적용 결과를 알려드릴게요.",
+                                    ephemeral=True)
+    await asyncio.sleep(1)
+    if not restart_gateway():
+        # No stale marker left behind: otherwise the next unrelated restart greets
+        # the channel for a setup that never completed.
+        PENDING.unlink(missing_ok=True)
+        await interaction.followup.send(
+            "재시작하지 못했습니다. Hostinger에서 컨테이너를 다시 시작해 주세요.", ephemeral=True)
 
 
 class OwnedView(discord.ui.View):
@@ -287,7 +299,6 @@ class ActionButton(discord.ui.Button):
             from crawl4ai_setup import status
             installed=status(ENV_FILE.parent).get('installed')
             return await interaction.response.send_message(
-                'Cline 무료 후보: 공개 가격이 0인 모델 목록을 조회합니다.\n'
                 'JS 페이지 추출기: 스크립트로 내용을 그리는 페이지를 로컬 브라우저로 읽는 보조 도구입니다. '
                 '디스크 약 1GB를 쓰고, 기본 웹 읽기가 빈 결과를 줄 때만 사용합니다. 현재: '+('설치됨' if installed else '미설치'),
                 view=ExtrasView(interaction.user.id,self.home),ephemeral=True)
@@ -322,16 +333,6 @@ class ActionButton(discord.ui.Button):
             elif a=='stop':
                 from proactive import disable
                 ok,msg=await asyncio.to_thread(disable,ENV_FILE.parent)
-            elif a=='cline':
-                from cline_catalog import fetch_catalog,inspect_catalog
-                snapshot=await asyncio.to_thread(fetch_catalog)
-                rows=inspect_catalog(snapshot)
-                candidates=[mid for mid,row in rows.items() if row['status']=='zero_advertised']
-                from datetime import datetime
-                from zoneinfo import ZoneInfo
-                checked=datetime.fromtimestamp(snapshot['checked_at'],ZoneInfo('Asia/Seoul')).strftime('%m/%d %H:%M KST')
-                msg=('Cline 공개 가격이 0인 후보 · '+checked+'\n'+
-                     '\n'.join(candidates)+'\n캐시 가격 미표기는 무료 보장이 아닙니다. 이미지·음악 모델도 포함될 수 있습니다. 대시보드에서 본인 계정을 연결한 뒤 모델의 도구 사용을 별도로 확인하세요. 유료 모델을 자동 대체 경로에 넣지 마세요.')
             elif a=='jsextract':
                 from crawl4ai_setup import install
                 ok,msg=await asyncio.to_thread(install,ENV_FILE.parent)
@@ -428,7 +429,6 @@ class OmhEnableButton(discord.ui.Button):
 class ExtrasView(OwnedView):
     def __init__(self,owner_id,home):
         super().__init__(owner_id,timeout=900)
-        self.add_item(ActionButton('cline','Cline 무료 후보',0,home))
         self.add_item(ActionButton('jsextract','JS 페이지 추출기 설치',0,home))
         self.add_item(ActionButton('jsextract-remove','JS 추출기 제거',0,home))
 
@@ -440,3 +440,165 @@ class OmhOptionsView(OwnedView):
         self.add_item(OmhStatusButton())
         self.add_item(OmhEnableButton())
         self.add_item(OmhDisableButton())
+
+
+# ── First-run wizard ───────────────────────────────────────────────────────────────────────────
+# Four numbered steps in the order they must happen; everything else lives behind 고급 설정.
+
+def wizard_text(status):
+    mark = lambda done: '✅' if done else '⬜'
+    return ('**설정 순서** — 위에서부터 하나씩 누르세요.\n'
+            f"{mark(status['model'])} 1. 대화 모델 연결 (ChatGPT 로그인 또는 API 키)\n"
+            f"{mark(status['gemini'])} 2. Gemini 키 입력 (영상 요약용, 무료)\n"
+            f"{mark(status['kits'])} 3. 직무 선택\n"
+            f"{mark(status['recommended'])} 4. 권장 설정 적용 — OMH·역할 프로필(조사·코딩·콘텐츠)을 설치하고 재시작합니다\n"
+            '노트를 PC 옵시디언에서 보려면 마지막 버튼을, 나머지 기능은 고급 설정을 누르세요.')
+
+
+class WizardView(OwnedView):
+    def __init__(self, packs, channel_id=None, owner_id=None, timeout=900):
+        from readiness import wizard_status
+        super().__init__(owner_id, timeout=timeout)
+        self.packs, self.channel_id = packs, channel_id
+        self.status = wizard_status(ENV_FILE.parent)
+        style = lambda done: discord.ButtonStyle.success if done else discord.ButtonStyle.secondary
+        self.add_item(WizardButton('codex', '1. ChatGPT로 로그인', 0, style(self.status['model'])))
+        self.add_item(WizardButton('api', '1. API 키로 연결', 0, style(self.status['model'])))
+        self.add_item(WizardButton('gemini', '2. Gemini 키', 1, style(self.status['gemini'])))
+        kits = KitSelect(); kits.row = 2; kits.placeholder = '3. 직무 선택'
+        self.add_item(kits)
+        self.add_item(WizardButton('recommended', '4. 권장 설정 적용 (재시작)', 3, discord.ButtonStyle.primary))
+        self.add_item(WizardButton('notes', 'PC 옵시디언에서 노트 보기 (선택)', 4, discord.ButtonStyle.secondary))
+        self.add_item(WizardButton('advanced', '고급 설정', 4, discord.ButtonStyle.secondary))
+
+    def refresh(self):
+        pass
+
+    def fresh(self):
+        return WizardView(self.packs, self.channel_id, self.owner_id)
+
+
+class WizardButton(discord.ui.Button):
+    def __init__(self, action, label, row, style):
+        super().__init__(label=label, style=style, row=row, custom_id='kit:wiz:' + action)
+        self.action = action
+
+    async def callback(self, interaction):
+        a, view, root = self.action, self.view, ENV_FILE.parent
+        if a == 'gemini':
+            return await interaction.response.send_modal(PackModal(next(p for p in view.packs if p.id == 'base'), view))
+        if a == 'api':
+            return await interaction.response.send_message(
+                '사용할 API 제공자를 고르세요. 키와 모델을 한 번에 입력합니다.',
+                view=ApiProviderView(view.owner_id, view.packs), ephemeral=True)
+        if a == 'notes':
+            return await interaction.response.send_message(
+                '**PC에서 옵시디언으로 노트 보기**\n'
+                '1. PC에 Syncthing(https://syncthing.net/downloads/)과 Obsidian(https://obsidian.md)을 설치합니다.\n'
+                '2. Syncthing 화면의 **동작 → ID 표시**에서 장치 ID를 복사하고 아래 버튼에 붙여 넣습니다.\n'
+                '3. PC Syncthing에 뜨는 서버 장치와 `hermes-work`·`hermes-personal` 공유를 수락하고, 빈 폴더 두 개를 고릅니다.\n'
+                '4. Obsidian에서 **폴더를 보관소로 열기**로 두 폴더를 각각 엽니다. 플러그인 설정은 이미 들어 있습니다.',
+                view=NotesView(view.owner_id), ephemeral=True)
+        if a == 'advanced':
+            return await interaction.response.send_message(
+                '고급 설정입니다. 처음 설치라면 설정 순서 1~4를 먼저 끝내세요.',
+                view=HomeView(view.packs, channel_id=view.channel_id, owner_id=view.owner_id), ephemeral=True)
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        if a == 'codex':
+            from oauth_login import login_codex
+            from model_setup import RECOMMENDED, select_model
+            async def notify(text): await interaction.followup.send(text, ephemeral=True)
+            ok, msg = await login_codex(root, notify)
+            if ok:
+                ok, msg = await asyncio.to_thread(select_model, root, 'openai-codex', RECOMMENDED['openai-codex'])
+                msg = (f"ChatGPT 로그인과 대화 모델({RECOMMENDED['openai-codex']}) 연결을 확인했습니다." if ok else
+                       msg + ' 로그인은 저장됐습니다. 고급 설정 → 두뇌 선택에서 모델 ID를 직접 넣어 주세요.')
+            nxt = view.fresh()
+            return await interaction.followup.send(msg + '\n\n' + wizard_text(nxt.status), view=nxt, ephemeral=True)
+        if a == 'recommended':
+            return await run_recommended(interaction, view)
+
+
+async def run_recommended(interaction, view):
+    """OMH + role profiles on the student's own model, then the normal apply-and-restart."""
+    from pathlib import Path
+    from readiness import wizard_status
+    status = wizard_status(ENV_FILE.parent)
+    todo = [label for key, label in (('model', '1. 대화 모델'), ('gemini', '2. Gemini 키'), ('kits', '3. 직무'))
+            if not status[key]]
+    if todo:
+        return await interaction.followup.send('먼저 끝내야 할 단계: ' + ', '.join(todo), ephemeral=True)
+    from config_store import read
+    from model_setup import delegation_route
+    from upstream_omh import install_upstream_omh
+    from roles import ensure_roles
+    root = ENV_FILE.parent
+    await interaction.followup.send('권장 설정을 설치합니다. 1~3분 걸립니다.', ephemeral=True)
+    try:
+        route, _ = delegation_route(read(root))
+        if not route:
+            return await interaction.followup.send('대화 모델 설정이 없습니다. 1번부터 다시 설정해 주세요.', ephemeral=True)
+        version = Path('/opt/kit/RELEASE_VERSION').read_text().strip().split('-k')[0]
+        omh = await asyncio.to_thread(install_upstream_omh, root, routing=route, host_version=version)
+        roles = await asyncio.to_thread(ensure_roles, root)
+    except Exception as exc:
+        log.exception("recommended setup failed")
+        return await interaction.followup.send(
+            f'권장 설정을 끝내지 못했습니다 ({type(exc).__name__}). 다시 누르면 이어서 설치합니다.', ephemeral=True)
+    report = 'OMH: ' + omh['message'] + '\n역할 프로필: ' + ', '.join(roles)
+    if omh['status'] == 'failed' or any('못했' in r for r in roles):
+        return await interaction.followup.send(report[:1800] + '\n다시 누르면 이어서 설치합니다.', ephemeral=True)
+    await interaction.followup.send(report[:1800], ephemeral=True)
+    await apply_and_restart(interaction, view.channel_id)
+
+
+class ApiProviderView(OwnedView):
+    def __init__(self, owner_id, packs):
+        super().__init__(owner_id, timeout=600)
+        self.add_item(ApiProviderSelect(packs))
+
+
+class ApiProviderSelect(discord.ui.Select):
+    PACKS = {'commandcode': 'sub-commandcode', 'opencode-go': 'sub-opencode-go'}
+
+    def __init__(self, packs):
+        self.packs = {p.id: p for p in packs}
+        super().__init__(placeholder='API 제공자', options=[
+            discord.SelectOption(label='Command Code', value='commandcode'),
+            discord.SelectOption(label='OpenCode Go', value='opencode-go')])
+
+    async def callback(self, interaction):
+        provider = self.values[0]
+        await interaction.response.send_modal(ApiModelModal(provider, self.packs[self.PACKS[provider]]))
+
+
+class ApiModelModal(discord.ui.Modal):
+    def __init__(self, provider, pack):
+        from model_setup import RECOMMENDED, PROVIDERS
+        super().__init__(title=PROVIDERS[provider] + ' 연결')
+        self.provider, self.pack = provider, pack
+        self.key = discord.ui.TextInput(label=pack.keys[0].label[:45], max_length=512)
+        self.model = discord.ui.TextInput(label='모델 ID (권장값이 채워져 있으면 그대로)', max_length=200,
+                                          default=RECOMMENDED.get(provider) or None)
+        self.add_item(self.key); self.add_item(self.model)
+
+    async def on_submit(self, interaction):
+        from model_setup import select_model
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        entries = [(self.pack.keys[0], str(self.key).strip())]
+        results = await _verify(entries)
+        bad = [msg for _, ok, msg in results if not ok]
+        if bad:
+            return await interaction.followup.send(f'{CROSS} 키 확인 실패 — 저장하지 않았습니다: ' + bad[0], ephemeral=True)
+        await asyncio.to_thread(_apply, entries, self.pack.config)
+        ok, msg = await asyncio.to_thread(select_model, ENV_FILE.parent, self.provider, str(self.model).strip())
+        await interaction.followup.send((TICK if ok else CROSS) + ' ' + msg, ephemeral=True)
+
+
+class NotesView(OwnedView):
+    def __init__(self, owner_id):
+        super().__init__(owner_id, timeout=900)
+
+    @discord.ui.button(label='PC 장치 ID 입력')
+    async def pair(self, interaction, button):
+        await interaction.response.send_modal(TextActionModal('sync', 'PC 노트 동기화', '내 PC Syncthing 기기 ID', max_length=63))
