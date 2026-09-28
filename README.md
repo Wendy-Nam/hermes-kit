@@ -3,7 +3,7 @@
 수강생이 개인 VPS에 Hermes를 설치하고, Discord에서 모델·서비스 키·직무 스킬을 연결하는 키트입니다.
 업무와 개인 노트는 별도 볼트로 관리합니다.
 
-**현재 버전: `0.21.2-k16`** — 이미지 `ghcr.io/wendy-nam/hermes-kit:0.21.2-k16` (게시 완료되면 이 태그를 그대로 쓰면 됩니다).
+**현재 버전: `0.21.2-k16`** — 이미지 `ghcr.io/wendy-nam/hermes-kit:0.21.2-k16` (게시 완료).
 이전 버전의 변경 사항은 [CHANGELOG](docs/CHANGELOG.md)에 있습니다. 강사용 설치 지원 절차는
 [설치 도우미 안내](docs/instructor-install-guide.md)에 있습니다.
 소스 저장소는 비공개이며 이미지 다운로드에는 GitHub 로그인이 필요하지 않습니다.
