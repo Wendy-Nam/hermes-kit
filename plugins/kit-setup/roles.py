@@ -19,8 +19,9 @@ ROLES = {
     'coder': '코드·파일·자동화 담당이다. 스크립트와 파일을 만들고 직접 실행해 결과를 검증한다.',
     'creator': '글·문서·콘텐츠 산출물 담당이다. 초안, 보고서, 발표 자료, 게시물 원고를 만든다.',
 }
-# Copied from the default profile so a role runs on the same model, aux route and provider defs.
-SHARED_CONFIG = ('model', 'providers', 'delegation')
+# Copied from the default profile: provider definitions and the OmniRoute-outage fallback.
+SHARED_CONFIG = ('providers', 'delegation', 'fallback_providers')
+LOW_MEMORY_BYTES = 7 * 1024 ** 3   # a "4GB plan" VPS; 8GB plans report ~7.7GB
 # Channel credentials stay with the default profile: two profiles holding one bot token collide.
 CHANNEL_PREFIXES = ('DISCORD_',)
 
@@ -95,11 +96,35 @@ def ensure_roles(data_dir, *, hermes=HERMES):
     return rows
 
 
-def sync_roles(data_dir):
+def low_memory(meminfo='/proc/meminfo'):
+    try:
+        for line in open(meminfo):
+            if line.startswith('MemTotal:'):
+                return int(line.split()[1]) * 1024 < LOW_MEMORY_BYTES
+    except (OSError, ValueError, IndexError):
+        pass
+    return False
+
+
+def role_model(config):
+    """Roles do delegated work, so they run where delegation runs: the aux route when one is set
+    (OmniRoute mode's strong combo), otherwise exactly the main model."""
+    from model_setup import delegation_route
+    route, aux = delegation_route(config)
+    if aux:
+        return {'provider': route['provider'], 'default': route['model']}
+    return config.get('model')
+
+
+def sync_roles(data_dir, *, meminfo='/proc/meminfo'):
     """Give every existing role the default profile's model, providers and non-channel keys."""
     from config_store import read, write
     root = Path(data_dir)
     config = read(root)
+    # Each kanban card runs as its own Hermes process (~0.3-0.5GB); on a 4GB VPS run one at a time.
+    spawn = 1 if low_memory(meminfo) else 3
+    if (config.get('kanban') or {}).get('max_spawn') != spawn:
+        write(root, {'kanban.max_spawn': spawn}, remember=False)
     env_lines = []
     env_file = root / '.env'
     if env_file.is_file():
@@ -110,7 +135,7 @@ def sync_roles(data_dir):
         home = _profile(root, role)
         if not home.is_dir() or home.is_symlink():
             continue
-        write(home, {key: config.get(key) for key in SHARED_CONFIG}, remember=False)
+        write(home, {'model': role_model(config), **{key: config.get(key) for key in SHARED_CONFIG}}, remember=False)
         _atomic(home / '.env', '\n'.join(env_lines) + '\n', 0o600)
         synced.append(role)
     return synced

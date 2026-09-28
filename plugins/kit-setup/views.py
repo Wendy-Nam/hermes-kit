@@ -306,7 +306,14 @@ class ActionButton(discord.ui.Button):
         if a=='sync':return await interaction.response.send_modal(TextActionModal(a,'PC 노트 동기화','내 PC Syncthing 기기 ID',max_length=63))
         if a=='import':return await interaction.response.send_modal(TextActionModal(a,'대화 ZIP 가져오기','personal/Inbox/import의 ZIP 파일명',max_length=180))
         if a=='proactive':return await interaction.response.send_modal(ProactiveModal(self.home.channel_id))
-        if a=='omni':return await interaction.response.send_modal(OmniModal())
+        if a=='omni':
+            return await interaction.response.send_message(
+                '**OmniRoute 연결 방법 두 가지**\n'
+                '· **API 키 하나로 연결**: 키 하나로 보조(위임) 모델만 OmniRoute에 둡니다.\n'
+                '· **OmniRoute 모드**: OmniRoute 대시보드에서 연결한 계정(구독·무료·API 키)의 모델로 대화·위임·역할 프로필을 돌립니다. '
+                '대시보드 모델 목록에 보이는 `접두사/모델` ID를 대화용·강한 작업용으로 각각 최대 5개 입력하면, '
+                '하나씩 도구 호출 시험을 한 뒤 통과한 것만 씁니다. OmniRoute가 멈추면 지금의 직접 연결 모델로 자동 전환됩니다.',
+                view=OmniChoiceView(interaction.user.id),ephemeral=True)
         if a=='vision':return await interaction.response.send_modal(OmniVisionModal())
         if a=='disconnect':
             import disconnect
@@ -602,3 +609,44 @@ class NotesView(OwnedView):
     @discord.ui.button(label='PC 장치 ID 입력')
     async def pair(self, interaction, button):
         await interaction.response.send_modal(TextActionModal('sync', 'PC 노트 동기화', '내 PC Syncthing 기기 ID', max_length=63))
+
+
+class OmniChoiceView(OwnedView):
+    def __init__(self, owner_id):
+        super().__init__(owner_id, timeout=900)
+
+    @discord.ui.button(label='API 키 하나로 연결')
+    async def single(self, interaction, button):
+        await interaction.response.send_modal(OmniModal())
+
+    @discord.ui.button(label='OmniRoute 모드', style=discord.ButtonStyle.primary)
+    async def mode(self, interaction, button):
+        await interaction.response.send_modal(OmniModeModal())
+
+    @discord.ui.button(label='모드 끄기 (직접 연결로)')
+    async def leave(self, interaction, button):
+        from omniroute_mode import leave_mode
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        try:
+            ok, msg = await asyncio.to_thread(leave_mode, ENV_FILE.parent)
+        except Exception as exc:
+            msg = f'되돌리지 못했습니다 ({type(exc).__name__}). 기존 설정은 그대로입니다.'
+        await interaction.followup.send(msg, ephemeral=True)
+
+
+class OmniModeModal(discord.ui.Modal):
+    def __init__(self):
+        super().__init__(title='OmniRoute 모드')
+        self.password = discord.ui.TextInput(label='OmniRoute 대시보드 비밀번호', max_length=200)
+        self.chat = discord.ui.TextInput(label='대화용 모델 (쉼표로, 최대 5개, 앞이 우선)', max_length=600,
+                                         style=discord.TextStyle.paragraph, placeholder='codex/gpt-6-luna, command-code/deepseek/deepseek-v4.1-flash')
+        self.strong = discord.ui.TextInput(label='강한 작업용 모델 (비우면 대화용과 같게)', max_length=600, required=False,
+                                           style=discord.TextStyle.paragraph, placeholder='codex/gpt-6-sol, claude/claude-sonnet-5')
+        for item in (self.password, self.chat, self.strong):
+            self.add_item(item)
+
+    async def on_submit(self, interaction):
+        from omniroute_mode import connect_mode
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        ok, msg = await asyncio.to_thread(connect_mode, ENV_FILE.parent, str(self.password), str(self.chat), str(self.strong))
+        await interaction.followup.send((TICK if ok else CROSS) + ' ' + msg[:1800], ephemeral=True)

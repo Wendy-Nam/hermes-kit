@@ -1,8 +1,8 @@
 # OmniRoute 심화팩 — 선택 사항. 기본 compose에 넣지 않습니다.
 #
 # 이유: Hermes 프로세스 하나가 이미 약 2.7GB를 쓰고, OmniRoute는 평소 0.8~1.5GB(첫 모델 동기화 때
-# 1.9GB)를 씁니다. 8GB 미만 VPS에서는 켜지 마세요. /setup 연결은 보조 모델에만 적용합니다.
-# OmniRoute 장애 시 보조 작업은 실패할 수 있으며, 직접 연결된 메인 모델 설정은 유지됩니다.
+# 1.9GB)를 씁니다. 4GB VPS에서도 쓸 수 있습니다: 기본 Compose가 스왑 2GB를 만들고, OmniRoute는 2GB로 제한되며,
+# 역할 작업은 한 번에 하나만 돕니다. OmniRoute 모드에서 OmniRoute가 멈추면 대화는 직접 연결 모델로 넘어갑니다.
 #
 # 쓰려면: Hostinger Docker Manager에서 **두 번째 프로젝트**로 이 파일을 붙여넣고, 환경변수 칸에
 #   KIT_OMNIROUTE_PASSWORD — 대시보드 로그인 비밀번호(직접 정한 긴 문장)
@@ -19,7 +19,10 @@ services:
     pull_policy: always
     restart: unless-stopped
     stop_grace_period: 40s
-    mem_limit: 3g
+    # 평소 0.8GB, 첫 모델 동기화 때 1.9GB. 2GB를 넘으면 스왑(기본 Compose의 swap-init)을 1GB까지 쓰고,
+    # 그래도 넘으면 OmniRoute만 재시작됩니다. 봇은 직접 연결 모델로 계속 답합니다(OmniRoute 모드의 대체 경로).
+    mem_limit: 2g
+    memswap_limit: 3g
     volumes:
       - omniroute-data:/app/data
     environment:

@@ -110,7 +110,8 @@ def _probe(client, combo, key, connection_id):
     except (KeyError, IndexError, TypeError, ValueError):
         raise SetupError('모델의 실제 도구 호출 시험이 통과하지 못했습니다') from None
     for k,v in headers.items():
-        if k.lower() == 'x-omniroute-selected-connection-id' and v != connection_id:
+        allowed = {connection_id} if isinstance(connection_id, str) else set(connection_id)
+        if k.lower() == 'x-omniroute-selected-connection-id' and v not in allowed:
             raise SetupError('요청한 연결과 실제 실행 연결이 다릅니다')
     messages += [message, {'role':'tool','tool_call_id':call['id'],'content':'KIT_READY'}]
     second, _ = client.request('POST','/v1/chat/completions',{

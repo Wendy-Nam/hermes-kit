@@ -14,7 +14,7 @@
 
 | 준비물 | 내용 |
 |---|---|
-| VPS | Docker를 쓸 수 있는 VPS. Hermes만 쓰면 RAM 4GB 이상, OmniRoute까지 쓰면 8GB 이상 (Hermes 약 2.7GB, OmniRoute 0.8~1.9GB) |
+| VPS | Docker를 쓸 수 있는 VPS, RAM 4GB 이상, 디스크 여유 6GB 이상. 7GB 미만이면 Compose가 스왑 2GB를 자동으로 만들고 역할 작업을 하나씩 돌립니다. OmniRoute도 4GB에서 쓸 수 있습니다(2GB 상한) |
 | Discord | 본인 계정과 **본인이 소유한 서버** 하나 (없으면 새로 만들기) |
 | 대화 모델 | ChatGPT 구독(로그인으로 연결) 또는 OpenCode Go·Command Code API 키 중 하나 |
 | Gemini 키 | https://aistudio.google.com/apikey 에서 무료 키 발급 (영상 요약용, `AIza`로 시작) |
@@ -38,7 +38,7 @@
 
 1. Hostinger Docker Manager → 새 Compose 프로젝트 → [docker-compose.yml](../docker-compose.yml) 전체를 붙여넣기.
 2. 환경변수 `DISCORD_BOT_TOKEN`에 토큰 입력(입력란이 자동으로 안 생기면 프로젝트 환경변수에서 직접 추가) → 배포.
-3. 컨테이너 상태: `hermes`와 `syncthing`은 실행 중, `syncthing-init`은 **종료(0)가 정상**입니다(볼륨 권한만 맞추고 끝나는 컨테이너).
+3. 컨테이너 상태: `hermes`와 `syncthing`은 실행 중, `syncthing-init`과 `swap-init`은 **종료(0)가 정상**입니다(한 번 설정하고 끝나는 컨테이너). `swap-init` 로그에 스왑을 켰는지, 필요 없어서 건너뛰었는지 나옵니다.
 
 확인 지점: hermes 컨테이너 로그에 `[kit] 봇 초대:` 줄이 보인다.
 
@@ -79,7 +79,7 @@
 | Composio 앱 연동 | Composio Connect에서 `ck_` 키 발급 → **서비스 키 입력 · 변경** → Composio에서 쓸 앱(Gmail 등) 권한을 학생 본인이 허용 | "오늘 받은 메일 제목만 보여줘" 같은 읽기 요청 하나 |
 | 일반 선톡 | **고급 설정 → 일반 선톡 켜기** → 주제·시각 | 테스트 채널에서만 켜고, 확인 후 필요 없으면 **선톡 끄기** |
 | PC 노트 동기화 | **PC 옵시디언에서 노트 보기** 또는 [기기 연결 안내](student-sync-import.md) | PC와 서버 양쪽에 파일이 도착하는지 |
-| OmniRoute | 8GB 이상 VPS에서만. [심화 Compose](../advanced/docker-compose.omniroute.yml)를 **두 번째 프로젝트**로 배포(`KIT_OMNIROUTE_PASSWORD`) → **OmniRoute 연결** | 연결 시 도구 왕복 검증이 통과하는지 |
+| OmniRoute | [심화 Compose](../advanced/docker-compose.omniroute.yml)를 **두 번째 프로젝트**로 배포(`KIT_OMNIROUTE_PASSWORD`) → 학생이 대시보드에서 제공자 연결 → **고급 설정 → OmniRoute 연결 → OmniRoute 모드**에 모델 ID 입력 | 결과 메시지에 대화·강한 작업 모델과 대체 경로가 나오는지, 적용 후 대화가 되는지 |
 | 백업 | 적용 시 주간 백업이 등록됨. **지금 백업**으로 한 번 실행 | 서버 밖 사본은 PC 동기화나 다운로드로 따로 확보 |
 
 ## 4. 원격 지원할 때
@@ -106,7 +106,7 @@
 | ChatGPT "로그인 대기 시간이 끝났습니다" | 코드 입력이 늦음 | **ChatGPT 로그인**을 다시 눌러 새 링크·코드로 |
 | 직무 스킬·영상 요약 설치 실패 | 첫 부팅 때 네트워크 문제 | **설치 재시도** |
 | "일부 설정 적용이 실패했다" | 적용 중 일부 실패 | 완료로 보지 말고 `/doctor` 복사본 확인 후 해당 단계 반복 |
-| 컨테이너가 계속 재시작 | 메모리 부족(특히 OmniRoute 동시 실행) | VPS 사양 확인, OmniRoute 프로젝트를 먼저 중지 |
+| 컨테이너가 계속 재시작 | 메모리 부족 | `swap-init` 로그 확인(스왑이 켜졌는지, privileged가 막혔는지). 막혔으면 VPS에서 `fallocate -l 2G /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile`. 그래도 반복되면 OmniRoute 프로젝트를 먼저 중지 |
 
 ## 6. 업데이트 안내
 

@@ -35,6 +35,17 @@ jobs:
           Path("/tmp/kit-companion-image").write_text(services["syncthing"]["image"])
           PYCODE
           docker manifest inspect "$(cat /tmp/kit-companion-image)" >/dev/null
+      - name: swap-init really turns swap on for a 4GB host (disposable runner)
+        run: |
+          python3 -c "import yaml;d=yaml.safe_load(open('docker-compose.yml'));open('/tmp/swap.sh','w').write(d['services']['swap-init']['command'][0].replace('\$\$','\$'))"
+          sudo swapoff -a; sudo rm -f /swapfile; sudo sed -i '/^\/swapfile /d' /etc/fstab   # the runner ships its own swapfile
+          printf 'MemTotal:        3995000 kB\nSwapTotal:             0 kB\n' > /tmp/m4
+          img=$(python3 -c "import yaml;print(yaml.safe_load(open('docker-compose.yml'))['services']['swap-init']['image'])")
+          docker run --rm --privileged -e MEMINFO=/w/m4 -v /tmp/m4:/w/m4:ro -v /tmp/swap.sh:/w/swap.sh:ro -v /:/host "$img" sh /w/swap.sh
+          swapon --show | grep -q '^/swapfile' && grep -q '^/swapfile ' /etc/fstab
+          docker run --rm --privileged -e MEMINFO=/w/m4 -v /tmp/m4:/w/m4:ro -v /tmp/swap.sh:/w/swap.sh:ro -v /:/host "$img" sh /w/swap.sh
+          test "$(grep -c '^/swapfile ' /etc/fstab)" = 1
+          sudo swapoff /swapfile && sudo rm -f /swapfile && sudo sed -i '/^\/swapfile /d' /etc/fstab
       - name: build (patch anchors fail the build on base-version drift)
         run: |
           set -a; . ./versions.env; set +a
@@ -60,7 +71,7 @@ jobs:
       - name: secret scan (nothing personal or secret in the public image)
         run: sh scripts/secret-scan.sh hermes-kit:ci
       - name: full student install (fresh volume, /setup wizard to restart, fake model only)
-        run: sh scripts/e2e/run.sh hermes-kit:ci
+        run: OMNI_IMAGE=ghcr.io/wendy-nam/hermes-kit:omniroute-rtk-json-3 sh scripts/e2e/run.sh hermes-kit:ci
       - name: first-boot seed is correct and idempotent
         run: sh scripts/boot-test.sh hermes-kit:ci
       - name: publish to GHCR (v* tag, or a dispatched release on main; after every check passed)

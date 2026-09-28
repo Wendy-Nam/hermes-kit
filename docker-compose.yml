@@ -10,7 +10,7 @@ services:
     depends_on:
       syncthing-init:
         condition: service_completed_successfully
-    image: ghcr.io/wendy-nam/hermes-kit:0.21.2-k12
+    image: ghcr.io/wendy-nam/hermes-kit:0.21.2-k13
     restart: unless-stopped
     volumes:
       - hermes-data:/opt/data
@@ -32,6 +32,29 @@ services:
     volumes:
       - syncthing-config:/var/syncthing/config
       - vaults:/var/syncthing/vaults
+
+  # 4GB VPS 보호: 메모리가 7GB 미만이고 스왑이 없으면 2GB 스왑 파일을 한 번 만듭니다(디스크 6GB 이상 여유일 때만).
+  # 순간적으로 메모리가 몰려도 봇이 강제 종료되지 않고 잠깐 느려지게 합니다. 이미 스왑이 있거나 8GB면 아무것도 안 합니다.
+  # 호스트에 스왑을 켜야 해서 privileged로 한 번 실행되고 끝납니다(종료 0이 정상). 실패해도 봇 시작을 막지 않습니다.
+  swap-init:
+    image: alpine:3.20@sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc
+    privileged: true
+    network_mode: none
+    restart: "no"
+    volumes: ["/:/host"]
+    entrypoint: ["sh", "-c"]
+    command:
+      - |
+        m() { awk -v k="$$1:" '$$1==k{print $$2}' "$${MEMINFO:-/proc/meminfo}"; }
+        run() { if [ -n "$$KIT_SWAP_DRY" ]; then echo "would: $$*"; else "$$@"; fi; }
+        if [ "$$(m SwapTotal)" -gt 0 ]; then echo "[swap] 이미 켜져 있음"; exit 0; fi
+        if [ "$$(m MemTotal)" -ge 7340032 ]; then echo "[swap] 메모리 충분, 만들지 않음"; exit 0; fi
+        if [ "$$(df -Pk /host | awk 'NR==2{print $$4}')" -lt 6291456 ]; then echo "[swap] 디스크 여유 부족, 만들지 않음"; exit 0; fi
+        f=/host/swapfile
+        new=; [ -e "$$f" ] || { new=1; run fallocate -l 2G "$$f" || run dd if=/dev/zero of="$$f" bs=1M count=2048; run chmod 600 "$$f"; run mkswap "$$f"; }
+        run swapon "$$f" || { [ -n "$$new" ] && run rm -f "$$f"; echo "[swap] 켜지 못함 (VPS가 허용하지 않을 수 있음), 파일은 남기지 않음"; exit 0; }
+        grep -q '^/swapfile ' /host/etc/fstab || run sh -c "echo '/swapfile none swap sw 0 0' >> /host/etc/fstab"
+        echo "[swap] 2GB 스왑을 켰습니다"
 
   syncthing:
     depends_on:
