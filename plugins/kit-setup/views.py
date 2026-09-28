@@ -122,9 +122,11 @@ async def apply_and_restart(interaction, channel_id):
         await interaction.followup.send("유지보수 설정을 완료하지 못했습니다:\n" + "\n".join(failed), ephemeral=True)
         return
     try:
+        from bootstrap import rtk_follows_route
         await asyncio.to_thread(sync_roles, ENV_FILE.parent)
+        await asyncio.to_thread(rtk_follows_route, ENV_FILE.parent)
     except Exception:
-        log.exception("role profile sync failed")  # roles keep their last model; boot retries
+        log.exception("role/rtk sync failed")  # previous state stays; boot retries
     channel_id = str(channel_id or "")
     set_env(ENV_FILE, {"DISCORD_HOME_CHANNEL": channel_id})
     PENDING.write_text(channel_id, encoding="utf-8")

@@ -54,6 +54,7 @@ as_h "$PY" "$D/plugins/kit-setup/bootstrap.py" || log "component retry incomplet
 
 # rtk's own Hermes plugin (accepts rewrite exit codes 0 and 3, fails open); refreshed per kit version.
 as_h rtk init --agent hermes >/dev/null && log "rtk hermes plugin installed"
+as_h "$PY" "$D/plugins/kit-setup/bootstrap.py" rtk || log "rtk route check skipped"
 
 as_h sh -c "echo '$new' > '$D/.kit-version'"
 log "done"

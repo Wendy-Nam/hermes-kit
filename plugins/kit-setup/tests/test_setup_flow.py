@@ -26,6 +26,16 @@ class SetupFlow(unittest.TestCase):
         bootstrap.ensure_setup_enabled(self.root)
         bootstrap.ensure_setup_enabled(self.root)
         self.assertEqual(config_store.read(self.root)['plugins']['enabled'],['rtk-rewrite','kit-setup'])
+    def test_hermes_rtk_is_off_only_while_the_main_model_goes_through_omniroute(self):
+        (self.root/'plugins/rtk-rewrite').mkdir(parents=True)
+        config_store.write(self.root,{'plugins.enabled':['kit-setup','rtk-rewrite']},remember=False)
+        self.assertTrue(bootstrap.rtk_follows_route(self.root))
+        config_store.write(self.root,{'model.provider':'omniroute','model.default':'hermes-chat'},remember=False)
+        self.assertFalse(bootstrap.rtk_follows_route(self.root))
+        self.assertEqual(config_store.read(self.root)['plugins']['enabled'],['kit-setup'])
+        config_store.write(self.root,{'model.provider':'openai-codex'},remember=False)
+        self.assertTrue(bootstrap.rtk_follows_route(self.root))
+        self.assertEqual(config_store.read(self.root)['plugins']['enabled'],['kit-setup','rtk-rewrite'])
     def test_bad_new_model_does_not_replace_working_configuration(self):
         before=(self.root/'config.yaml').read_bytes()
         with patch.object(model_setup,'probe',return_value=(False,'rejected')):
