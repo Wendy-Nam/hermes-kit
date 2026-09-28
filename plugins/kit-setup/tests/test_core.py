@@ -280,6 +280,32 @@ class Owner(unittest.TestCase):
             self.assertFalse(owner.remember_invite(td, "https://evil.example/steal"))
             self.assertIsNone(owner.remembered_invite(td))
 
+    def test_a_damaged_invite_file_is_refused_rather_than_printed(self):
+        # A truncated or hand-edited file must not be handed to the student as a link. The write
+        # side filters, so this covers a full disk, a bad restore, or an edit outside the kit.
+        url = "https://discord.com/oauth2/authorize?client_id=1&permissions=8&scope=bot"
+        with tempfile.TemporaryDirectory() as td:
+            path = Path(td) / owner.INVITE_FILE
+            for damaged in ("https://discord.com/oauth2/authorize", "not a url at all",
+                             "https://evil.example/oauth2/authorize?client_id=1",
+                             "discord.com/oauth2/authorize?client_id=1"):
+                path.write_text(damaged)
+                self.assertIsNone(owner.remembered_invite(td), damaged)
+            # Trailing whitespace is what read_text().strip() exists for; a real link keeps it.
+            path.write_text(url + "\n\n")
+            self.assertEqual(owner.remembered_invite(td), url)
+
+    def test_doctor_does_not_claim_a_stored_link_is_verified(self):
+        # "저장되어 있습니다" is true; "works" is not, and a student who made a new Discord app
+        # has an old client id. The wording must not promise more than the file can show.
+        with tempfile.TemporaryDirectory() as td:
+            import doctor
+            url = "https://discord.com/oauth2/authorize?client_id=1&permissions=8&scope=bot"
+            (Path(td) / owner.INVITE_FILE).write_text(url)
+            finding = doctor.check_invite(Path(td))
+            self.assertIn("저장되어 있습니다", finding.detail)
+            self.assertNotIn("정상", finding.detail)
+
 
 class DoctorInvite(unittest.TestCase):
     """/doctor is what a stuck student sends. The one step they cannot redo — the invite —

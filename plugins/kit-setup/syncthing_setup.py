@@ -46,9 +46,13 @@ def paired_device_count(*, config_path=None) -> int:
 
     Read-only, ids only. A count says the server was told about a device — never that a file
     arrived on a PC, which only the student's own folder check can show.
+    The device id is the `id` *attribute* of a root-level <device>, not a child element. Reading
+    it as <deviceID> silently yields zero on every real config.xml, which would report "아직 PC
+    없음" to a student whose PC is already paired. The test fixture below is a real
+    `syncthing generate` output for the same reason.
     """
     return sum(1 for d in _config_root(config_path or CONFIG_PATH).findall("device")
-               if (d.findtext("deviceID") or "").strip())
+               if (d.get("id") or "").strip())
 
 
 def pair_device(device_id: str, name="내 PC", *,

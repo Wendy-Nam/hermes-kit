@@ -179,16 +179,24 @@ async def invite_command(interaction, data_dir: Path):
     """
     import owner as owner_mod
 
+    # Same terms as /setup, checked the same way. A `guild is not None and …` guard would skip
+    # the check entirely in a DM, and this command PATCHes the Discord application.
     guild = interaction.guild
-    if guild is not None and interaction.user.id != guild.owner_id \
-            and not owner_mod.is_approved(interaction.user.id):
+    if guild is None:
+        return await interaction.response.send_message("서버에서만 실행할 수 있습니다.", ephemeral=True)
+    if interaction.user.id != guild.owner_id and not owner_mod.is_approved(interaction.user.id):
         return await interaction.response.send_message(
             "이 서버의 소유자만 실행할 수 있습니다.", ephemeral=True)
     await interaction.response.defer(ephemeral=True, thinking=True)
     url, note = await asyncio.to_thread(owner_mod.invite_link, data_dir)
-    body = "\n\n".join(p for p in (note, url) if p)
     if not url:
         body = "\n".join(p for p in (note, "링크를 만들지 못했습니다. 위 안내대로 직접 만들어 주세요.") if p)
+    else:
+        # The URL goes first and is never truncated. A link cut in half is worse than no link:
+        # it looks clickable and lands on a 404, so the student blames the kit.
+        room = 1900 - len(url) - 2
+        parts = [url] + ([note[:room]] if room > 0 and note else [])
+        body = "\n\n".join(parts)
     await interaction.followup.send(body[:1900], ephemeral=True)
 
 

@@ -79,18 +79,37 @@ def feature_guide(data_dir) -> str:
     student is never left reading half a sentence and guessing. The head and tail are budgeted
     for first: a guide that overflows the limit fails at the worst possible moment — the first
     time a confused student presses the button.
+
+    Dropping is announced. Silently shortening the list is how a student concludes the feature
+    they wanted does not exist, which is the exact confusion this screen was built to remove.
     """
     head = ("**선택 기능 안내** — 설정 순서 1~4가 끝나도 됩니다. 아래는 필요할 때만 켜는 기능들입니다. "
             "키는 **서비스 키 입력 · 변경**에서 받고, PC 노트는 그 화면의 **PC 동기화** 버튼을 씁니다.\n")
     tail = "\n나머지 버튼(OMH·OmniRoute·이미지·추가 기능)은 각 화면 첫 줄에 설명이 있습니다."
-    budget = MESSAGE_LIMIT - len(head) - len(tail)
-    lines, used = [], 0
-    for line in feature_lines(data_dir):
+    # The dropped-count line is budgeted up front, so announcing it can never push the message
+    # over the limit — the failure this function exists to prevent. A negative budget is possible
+    # if the limit is set below head+tail+note, so it is clamped: a negative budget would let a
+    # line through on the first comparison alone.
+    note = "\n· …중 {n}개는 길이 제한으로 생략됐습니다. 각 기능 화면 첫 줄에 설명이 있습니다."
+    budget = max(0, MESSAGE_LIMIT - len(head) - len(tail) - len(note))
+    all_lines = feature_lines(data_dir)
+    lines, used, dropped = [], 0, 0
+    for raw in all_lines:
+        # Budget the prefixed line, not the bare one: "· " is two more characters per line, and
+        # the count of lines is exactly what made the old estimate overshoot.
+        line = "· " + raw
         if used + len(line) + 1 > budget:
-            break
-        lines.append("· " + line)
+            dropped += 1
+            continue
+        lines.append(line)
         used += len(line) + 1
-    return head + "\n".join(lines) + tail
+    body = "\n".join(lines) + (note.format(n=dropped) if dropped else "")
+    text = head + body + tail
+    # The constant part alone is what Discord would reject, and a truncated answer here is the
+    # one failure mode with no workaround for the student. Say so rather than send it anyway.
+    return text if len(text) <= MESSAGE_LIMIT else (
+        "**선택 기능 안내** — 길이 제한으로 목록을 담지 못했습니다. "
+        "**고급 설정**의 각 기능 화면 첫 줄에 설명이 있습니다.")
 
 
 def sync_guide() -> str:

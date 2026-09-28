@@ -103,11 +103,18 @@ def remember_invite(data_dir, url: str) -> bool:
 
 
 def remembered_invite(data_dir) -> str | None:
-    """The saved link, or None. Never raises: this runs on a student's first boot."""
+    """The saved link, or None. Never raises: this runs on a student's first boot.
+
+    The write side already refuses anything that is not an invite URL, so this check is not
+    about the kit's own writes — it is about a file that was edited, truncated by a full disk, or
+    restored from a backup. An arbitrary string printed as a link sends the student somewhere
+    that is not Discord, so only a recognisable invite URL is handed back.
+    """
     try:
-        return (Path(data_dir) / INVITE_FILE).read_text(encoding="utf-8").strip() or None
+        saved = (Path(data_dir) / INVITE_FILE).read_text(encoding="utf-8").strip()
     except OSError:
         return None
+    return saved if saved.startswith("https://discord.com/oauth2/authorize?") else None
 
 
 def bot_token(data_dir) -> str:

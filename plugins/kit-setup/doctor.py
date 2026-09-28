@@ -221,7 +221,10 @@ def check_invite(data_dir: Path) -> Finding:
 
     saved = owner_mod.remembered_invite(data_dir)
     if saved:
-        return Finding("봇 초대 링크", OK, "저장되어 있습니다 — `/invite` 로 다시 볼 수 있습니다")
+        # A stored link is not a working link: the student may have created a new application and
+        # the old client id would then point at an app they no longer own. Say only what is true.
+        return Finding("봇 초대 링크", OK,
+                       "저장되어 있습니다 — 실제로 열리는지는 `/invite` 로 확인하세요")
     if owner_mod.bot_token(data_dir):
         return Finding("봇 초대 링크", WARN, "아직 저장되지 않았습니다 — `/invite` 로 지금 만들 수 있습니다")
     return Finding("봇 초대 링크", SKIP, "봇 토큰이 없어 링크를 만들지 못했습니다 (Compose 환경변수 확인)")

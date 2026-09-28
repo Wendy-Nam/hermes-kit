@@ -4,7 +4,6 @@ import os
 from pathlib import Path
 import subprocess
 from components import retry_components, _read_state
-from owner import INVITE_FILE
 
 # The python the student must use to re-print the invite link: the system one may lack pyyaml.
 HERMES_PY = "/opt/hermes/.venv/bin/python"

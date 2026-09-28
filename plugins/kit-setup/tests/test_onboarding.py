@@ -7,6 +7,7 @@ rather than in front of a student.
 import sys
 import tempfile
 import unittest
+import xml.etree.ElementTree as ET
 from pathlib import Path
 from unittest.mock import patch
 
@@ -16,9 +17,43 @@ import onboarding
 import syncthing_setup as sync
 
 
+# A real `syncthing generate` config, not a convenient shape. Syncthing writes the device id as
+# the `id` attribute of a root-level <device>; a fixture invented as <device><deviceID> made
+# paired_device_count() agree with the fixture and disagree with every real config.xml, so a
+# paired PC was reported as "아직 PC 없음". test_fixture_matches_a_real_config_shape keeps this
+# honest without needing the binary in CI.
 def _config(*ids):
-    devices = "".join(f"<device><deviceID>{i}</deviceID></device>" for i in ids)
-    return f"<configuration><gui><apikey>k</apikey></gui>{devices}</configuration>"
+    devices = "".join(
+        f'<device id="{i}" name="pc" compression="metadata" introducer="false" '
+        f'skipIntroductionRemovals="false" introducedBy="">'
+        "<address>dynamic</address><paused>false</paused>"
+        "<autoAcceptFolders>false</autoAcceptFolders></device>"
+        for i in ids)
+    return ('<?xml version="1.0" encoding="UTF-8"?>'
+            '<configuration version="37">'
+            f"{devices}"
+            "<gui><address>127.0.0.1:8384</address>"
+            "<apikey>k</apikey><theme>default</theme></gui>"
+            "<options><maxSendKbps>0</maxSendKbps></options>"
+            "</configuration>")
+
+
+class RealConfigShape(unittest.TestCase):
+    """The fixture above has to stay the shape Syncthing actually writes."""
+
+    def test_fixture_matches_a_real_config_shape(self):
+        root = ET.fromstring(_config("S" * 56, "P" * 56))
+        self.assertEqual(root.tag, "configuration")
+        devices = root.findall("device")
+        self.assertEqual(len(devices), 2)
+        self.assertEqual([d.get("id") for d in devices], ["S" * 56, "P" * 56])
+        self.assertEqual(root.findtext("gui/apikey"), "k")
+
+    def test_a_device_without_an_id_is_not_counted(self):
+        # Syncthing writes <device id=""> for a device being set up. It is not a paired PC.
+        config = ET.fromstring(_config("S" * 56))
+        config.find("device").set("id", "")
+        self.assertEqual(sum(1 for d in config.findall("device") if (d.get("id") or "").strip()), 0)
 
 
 class FeatureGuide(unittest.TestCase):
@@ -59,6 +94,32 @@ class FeatureGuide(unittest.TestCase):
             # Nothing may end mid-sentence: a kept feature line always carries its state.
             if line.startswith("· **"):
                 self.assertIn("현재:", line, line)
+
+    def test_dropped_features_are_counted_never_silently_omitted(self):
+        # A shorter list reads as "the feature I want does not exist", which is the confusion this
+        # screen exists to remove. Say how many were left out.
+        with patch.object(onboarding, "MESSAGE_LIMIT", 600):
+            text = onboarding.feature_guide(self.root)
+        self.assertIn("생략", text)
+        total = len(onboarding.feature_lines(self.root))
+        kept = sum(1 for line in text.splitlines() if line.startswith("· **"))
+        self.assertEqual(kept, total - int(text.split("…중 ")[1].split("개")[0]))
+        self.assertLess(kept, total, "this test is meaningless if nothing was dropped")
+
+    def test_the_budget_counts_the_bullet_prefix_and_stays_under_the_limit(self):
+        # The old estimate budgeted len(line)+1 while appending "· "+line, so it overshot by two
+        # characters per line. Assert against the real assembled message at a range of limits.
+        for limit in range(400, 1400, 37):
+            with patch.object(onboarding, "MESSAGE_LIMIT", limit):
+                text = onboarding.feature_guide(self.root)
+            self.assertLessEqual(len(text), limit, f"overran at MESSAGE_LIMIT={limit}")
+        with patch.object(onboarding, "MESSAGE_LIMIT", 200):
+            text = onboarding.feature_guide(self.root)
+        self.assertLessEqual(len(text), 200)
+        # A student must never be told "here are the features" and then get nothing: either the
+        # list survives, or the message says outright that it did not fit.
+        self.assertIn("선택 기능 안내", text)
+        self.assertTrue("· **" in text or "담지 못했습니다" in text, text)
 
     def test_sync_state_counts_configured_devices_not_synced_files(self):
         config = self.root / "config.xml"
