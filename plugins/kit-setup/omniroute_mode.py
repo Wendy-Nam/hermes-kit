@@ -288,6 +288,20 @@ def close_dashboard(data_dir, password):
         return False, f'링크를 닫지 못했습니다 ({type(exc).__name__}).'
 
 
+def close_if_due(data_dir, password):
+    """The auto-close timer: a later re-open moved the deadline, so an earlier timer must not
+    close the link the student is still using."""
+    import time
+    mark = Path(data_dir) / TUNNEL_MARK
+    try:
+        deadline = int(mark.read_text())
+    except (OSError, ValueError):
+        return None                     # already closed
+    if deadline > time.time() + 5:
+        return None                     # re-opened since; that open's own timer will close it
+    return close_dashboard(data_dir, password)
+
+
 def tunnel_maybe_open(data_dir):
     """True when a link the kit opened was never confirmed closed (e.g. the bot restarted mid-window)."""
     return (Path(data_dir) / TUNNEL_MARK).exists()

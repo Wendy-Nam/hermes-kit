@@ -675,13 +675,16 @@ class OmniPasswordModal(discord.ui.Modal):
         if not ok:
             return await interaction.followup.send(CROSS + ' ' + url, ephemeral=True)
         await interaction.followup.send(
-            f'대시보드 링크 (본인만 보입니다, {om.TUNNEL_MINUTES}분 뒤 자동으로 닫힘):\n{url}\n'
+            f'대시보드 링크 (본인만 보입니다, {om.TUNNEL_MINUTES}분 뒤 자동으로 닫힘, 필요하면 언제든 다시 열 수 있음):\n{url}\n'
             '같은 비밀번호로 로그인해 계정을 연결한 뒤, 다시 /setup → 고급 설정 → OmniRoute 연결 → **2. 모델 고르기**를 누르세요. '
             '링크를 다른 사람에게 보내지 마세요.', ephemeral=True)
 
         async def close_later():
             await asyncio.sleep(om.TUNNEL_MINUTES * 60)
-            ok, msg = await asyncio.to_thread(om.close_dashboard, root, pw)
+            result = await asyncio.to_thread(om.close_if_due, root, pw)
+            if result is None:
+                return
+            ok, msg = result
             try:
                 await interaction.followup.send(('대시보드 링크를 닫았습니다.' if ok else msg), ephemeral=True)
             except Exception:

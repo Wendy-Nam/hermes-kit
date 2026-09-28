@@ -119,3 +119,19 @@ class OmniRouteSetup(unittest.TestCase):
 
 
 if __name__=='__main__':unittest.main()
+
+
+class DashboardTimer(unittest.TestCase):
+    def test_an_earlier_timer_does_not_close_a_reopened_link(self):
+        import time
+        import omniroute_mode as om
+        with tempfile.TemporaryDirectory() as tmp:
+            closed = []
+            with patch.object(om, 'close_dashboard', lambda d, p: closed.append(1) or (True, 'closed')):
+                (Path(tmp) / om.TUNNEL_MARK).write_text(str(int(time.time()) + 600))   # re-opened 5 min ago
+                self.assertIsNone(om.close_if_due(tmp, 'pw'))
+                (Path(tmp) / om.TUNNEL_MARK).write_text(str(int(time.time()) - 1))     # this open's window is over
+                self.assertEqual(om.close_if_due(tmp, 'pw'), (True, 'closed'))
+                (Path(tmp) / om.TUNNEL_MARK).unlink()
+                self.assertIsNone(om.close_if_due(tmp, 'pw'))                          # closed by hand already
+            self.assertEqual(closed, [1])
