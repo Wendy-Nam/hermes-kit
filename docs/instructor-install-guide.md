@@ -117,8 +117,39 @@
 데이터 볼륨은 유지되고 설정·키·노트는 그대로입니다. 공지 전에 해당 버전의 릴리스 노트(`docs/*-release.md`)에
 학생이 따로 눌러야 할 것이 있는지 확인해 같이 알립니다. 실행 중인 컨테이너는 스스로 업데이트하지 않습니다.
 
-## 7. 기수 시작 전 강사 리허설
+## 7. 강사·운영자 출시 기준
 
-README의 "강사·운영자 출시 기준"을 새 VPS·새 Discord 앱으로 한 번 끝까지 따라가고 소요 시간과 막힌 곳을
+현재 검증은 격리된 이미지·가짜 상위 API·단위 테스트를 포함합니다. **학생의 실제 OAuth 로그인, 유료 계정 권한, Discord 전체 설정 완료, 실제 PC 동기화 성공을 입증하는 결과는 아닙니다.** OMH 설치 점검과 실제 학생 작업의 위임 성공도 구분합니다. 구현·검증 범위는 [구성요소 계약](../plugins/kit-setup/COMPONENTS.md)에 기록되어 있습니다.
+
+기수에 배포하기 전에 다음을 완료합니다.
+
+1. 새 VPS·새 Discord 앱으로 README만 따라 설치하고 소요 시간을 기록합니다. 기본 대화, 보조 위임, 영상 요약, 선택 서비스의 실제 응답을 확인합니다.
+2. 키 오류·모델 ID 오류·네트워크 단절 후 재시도, 재부팅, 일반 선톡 켜기와 끄기를 확인합니다. 선톡 검증은 테스트 채널에서 명시적으로 선택한 경우에만 진행합니다.
+3. 실제 PC에서 양방향 동기화를 확인하고 샘플 대화 ZIP을 가져옵니다. 백업을 새 디렉터리에 복구해 노트와 중지된 크론을 확인합니다.
+4. `versions.env`, Compose 이미지 태그, 릴리스 안내를 맞춥니다. 공개 게시를 결정한 뒤 버전 태그를 푸시합니다. 현재 CI는 `v*` 태그에서 모든 검증을 통과해야 GHCR에 게시하며, 일반 브랜치 푸시는 이미지를 게시하지 않습니다. 태그를 푸시할 수 없는 환경에서는 Actions의 `build`를 main에서 수동 실행하고 `release`에 `versions.env`와 같은 버전(예: `0.21.2-k16`)을 입력합니다. 같은 검증을 통과한 뒤 게시하고 `v*` 태그를 기록합니다.
+5. GitHub 패키지의 공개 접근을 확인하고, 로그인하지 않은 새 환경에서 정확한 버전 이미지를 내려받아 부팅합니다. 이전 이미지와 데이터 백업을 보존한 뒤 수강생에게 게시 완료를 안내합니다.
+
+개발 검증은 다음과 같이 실행합니다. Docker 이미지 빌드와 부팅 시험은 Docker가 실행 중인 환경에서 수행합니다.
+
+```sh
+python3 -m pip install pyyaml
+python3 -m unittest discover -s tests -v
+python3 -m unittest discover -s plugins/kit-setup/tests -v
+set -a
+. ./versions.env
+set +a
+docker build --build-arg HERMES_BASE_IMAGE --build-arg HERMES_VERSION \
+  --build-arg RTK_VERSION --build-arg KIT_VERSION -t hermes-kit:check .
+sh scripts/secret-scan.sh hermes-kit:check
+sh scripts/boot-test.sh hermes-kit:check
+```
+
+## 8. 학생 안내문 versioning
+
+학생에게 버전별 내역을 설명할 때는 README가 아니라 [CHANGELOG](CHANGELOG.md)를 씁니다. README는 현재 버전의 준비물·설치 4단계·필수 키·선택 기능만 담고, "이전 버전을 받은 학생에게 무엇을 말해야 하는지"는 CHANGELOG의 해당 항목에 있습니다.
+
+## 9. 기수 시작 전 강사 리허설
+
+README를 새 VPS·새 Discord 앱으로 한 번 끝까지 따라가고 소요 시간과 막힌 곳을
 이 문서에 반영합니다. 강사 서버는 로컬 이미지(`hermes-agent:baseline-*`)로 돌아 공식 이미지와 소스가 다른 부분이
 있으므로, 강사 서버에서 되는 것이 학생 이미지에서도 된다고 가정하지 않습니다.
