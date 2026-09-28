@@ -22,6 +22,12 @@ def _get(url, headers, proxy=None):
             return r.status, r.read()
     except urllib.error.HTTPError as e:
         return e.code, b""
+    except urllib.error.URLError as e:
+        # An HTTPS CONNECT tunnel refused by the proxy surfaces as URLError("Tunnel connection
+        # failed: 407 ..."), not HTTPError. Without this it reads as "no internet".
+        if "407" in str(e.reason):
+            return 407, b""
+        return 0, str(e).encode()
     except Exception as e:
         return 0, str(e).encode()
 
@@ -108,9 +114,19 @@ def webshare_credentials(username, password):
     from urllib.parse import quote
     if not username or not password:
         return False, "프록시 사용자명과 비밀번호를 모두 입력해 주세요"
-    proxy = "http://" + quote(username, safe="") + ":" + quote(password, safe="") + "@p.webshare.io:80"
+    # p.webshare.io only accepts "<user>-rotate", the same form youtube-transcript-api builds from
+    # the plain dashboard username. Store what the student pasted; test the form that is used.
+    username = username.strip()
+    if not username.endswith("-rotate"):
+        username += "-rotate"
+    proxy = "http://" + quote(username, safe="") + ":" + quote(password.strip(), safe="") + "@p.webshare.io:80"
     status, _ = _get("https://www.wanted.co.kr/", {}, proxy=proxy)
-    return (True, "프록시 접속 확인") if status == 200 else (False, f"프록시 접속 실패 (HTTP {status}) — 사용자명·비밀번호와 접근 가능 지역을 확인해 주세요")
+    if status == 200:
+        return True, "프록시 접속 확인"
+    if status == 407:
+        return False, ("프록시가 사용자명·비밀번호를 거부했습니다 — Webshare 로그인 정보가 아니라 "
+                       "Proxy 목록 화면의 Username/Password를 넣어 주세요")
+    return False, f"프록시 접속 실패 (HTTP {status}) — 잠시 후 다시 시도해 주세요"
 
 from composio_setup import validate_consumer_key
 VALIDATORS["composio_consumer"] = validate_consumer_key
