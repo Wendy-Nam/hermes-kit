@@ -2,7 +2,7 @@
 
 수강생이 개인 VPS에 Hermes를 설치하고 Discord에서 모델·서비스 키·직무 스킬을 연결하는 키트입니다. 업무와 개인 노트는 별도 볼트로 관리합니다.
 
-**현재 상태: `0.21.2-k14` 게시 완료.** k14는 OmniRoute 대시보드를 SSH 없이 15분 링크로 열고, 모델을 목록에서 고르게 합니다([k14 안내](docs/2026-09-28-k14-release.md)). k13은 4GB VPS 보호(스왑·작업 동시 실행 제한)와 OmniRoute 모드를 추가합니다([k13 안내](docs/2026-09-28-k13-release.md)). k4~k10은 `/setup`·`/doctor`가 Discord에 등록되지 않아 k11 이상으로 재배포해야 합니다([k11 안내](docs/2026-09-28-k11-release.md)). k12는 `/setup`을 4단계 설정 순서로 바꾸고 역할 프로필을 추가합니다([k12 안내](docs/2026-09-28-k12-release.md)). 강사용 설치 지원 절차는 [설치 도우미 안내](docs/instructor-install-guide.md)에 있습니다. 소스 저장소는 비공개이며 이미지 다운로드에는 GitHub 로그인이 필요하지 않습니다.
+**현재 상태: `0.21.2-k15` 게시 완료.** k14는 OmniRoute 대시보드를 SSH 없이 15분 링크로 열고, 모델을 목록에서 고르게 합니다([k14 안내](docs/2026-09-28-k14-release.md)). k13은 4GB VPS 보호(스왑·작업 동시 실행 제한)와 OmniRoute 모드를 추가합니다([k13 안내](docs/2026-09-28-k13-release.md)). k4~k10은 `/setup`·`/doctor`가 Discord에 등록되지 않아 k11 이상으로 재배포해야 합니다([k11 안내](docs/2026-09-28-k11-release.md)). k12는 `/setup`을 4단계 설정 순서로 바꾸고 역할 프로필을 추가합니다([k12 안내](docs/2026-09-28-k12-release.md)). 강사용 설치 지원 절차는 [설치 도우미 안내](docs/instructor-install-guide.md)에 있습니다. 소스 저장소는 비공개이며 이미지 다운로드에는 GitHub 로그인이 필요하지 않습니다.
 
 ## 수강생 설치 순서
 
