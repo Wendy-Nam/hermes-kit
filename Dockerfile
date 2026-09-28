@@ -31,7 +31,7 @@ COPY patches /opt/kit/patches
 RUN set -eu; PY=/opt/hermes/.venv/bin/python; \
     export HERMES_HOME=/tmp/kit-build-home HOME=/tmp/kit-build-home; mkdir -p /tmp/kit-build-home; \
     $PY /opt/kit/patches/core/patch-terminal-failure-status.py --root /opt/hermes --apply; \
-    $PY /opt/kit/patches/core/patch-process-hint-names.py --root /opt/hermes --apply --enforce-hash; \
+    $PY /opt/kit/patches/core/patch-process-hint-names.py --root /opt/hermes --apply --no-enforce-hash; \
     sh /opt/kit/patches/voice/apply.sh; \
     for f in discord-video-fit hook-overlap-skip hook-policy-serialization lifecycle-guard-sqlite kanban-interval kanban-progress-notify kanban-heartbeat-note budget-caps skills-view-cap cron-max-turns cron-iteration-outcome skills-compact vision-inbound skill-context-reuse; do \
       $PY /opt/kit/patches/core/patch-$f.py; \

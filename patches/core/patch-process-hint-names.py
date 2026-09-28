@@ -99,6 +99,9 @@ def _replace_file(path: Path, rel: str, *, apply: bool, enforce_hash: bool) -> d
     token_matches = _string_token_matches(source, rel)
     if ast_count != len(token_matches):
         raise ValueError(f"AST/token scope mismatch for {rel}: ast={ast_count}, tokens={len(token_matches)}")
+    if not enforce_hash and ast_count not in (0, meta["matches"]):
+        # hermes-kit: without the author's file hashes, require the exact recorded count.
+        raise ValueError(f"unexpected hint count in {rel}: {ast_count} != {meta['matches']}")
     if ast_count > meta["matches"]:
         raise ValueError(f"unexpected new hint matches in {rel}: {ast_count} > {meta['matches']}")
     if before_hash == meta["patched_sha256"]:
@@ -108,7 +111,7 @@ def _replace_file(path: Path, rel: str, *, apply: bool, enforce_hash: bool) -> d
     if before_hash != meta["original_sha256"] and enforce_hash:
         raise ValueError(f"unrecognized pre-patch state for {rel}: {before_hash}")
     if ast_count == 0:
-        if enforce_hash:
+        if enforce_hash or apply:  # hermes-kit: nothing to patch at build time is drift
             raise ValueError(f"no eligible stale hint in expected original file {rel}")
         return {"file": rel, "changed": False, "matches": 0, "sha256": before_hash}
     if not apply:
