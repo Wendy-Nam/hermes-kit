@@ -91,10 +91,8 @@ def connect_mode(data_dir, password, chat_text, strong_text=''):
             vision_cid = (state.get('active') or {}).get('connection_id')
             allowed = sorted(set(cids) | ({vision_cid} if vision_cid else set()))
             prefix = 'hermes-kit-' + state['installation'][:12]
-            key_name = prefix + '-mode'
-            old_key = _named(_items(client, '/api/keys', 'keys'), key_name)
-            if old_key:
-                client.request('DELETE', '/api/keys/' + _identifier(old_key.get('id')))
+            # A fresh key per attempt: the key the bot is using now is retired only after this one works.
+            key_name = prefix + '-mode-' + uuid.uuid4().hex[:8]
             created, _ = client.request('POST', '/api/keys', {'name': key_name, 'noLog': True, 'allowedConnections': allowed})
             inference = created.get('key')
             if not isinstance(inference, str) or not inference or '\n' in inference:
@@ -112,6 +110,7 @@ def connect_mode(data_dir, password, chat_text, strong_text=''):
             chat_combo, strong_combo = prefix + '-chat', prefix + '-strong'
             _replace_combo(client, chat_combo, chat_steps)
             _replace_combo(client, strong_combo, strong_steps)
+            new_key_id = _identifier(created.get('id'))
             main = config.get('model') or {}
             fallback = config.get('fallback_providers') or []
             if main.get('provider') not in (None, '', 'auto', 'default', PROVIDER_NAME) and main.get('default'):
@@ -129,9 +128,20 @@ def connect_mode(data_dir, password, chat_text, strong_text=''):
             set_env(data / '.env', {KEY_ENV: inference})
             from config_store import write
             write(data, changes)
+            previous = state.get('mode') or {}
+            delegation = config.get('delegation') or {}
             state['mode'] = {'chat': [s['id_'] for s in chat_steps], 'strong': [s['id_'] for s in strong_steps],
-                             'main_switched': bool(fallback)}
+                             'main_switched': bool(fallback), 'key_id': new_key_id,
+                             # What leave_mode restores: the aux route from before the mode was first turned on.
+                             'previous_delegation': previous.get('previous_delegation', {
+                                 k: delegation.get(k) for k in ('provider', 'model') if delegation.get(k)})}
             _save(data, state)
+            for k in _items(client, '/api/keys', 'keys'):
+                if str(k.get('name') or '').startswith(prefix + '-mode') and k.get('id') != new_key_id:
+                    try:
+                        client.request('DELETE', '/api/keys/' + _identifier(k.get('id')))
+                    except SetupError:
+                        pass
         from omh_enhancements import sync_base_route
         sync_base_route(data, PROVIDER_NAME, strong_combo)
         note = f" 시험 실패로 뺀 모델: {', '.join(failed)}." if failed else ''
@@ -158,8 +168,11 @@ def leave_mode(data_dir):
     if not fallback:
         return False, '되돌아갈 직접 연결 모델 기록이 없습니다. 두뇌 선택에서 대화 모델을 지정해 주세요.'
     first = fallback[0]
+    state_path = data / STATE
+    before = (json.loads(state_path.read_text()).get('mode') or {}).get('previous_delegation') or {} \
+        if state_path.exists() else {}
     write(data, {'model.provider': first['provider'], 'model.default': first['model'], 'fallback_providers': None,
-                 'delegation.provider': None, 'delegation.model': None})
+                 'delegation.provider': before.get('provider'), 'delegation.model': before.get('model')})
     from model_setup import delegation_route
     route, _ = delegation_route(read(data))
     from omh_enhancements import sync_base_route

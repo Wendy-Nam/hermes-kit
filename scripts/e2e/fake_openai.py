@@ -26,7 +26,9 @@ class H(BaseHTTPRequestHandler):
         # The kit's two-turn tool probe: call the forced tool, then answer with its result.
         choice = req.get('tool_choice')
         last = (req.get('messages') or [{}])[-1]
-        if isinstance(choice, dict) and choice.get('type') == 'function':
+        if 'broken' in str(req.get('model')):
+            pass  # a model that ignores tools: fails the kit's tool test
+        elif isinstance(choice, dict) and choice.get('type') == 'function':
             name = choice['function']['name']
             msg = {'role': 'assistant', 'content': None, 'tool_calls': [{'id': 'call_1', 'type': 'function',
                    'function': {'name': name, 'arguments': json.dumps({'value': 'KIT_READY'})}}]}

@@ -322,6 +322,7 @@ def stage3a():
                                                'baseUrl': 'http://kit-hermes:8099/v1', 'type': 'openai-compatible'})['node']['id']
     req('POST', '/api/providers', {'provider': node, 'apiKey': 'student-key', 'name': 'student-connection', 'priority': 1})
     from omniroute_mode import connect_mode
+    config_store.write(ROOT, {'delegation.provider': 'commandcode', 'delegation.model': 'student-aux'}, remember=False)
     ok, msg = connect_mode(ROOT, 'wrong-password', 'fake/fake-model')
     check('omniroute mode: wrong password changes nothing', not ok and config_store.read(ROOT)['model']['provider'] == 'commandcode', msg)
     ok, msg = connect_mode(ROOT, OMNI_PW, 'nothere/model-x')
@@ -346,6 +347,10 @@ def stage3a():
     before = len(fake_calls())
     ok, out = chat_turn()
     check('omniroute mode: a real Hermes turn answers through OmniRoute', ok and len(fake_calls()) > before, out)
+    ok, msg = connect_mode(ROOT, OMNI_PW, 'fake/broken-model')
+    check('omniroute mode: a model failing the tool test is refused', not ok and '도구 호출' in msg, msg)
+    ok, out = chat_turn()
+    check('omniroute mode: the bot still answers after a failed re-setup (key kept)', ok, out)
 
 
 def stage3b():
@@ -357,6 +362,8 @@ def stage3b():
     cfg = config_store.read(ROOT)
     check('omniroute mode off: chat back on the direct model', ok and cfg['model']['provider'] == 'commandcode'
           and not cfg.get('fallback_providers'), cfg.get('model'))
+    check('omniroute mode off: the aux model from before is restored',
+          cfg.get('delegation', {}).get('model') == 'student-aux', cfg.get('delegation'))
 
 
 if __name__ == '__main__':
