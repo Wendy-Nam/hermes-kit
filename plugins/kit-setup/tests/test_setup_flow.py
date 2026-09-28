@@ -46,13 +46,19 @@ class SetupFlow(unittest.TestCase):
         with patch.object(model_setup.subprocess,'run',return_value=result):
             ok,msg=model_setup.probe(self.root)
         self.assertFalse(ok);self.assertNotIn('secret',msg)
-    def test_readiness_requires_both_model_checks_but_not_unrelated_sub_keys(self):
+    def test_readiness_checks_the_aux_model_only_when_one_is_set(self):
         skill=self.root/'skills/media/youtube-summary/SKILL.md';skill.parent.mkdir(parents=True);skill.write_text('skill')
+        with patch.object(model_setup,'probe',return_value=(True,'main')) as check:
+            self.assertTrue(readiness.check(self.root)[0])  # no aux: the main model delegates
+        self.assertEqual(check.call_count,1)
+        config_store.write(self.root,{'delegation.provider':'gemini','delegation.model':'aux'},remember=False)
         with patch.object(model_setup,'probe',side_effect=[(True,'main'),(False,'aux missing')]) as check:
             ok,rows=readiness.check(self.root)
         self.assertFalse(ok);self.assertIn('aux missing',rows[0]);self.assertEqual(check.call_count,2)
-        with patch.object(model_setup,'probe',return_value=(True,'ok')):
-            self.assertTrue(readiness.check(self.root)[0])
+    def test_delegation_route_falls_back_to_the_main_model(self):
+        self.assertEqual(model_setup.delegation_route(config_store.read(self.root)),({'provider':'gemini','model':'working'},False))
+        config_store.write(self.root,{'delegation.provider':'opencode-go','delegation.model':'kimi-k3'},remember=False)
+        self.assertEqual(model_setup.delegation_route(config_store.read(self.root)),({'provider':'opencode-go','model':'kimi-k3'},True))
     def test_failed_public_install_is_retried_without_core_version_change(self):
         (self.root/'.kit-version').write_text('2')
         with patch.object(bootstrap.subprocess,'run',side_effect=TimeoutError):

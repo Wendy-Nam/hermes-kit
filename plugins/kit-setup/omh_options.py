@@ -80,7 +80,7 @@ def reset_route(data_dir, category):
     from omh_enhancements import enable_enhanced_omh
     result=enable_enhanced_omh(data_dir,remove=(category,))
     if result['status']=='enabled':
-        result=dict(result,message=f'{LABELS[category]}: 보조 모델 기본 경로로 되돌렸습니다. '+result['message'])
+        result=dict(result,message=f'{LABELS[category]}: 기본 경로로 되돌렸습니다. '+result['message'])
     return result
 
 
@@ -102,7 +102,7 @@ def summary(data_dir):
     if not info.get('installed'):return 'OMH 기본 팩이 아직 설치되지 않았습니다.'
     base=info.get('base')
     lines=['OMH: 설치됨 · 모델 보정 '+('켜짐' if info.get('calibration') else '꺼짐'),
-           '기본 경로(보조 모델): '+(f"{base['provider']}/{base['model']}" if base else '키트 밖에서 수정됨')]
+           '기본 경로(보조 모델, 없으면 대화 모델): '+(f"{base['provider']}/{base['model']}" if base else '키트 밖에서 수정됨')]
     recommended=recommendations(data_dir)
     for category,label in LABELS.items():
         chain=info['categories'].get(category)

@@ -33,7 +33,6 @@ class Pack:
     config: dict = field(default_factory=dict)
     env: dict = field(default_factory=dict)
     required: bool = False
-    required_one_of: str | None = None
     features: tuple[str, ...] = ()
 
 
@@ -82,17 +81,14 @@ def load_packs(validators: dict | None = None) -> list[Pack]:
             for k in keys:
                 if k.validator not in validators:
                     _fail(f"pack {pid} references unknown validator {k.validator!r}")
-        # Two packs writing the same env var would make "which one did I pick?" unanswerable,
-        # and required_one_of is exactly how a user asks for one of two.
-        if not p.get("required_one_of"):
-            for k in keys:
-                if k.env in seen_env and seen_env[k.env] != pid:
-                    _fail(f"{k.env} is claimed by both {seen_env[k.env]!r} and {pid!r}")
-                seen_env[k.env] = pid
+        # Two packs writing the same env var would make "which one did I pick?" unanswerable.
+        for k in keys:
+            if k.env in seen_env and seen_env[k.env] != pid:
+                _fail(f"{k.env} is claimed by both {seen_env[k.env]!r} and {pid!r}")
+            seen_env[k.env] = pid
         packs.append(Pack(id=pid, title=p.get("title", pid), keys=keys,
                           config=p.get("config") or {}, env=p.get("env") or {},
                           required=bool(p.get("required")),
-                          required_one_of=p.get("required_one_of"),
                           features=tuple(p.get("features") or [])))
     return packs
 
@@ -130,14 +126,3 @@ def missing_keys(packs, env: dict) -> list[KeySpec]:
     return [k for p in packs if p.required for k in p.keys
             if not k.optional and not env.get(k.env)]
 
-
-def missing_requirements(packs, env: dict) -> list[str]:
-    problems = [f"{k.label} 입력이 필요합니다" for k in missing_keys(packs, env)]
-    groups = {}
-    for pack in packs:
-        if pack.required_one_of:
-            groups.setdefault(pack.required_one_of, []).append(pack)
-    for group in groups.values():
-        if not any(all(env.get(k.env) for k in p.keys if not k.optional) for p in group):
-            problems.append("보조 모델 중 하나를 연결해 주세요: " + " / ".join(p.title for p in group))
-    return problems

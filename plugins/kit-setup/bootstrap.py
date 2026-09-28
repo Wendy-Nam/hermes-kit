@@ -31,10 +31,7 @@ def component_status(data_dir):
 
 def retry_installation(data_dir, *, seed_dir=Path('/opt/kit/seed')):
     root=Path(data_dir);root.mkdir(parents=True,exist_ok=True)
-    env=get_env(root/'.env')
-    key=env.get('KIT_ACCESS_CODE') or os.environ.get('KIT_ACCESS_CODE','')
-    ref=env.get('KIT_PACKS_REF') or os.environ.get('KIT_PACKS_REF')
-    rows=retry_components(root,seed_dir=seed_dir,private_token=key,private_ref=ref)
+    rows=retry_components(root,seed_dir=seed_dir)
     target=root/'skills/media/youtube-summary/SKILL.md'
     if not target.is_file():
         try:

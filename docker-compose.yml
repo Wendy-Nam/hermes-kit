@@ -1,9 +1,7 @@
 # hermes-kit — 이것을 복사해서 Hostinger Docker Manager의 Compose 칸에 붙여넣으세요.
 #
-# 필수 환경변수는 봇 토큰 하나입니다. 비공개 팩을 쓸 때만 선택 값을 추가합니다:
+# 환경변수는 봇 토큰 하나입니다:
 #   DISCORD_BOT_TOKEN  — Discord Developer Portal에서 만든 봇의 토큰
-#   KIT_ACCESS_CODE    — 선택. 강사가 준 비공개 팩 접근 코드
-#   KIT_PACKS_REF      — 선택. 비공개 팩의 고정 커밋
 #
 # 나머지 키(Gemini·Groq·Webshare 등)는 디스코드에서 /setup 으로 입력합니다.
 # 채팅창에 키를 붙여넣지 마세요 — 세션 기록에 남습니다.
@@ -12,7 +10,7 @@ services:
     depends_on:
       syncthing-init:
         condition: service_completed_successfully
-    image: ghcr.io/wendy-nam/hermes-kit:0.21.2-k9
+    image: ghcr.io/wendy-nam/hermes-kit:0.21.2-k10
     restart: unless-stopped
     volumes:
       - hermes-data:/opt/data
@@ -20,8 +18,6 @@ services:
       - syncthing-config:/opt/syncthing-config:ro  # 플러그인이 config.xml에서 REST API 키를 읽는다
     environment:
       DISCORD_BOT_TOKEN: ${DISCORD_BOT_TOKEN}
-      KIT_ACCESS_CODE: ${KIT_ACCESS_CODE:-}
-      KIT_PACKS_REF: ${KIT_PACKS_REF:-}        # 비공개 팩을 쓸 때 강사가 제공하는 고정 커밋
       TZ: Asia/Seoul
     command: ["gateway", "run"]
 

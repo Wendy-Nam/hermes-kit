@@ -18,6 +18,9 @@ def check(data_dir, *, run_probe=True):
     if run_probe:
         ok,msg=probe(root)
         if not ok:return False,[msg]
-        ok,msg=probe(root,role="aux")
-        if not ok:return False,["보조 모델: "+msg]
+        from config_store import read
+        from model_setup import delegation_route
+        if delegation_route(read(root))[1]:  # optional: without it the main model delegates
+            ok,msg=probe(root,role="aux")
+            if not ok:return False,["보조 모델: "+msg]
     return True,['기본 키·선택 구성요소·모델 응답 확인 완료']

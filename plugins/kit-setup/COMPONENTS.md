@@ -38,7 +38,7 @@ fallback candidates itself. Hermes 0.21.2 has no `delegate_task(routing=...)`; t
 kit never depends on one (k6's per-dispatch design did, which is why its image
 never published).
 
-`omh_enhancements` owns only (a) those two documents, composed from the aux model
+`omh_enhancements` owns only (a) those two documents, composed from the delegation route (the aux model, or the main model when no aux is set)
 plus per-task chains saved in /setup (one to five models each, merged across saves,
 each probed with the student's keys first), and (b) one addition to the upstream
 `pre_tool_call` hook. A spawn whose live delegation keys OMH did not write for this
@@ -53,7 +53,7 @@ single underlying model. Internal errors dispatch unchanged and the hook never w
 marked `omh_delegate_route` rule to a SOUL that never mentions it (students seeded
 before k7); boot upgrades an earlier calibration receipt in place, keeping task chains.
 It is enabled with the basic pack and can be turned off in /setup, which restores
-the upstream hook byte-for-byte. A changed aux model (model selection or OmniRoute
+the upstream hook byte-for-byte. A changed delegation route (model selection or OmniRoute
 connection) is synced into every task category the student did not assign; routing
 documents edited outside the kit are preserved, never overwritten.
 

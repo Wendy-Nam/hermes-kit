@@ -201,7 +201,11 @@ def check_omh(data_dir):
 def check_models(data_dir):
     from model_setup import probe
     result=[]
+    from config_store import read
+    from model_setup import delegation_route
     for role,name in [('main','대화 모델'),('aux','보조 모델')]:
+        if role=='aux' and not delegation_route(read(data_dir))[1]:
+            result.append(Finding(name,OK,'지정 안 함 · 하위 작업도 대화 모델이 처리합니다'));continue
         ok,msg=probe(data_dir,role=role)
         result.append(Finding(name,OK if ok else BAD,msg))
     return result

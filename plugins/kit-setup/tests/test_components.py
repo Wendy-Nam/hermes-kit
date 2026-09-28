@@ -3,14 +3,12 @@ import io
 import json
 from pathlib import Path
 import sys
-import tarfile
 import tempfile
 import unittest
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import components as c
-import fetch_packs as fp
 
 
 class ComponentInstall(unittest.TestCase):
@@ -100,36 +98,6 @@ class ComponentInstall(unittest.TestCase):
         self.assertEqual(c.install_optional('omh', self.data, trusted_registry=reg)['status'], 'installed')
         self.assertTrue((self.data / 'plugins/omh/plugin.yaml').exists())
         self.assertFalse((self.data / 'config.yaml').exists())
-
-    def archive(self, manifest=True):
-        buf = io.BytesIO()
-        with tarfile.open(fileobj=buf, mode='w:gz') as t:
-            root = tarfile.TarInfo('repo/'); root.type = tarfile.DIRTYPE; t.addfile(root)
-            if manifest:
-                raw = json.dumps({'schema_version':'kit-bundle/v1','version':'1.0.0','components':['job']}).encode()
-                i=tarfile.TarInfo('repo/manifest.json');i.size=len(raw);t.addfile(i,io.BytesIO(raw))
-                for p in (self.seed / 'kits/job').iterdir():
-                    t.add(p, arcname='repo/kits/job/'+p.name)
-        return buf.getvalue()
-
-    def test_private_fetch_requires_pin_and_manifest(self):
-        with patch.object(fp, '_download', return_value=self.archive(False)) as download:
-            self.assertFalse(fp.fetch('o/r', 'main', 'token', self.data)[0])
-            download.assert_not_called()
-            self.assertFalse(fp.fetch('o/r', 'a'*40, 'token', self.data)[0])
-        with patch.object(fp, '_download', return_value=self.archive()):
-            self.assertTrue(fp.fetch('o/r', 'a'*40, 'token', self.data)[0])
-
-    def test_private_redirect_refuses_cross_host_and_http(self):
-        import urllib.request
-        handler = fp._ArchiveRedirect()
-        req = urllib.request.Request('https://api.github.com/repos/o/r/tarball/'+'a'*40,
-                                     headers={'Authorization':'Bearer test-only'})
-        for target in ('https://example.org/steal','http://codeload.github.com/o/r'):
-            with self.assertRaises(ValueError):
-                handler.redirect_request(req,None,302,'redirect',{},target)
-        target = handler.redirect_request(req,None,302,'redirect',{},'https://codeload.github.com/o/r/tar.gz/'+'a'*40)
-        self.assertEqual(target.host,'codeload.github.com')
 
     def test_rollback_failure_retains_backup_for_recovery(self):
         self.retry(['job'])

@@ -164,7 +164,7 @@ class ModelModal(discord.ui.Modal):
         super().__init__(title='대화 모델 선택')
         self.provider=discord.ui.TextInput(label='제공자',placeholder='openai-codex / gemini / opencode-go / commandcode',max_length=40)
         self.model=discord.ui.TextInput(label='계정에서 사용할 모델 ID',placeholder='제공자 대시보드에 표시된 모델 ID',max_length=200)
-        self.role=discord.ui.TextInput(label='용도: main(대화) / aux(보조·위임)',default='main',max_length=4)
+        self.role=discord.ui.TextInput(label='용도: main(대화) / aux(선택: 위임 전용)',default='main',max_length=4)
         self.add_item(self.provider);self.add_item(self.model);self.add_item(self.role)
     async def on_submit(self,interaction):
         from model_setup import select_model,probe
@@ -278,7 +278,7 @@ class ActionButton(discord.ui.Button):
         a=self.action
         if a=='omh':
             return await interaction.response.send_message(
-                'OMH 기본 팩을 설치하면 모든 작업 종류가 보조 모델로 위임되고, OMH 권장 추론 강도와 모델별 보정이 켜집니다. '
+                'OMH 기본 팩을 설치하면 모든 작업 종류가 보조 모델(지정하지 않았으면 대화 모델)로 위임되고, OMH 권장 추론 강도와 모델별 보정이 켜집니다. '
                 '작업을 고르면 그 작업만 다른 모델과 대체 모델(최대 5개)로 바꿀 수 있습니다. 저장은 작업별로 누적됩니다. '
                 '본인이 연결한 제공자만 쓰며, 모델마다 짧은 테스트 요청을 한 번씩 보냅니다. '
                 '설정 뒤 적용하기로 재시작하세요. 기본 대화 모델은 바꾸지 않습니다.',
@@ -342,11 +342,12 @@ class ActionButton(discord.ui.Button):
                 from upstream_omh import install_upstream_omh
                 from pathlib import Path
                 from config_store import read
-                c=read(ENV_FILE.parent);route=c.get('delegation') or {};model=c.get('model') or {}
-                if not route.get('model') or not route.get('provider'):
-                    msg='보조 제공자·모델을 먼저 설정하세요. OMH는 그 경로만 사용하도록 설치합니다.'
+                from model_setup import delegation_route
+                route,_=delegation_route(read(ENV_FILE.parent))
+                if not route:
+                    msg='두뇌 선택에서 대화 모델을 먼저 설정하세요. OMH는 그 경로(보조 모델이 있으면 보조 모델)만 사용하도록 설치합니다.'
                 else:
-                    row=await asyncio.to_thread(install_upstream_omh,ENV_FILE.parent,routing={'model':route['model'],'provider':route['provider']},host_version=Path('/opt/kit/RELEASE_VERSION').read_text().strip().split('-k')[0])
+                    row=await asyncio.to_thread(install_upstream_omh,ENV_FILE.parent,routing=route,host_version=Path('/opt/kit/RELEASE_VERSION').read_text().strip().split('-k')[0])
                     msg=row['message']
             else:msg='지원하지 않는 작업입니다.'
         except Exception as exc:
