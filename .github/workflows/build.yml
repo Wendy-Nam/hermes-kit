@@ -59,6 +59,8 @@ jobs:
         run: docker run --rm --entrypoint sh hermes-kit:ci -c "cd /opt/kit/patches/voice && /opt/hermes/.venv/bin/python verify.py --root /opt/hermes"
       - name: secret scan (nothing personal or secret in the public image)
         run: sh scripts/secret-scan.sh hermes-kit:ci
+      - name: full student install (fresh volume, /setup wizard to restart, fake model only)
+        run: sh scripts/e2e/run.sh hermes-kit:ci
       - name: first-boot seed is correct and idempotent
         run: sh scripts/boot-test.sh hermes-kit:ci
       - name: publish to GHCR (v* tag, or a dispatched release on main; after every check passed)

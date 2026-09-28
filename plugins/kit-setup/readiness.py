@@ -34,7 +34,9 @@ def wizard_status(data_dir):
     model=read(root).get('model') or {}
     try:kits=_read_state(root).get('selected_kits') or []
     except Exception:kits=[]
-    return {'model':isinstance(model,dict) and bool(model.get('provider') and model.get('default')),
+    # Hermes' own default config ships a model with provider "auto": that is not a student's choice.
+    chosen=isinstance(model,dict) and model.get('provider') not in (None,'','auto','default') and bool(model.get('default'))
+    return {'model':chosen,
             'gemini':bool(get_env(root/'.env').get('GEMINI_API_KEY')),
             'kits':bool(kits),
             'recommended':(root/'plugins/omh').is_dir() and (root/'profiles/research').is_dir()}

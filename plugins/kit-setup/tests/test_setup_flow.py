@@ -36,6 +36,11 @@ class SetupFlow(unittest.TestCase):
         config_store.write(self.root,{'model.provider':'openai-codex'},remember=False)
         self.assertTrue(bootstrap.rtk_follows_route(self.root))
         self.assertEqual(config_store.read(self.root)['plugins']['enabled'],['kit-setup','rtk-rewrite'])
+    def test_wizard_does_not_count_hermes_default_model_as_connected(self):
+        config_store.write(self.root,{'model.provider':'auto','model.default':'anthropic/claude-opus-4.6'},remember=False)
+        self.assertFalse(readiness.wizard_status(self.root)['model'])
+        config_store.write(self.root,{'model.provider':'commandcode'},remember=False)
+        self.assertTrue(readiness.wizard_status(self.root)['model'])
     def test_bad_new_model_does_not_replace_working_configuration(self):
         before=(self.root/'config.yaml').read_bytes()
         with patch.object(model_setup,'probe',return_value=(False,'rejected')):
