@@ -461,7 +461,7 @@ def wizard_text(status):
             f"{mark(status['gemini'])} 2. Gemini 키 입력 (영상 요약용, 무료)\n"
             f"{mark(status['kits'])} 3. 직무 선택\n"
             f"{mark(status['recommended'])} 4. 권장 설정 적용 — OMH·역할 프로필(조사·코딩·콘텐츠)을 설치하고 재시작합니다\n"
-            '노트를 PC 옵시디언에서 보려면 마지막 버튼을, 나머지 기능은 고급 설정을 누르세요.')
+            '노트를 PC 옵시디언에서 보려면 **PC 옵시디언에서 노트 보기** 버튼을, 나머지 기능은 **고급 설정**을 누르세요.')
 
 
 class WizardView(OwnedView):
@@ -599,9 +599,10 @@ class ApiModelModal(discord.ui.Modal):
         bad = [msg for _, ok, msg in results if not ok]
         if bad:
             return await interaction.followup.send(f'{CROSS} 키 확인 실패 — 저장하지 않았습니다: ' + bad[0], ephemeral=True)
-        await asyncio.to_thread(_apply, entries, self.pack.config)
+        lines = await asyncio.to_thread(_apply, entries, self.pack.config)
         ok, msg = await asyncio.to_thread(select_model, ENV_FILE.parent, self.provider, str(self.model).strip())
-        await interaction.followup.send((TICK if ok else CROSS) + ' ' + msg, ephemeral=True)
+        report = [l for l in (lines or []) if l]
+        await interaction.followup.send('\n'.join(report + [(TICK if ok else CROSS) + ' ' + msg]), ephemeral=True)
 
 
 class NotesView(OwnedView):

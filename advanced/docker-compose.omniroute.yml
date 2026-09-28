@@ -26,7 +26,7 @@ services:
     volumes:
       - omniroute-data:/app/data
     environment:
-      INITIAL_PASSWORD: ${KIT_OMNIROUTE_PASSWORD}
+      INITIAL_PASSWORD: ${KIT_OMNIROUTE_PASSWORD:?OmniRoute 비밀번호를 먼저 정하세요 - 비우면 대시보드가 비밀번호 없이 열립니다}
       REQUIRE_API_KEY: "true"      # /v1 는 Hermes용 추론 키가 있어야만 응답
       TZ: Asia/Seoul
     # JWT·API 키 서명 비밀값은 학생이 만들지 않게 합니다. 볼륨에 처음 기동할 때 생성하고 이후 재사용합니다.
