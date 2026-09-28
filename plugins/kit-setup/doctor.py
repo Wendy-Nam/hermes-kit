@@ -210,13 +210,30 @@ def check_models(data_dir):
         result.append(Finding(name,OK if ok else BAD,msg))
     return result
 
+def check_invite(data_dir: Path) -> Finding:
+    """Whether the bot can still be invited somewhere new.
+
+    A student who redeployed and lost the boot log has no way back in; naming the saved link
+    here is the difference between a five-second fix and a support ticket. Read-only, and the
+    file holds no token.
+    """
+    import owner as owner_mod
+
+    saved = owner_mod.remembered_invite(data_dir)
+    if saved:
+        return Finding("봇 초대 링크", OK, "저장되어 있습니다 — `/invite` 로 다시 볼 수 있습니다")
+    if owner_mod.bot_token(data_dir):
+        return Finding("봇 초대 링크", WARN, "아직 저장되지 않았습니다 — `/invite` 로 지금 만들 수 있습니다")
+    return Finding("봇 초대 링크", SKIP, "봇 토큰이 없어 링크를 만들지 못했습니다 (Compose 환경변수 확인)")
+
+
 def collect(data_dir: Path, env_file: Path, process=None, run_models=False) -> list[Finding]:
     """Run every check. Order is what a student reads first: setup, then keys, then extras."""
     from env_store import get_env
 
     env = get_env(env_file) if env_file.exists() else {}
     findings = [check_kit_version(data_dir), check_env_file(env_file), check_disk(data_dir),
-                check_gateway(process)]
+                check_gateway(process), check_invite(data_dir)]
     findings += check_keys(env, env_file)
     findings += check_components(data_dir)
     findings.append(check_maintenance(data_dir))

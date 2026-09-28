@@ -4,7 +4,10 @@ import os
 from pathlib import Path
 import subprocess
 from components import retry_components, _read_state
-from env_store import get_env
+from owner import INVITE_FILE
+
+# The python the student must use to re-print the invite link: the system one may lack pyyaml.
+HERMES_PY = "/opt/hermes/.venv/bin/python"
 
 PUBLIC_SKILL='Wendy-Nam/hermes-skills-kr/youtube-summary'
 
@@ -80,13 +83,20 @@ def boot(data_dir):
         sync_roles(root)
     except Exception as exc:print('[kit] 역할 프로필 동기화 실패: '+type(exc).__name__)
     # Invitation exists before Discord /setup becomes reachable. Token is never printed.
-    env=get_env(root/'.env')
-    token=env.get('DISCORD_BOT_TOKEN') or os.environ.get('DISCORD_BOT_TOKEN','')
-    if token and token!='dummy':
-        from owner import configure_app
+    # The link also goes to the data volume: a log the student can no longer scroll back to is
+    # the one dead end in the install, and the bot cannot be asked for a link it never received.
+    from owner import bot_token, configure_app, remember_invite
+    token=bot_token(root)
+    if token:
         url,error=configure_app(token)
-        if url:print('[kit] 봇 초대: '+url)
+        if url:
+            print('[kit] 봇 초대: '+url)
+            # The in-Discord route comes first: a student without SSH should never need the container.
+            print('[kit] 초대 링크를 다시 보려면 Discord에서 /invite 를 실행하세요. SSH가 되면: '
+                  +str(HERMES_PY)+' '+str(root/'plugins/kit-setup/owner.py'))
+            if not remember_invite(root,url):print('[kit] 초대 링크 저장 실패 — 로그의 링크를 사용하세요')
         elif error:print('[kit] '+error)
+    else:print('[kit] 봇 토큰이 없어 초대 링크를 만들지 않았습니다 — DISCORD_BOT_TOKEN 환경변수를 확인하세요')
     # Cron registration happens in /setup Apply after a home channel is chosen.
     # Registering earlier would produce an undeliverable maintenance failure notice.
     version=Path('/opt/kit/RELEASE_VERSION')
