@@ -163,24 +163,13 @@ async def setup_command(interaction, packs_list, kits_list, bot):
     registered = owner_mod.ensure_owner(interaction.user.id, interaction.user.name)
     note = "주인으로 등록했어요." if registered else "이미 주인으로 등록되어 있어요."
 
-    token = _env().get("DISCORD_BOT_TOKEN", "")
-    invite = None
-    if token:
-        invite, err = owner_mod.configure_app(token)
-        if err:
-            log.warning("discord app configuration failed: %s", err)
-
-
+    # The bot is already in this server (the command came through it), so no invite step here.
+    # Intents and install params are set at boot by bootstrap.configure_app.
     waiting = missing_keys(packs_list, _env())
-    head = [note, ""]
-    if invite:
-        head.append(f"1️⃣ 아래 링크로 이 서버에 봇을 초대해 주세요 (권한은 자동으로 계산됩니다):\n{invite}\n")
-    else:
-        head.append("1️⃣ 봇 토큰(DISCORD_BOT_TOKEN)이 없어 초대 링크를 만들지 못했습니다. "
-                    "compose의 DISCORD_BOT_TOKEN을 확인해 주세요.\n")
-    head.append("2️⃣ 아래 버튼으로 키를 입력해 주세요. 입력 즉시 확인하고, **전부 통과해야** 저장됩니다."
-                if waiting else
-                "2️⃣ 필요한 키가 모두 있습니다. 그대로 적용해도 됩니다.")
+    head = [note, "",
+            "아래 버튼으로 키를 입력해 주세요. 입력 즉시 확인하고, **전부 통과해야** 저장됩니다."
+            if waiting else
+            "필요한 키가 모두 있습니다. 그대로 적용해도 됩니다."]
 
     view = HomeView(packs_list, channel_id=interaction.channel_id, owner_id=interaction.user.id)
     await interaction.followup.send("\n".join(head), view=view, ephemeral=True)

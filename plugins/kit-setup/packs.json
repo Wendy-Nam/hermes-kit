@@ -90,15 +90,15 @@
         "env": "WEBSHARE_PROXY_USERNAME",
         "label": "Webshare 프록시 사용자명",
         "validator": "webshare",
-        "url": "https://dashboard.webshare.io/userapi/keys",
-        "hint": "무료 티어도 됩니다"
+        "url": "https://dashboard.webshare.io/",
+        "hint": "Proxy 목록 화면의 Username (로그인 이메일 아님)"
       },
       {
         "env": "WEBSHARE_PROXY_PASSWORD",
         "label": "Webshare 프록시 비밀번호",
         "validator": "webshare",
-        "url": "https://dashboard.webshare.io/userapi/keys",
-        "hint": "같은 화면의 password"
+        "url": "https://dashboard.webshare.io/",
+        "hint": "같은 화면의 Password (로그인 비밀번호 아님)"
       }
     ],
     "config": {},
