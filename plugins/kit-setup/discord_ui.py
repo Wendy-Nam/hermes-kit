@@ -146,9 +146,6 @@ def restart_gateway() -> bool:
 async def setup_command(interaction, packs_list, kits_list, bot):
     """`/setup` — owner-only, approves the owner, then walks the student through the packs."""
     import owner as owner_mod
-    from packs import missing_keys
-    from views import HomeView
-    import validators as v
 
     guild = interaction.guild
     if guild is None:
@@ -165,13 +162,9 @@ async def setup_command(interaction, packs_list, kits_list, bot):
 
     # The bot is already in this server (the command came through it), so no invite step here.
     # Intents and install params are set at boot by bootstrap.configure_app.
-    waiting = missing_keys(packs_list, _env())
-    head = [note, "",
-            "아래 버튼으로 키를 입력해 주세요. 입력 즉시 확인하고, **전부 통과해야** 저장됩니다."
-            if waiting else
-            "필요한 키가 모두 있습니다. 그대로 적용해도 됩니다."]
-
-    view = HomeView(packs_list, channel_id=interaction.channel_id, owner_id=interaction.user.id)
+    from views import WizardView, wizard_text
+    view = WizardView(packs_list, channel_id=interaction.channel_id, owner_id=interaction.user.id)
+    head = [note, "", wizard_text(view.status)]
     await interaction.followup.send("\n".join(head), view=view, ephemeral=True)
 
 

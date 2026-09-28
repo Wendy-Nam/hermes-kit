@@ -24,3 +24,17 @@ def check(data_dir, *, run_probe=True):
             ok,msg=probe(root,role="aux")
             if not ok:return False,["보조 모델: "+msg]
     return True,['기본 키·선택 구성요소·모델 응답 확인 완료']
+
+def wizard_status(data_dir):
+    """Which of the four /setup steps are done, read from state rather than remembered clicks."""
+    from env_store import get_env
+    from config_store import read
+    from components import _read_state
+    root=Path(data_dir)
+    model=read(root).get('model') or {}
+    try:kits=_read_state(root).get('selected_kits') or []
+    except Exception:kits=[]
+    return {'model':isinstance(model,dict) and bool(model.get('provider') and model.get('default')),
+            'gemini':bool(get_env(root/'.env').get('GEMINI_API_KEY')),
+            'kits':bool(kits),
+            'recommended':(root/'plugins/omh').is_dir() and (root/'profiles/research').is_dir()}

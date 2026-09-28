@@ -10,6 +10,8 @@ PROVIDERS = {'openai-codex': 'ChatGPT 구독', 'gemini': 'Gemini API',
              'opencode-go': 'OpenCode Go', 'commandcode': 'Command Code'}
 KEYS = {'gemini': 'GEMINI_API_KEY', 'opencode-go': 'OPENCODE_GO_API_KEY',
         'commandcode': 'COMMANDCODE_API_KEY'}
+# Prefilled in the /setup wizard so a student confirms rather than types. The probe still decides.
+RECOMMENDED = {'openai-codex': 'gpt-6-luna', 'commandcode': 'deepseek/deepseek-v4.1-flash', 'opencode-go': ''}
 MODEL = re.compile(r'^[A-Za-z0-9][A-Za-z0-9._/:@-]{0,199}$')
 PYTHON = '/opt/hermes/.venv/bin/python'
 

@@ -122,28 +122,6 @@ URL and inference key while preserving the main model. The test container and
 network were removed. Paid provider behavior and the student's real account
 entitlement remain checked only when the student runs setup.
 
-## Optional Cline model selection
-
-Connect your own Cline account using the OmniRoute dashboard's OAuth flow.
-The kit does not register Cline credentials or copy an instructor's accounts,
-models, or routes. `python cline_catalog.py --list` explicitly fetches the public
-pricing catalog once; it does not run inference or modify configuration.
-
-Only candidates with explicit zero prompt/completion prices and zero in every
-other advertised price field are listed. Missing cache prices remain **unknown**.
-The check expires after 15 minutes (the library permits at most one hour).
-A `:free` suffix, successful response, or negative account balance does not prove
-that a model is free. Prices and promotional access can change; refresh before
-selection and check your account's API entitlement. The catalog can also include
-non-chat models, so listing is not a compatibility recommendation.
-
-`cline_catalog.propose_removals()` only proposes removal of positive-price or
-unknown-price Cline entries from supplied model lists. It preserves other entries
-and metadata, rejects stale evidence, and never calls a management API. Review
-fresh dashboard settings before applying any proposal. Separately verify a small,
-explicitly authorized two-turn tool call before using a model for delegation;
-price verification does not establish tool support or account access.
-
 ## Optional JS page extractor
 
 `crawl4ai_setup.install(data_dir)` creates `crawl4ai-env` on the data volume with

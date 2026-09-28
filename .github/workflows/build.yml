@@ -51,6 +51,8 @@ jobs:
         run: docker run --rm --network none -v "$PWD/scripts/kanban-hook-smoke.py:/tmp/kanban-hook-smoke.py:ro" --entrypoint /opt/hermes/.venv/bin/python hermes-kit:ci /tmp/kanban-hook-smoke.py
       - name: optional OMH enhancement keeps bot profiles intact (real Hermes host)
         run: docker run --rm -v "$PWD/scripts/omh-enhancement-smoke.py:/tmp/omh-enhancement-smoke.py:ro" --entrypoint /opt/hermes/.venv/bin/python hermes-kit:ci /tmp/omh-enhancement-smoke.py
+      - name: role profiles are created by the real Hermes CLI without the bot token
+        run: docker run --rm --network none -v "$PWD/scripts/roles-smoke.py:/tmp/roles-smoke.py:ro" --entrypoint /opt/hermes/.venv/bin/python hermes-kit:ci /tmp/roles-smoke.py
       - name: opt-in JS page extractor installs on the image Chromium and refuses internal URLs
         run: docker run --rm -u hermes -v "$PWD/scripts/jsextract-smoke.py:/tmp/jsextract-smoke.py:ro" --entrypoint /opt/hermes/.venv/bin/python hermes-kit:ci /tmp/jsextract-smoke.py
       - name: voice patches behave

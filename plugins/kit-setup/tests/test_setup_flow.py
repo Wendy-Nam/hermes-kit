@@ -93,5 +93,12 @@ class DiscordLayout(unittest.IsolatedAsyncioTestCase):
         for cls in (views.ModelModal,views.OmniModal):
             self.assertLessEqual(len(cls().children),5)
         view.stop()
+        wizard=views.WizardView(packs.load_packs(),owner_id=123,channel_id=456)
+        ids=[c.custom_id for c in wizard.children if getattr(c,'custom_id',None)]
+        self.assertEqual(len(ids),len(set(ids)))
+        self.assertIn('4. 권장 설정 적용',views.wizard_text(wizard.status))
+        api=next(p for p in packs.load_packs() if p.id=='sub-commandcode')
+        self.assertEqual(views.ApiModelModal('commandcode',api).model.default,model_setup.RECOMMENDED['commandcode'])
+        wizard.stop()
 
 if __name__=='__main__':unittest.main()

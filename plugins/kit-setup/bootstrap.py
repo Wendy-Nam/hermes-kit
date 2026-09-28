@@ -59,6 +59,10 @@ def boot(data_dir):
     from omh_enhancements import upgrade_enhanced_omh
     upgraded=upgrade_enhanced_omh(root)
     if upgraded:print('[kit] OMH 보정 갱신: '+upgraded['status'])
+    try:
+        from roles import sync_roles
+        sync_roles(root)
+    except Exception as exc:print('[kit] 역할 프로필 동기화 실패: '+type(exc).__name__)
     # Invitation exists before Discord /setup becomes reachable. Token is never printed.
     env=get_env(root/'.env')
     token=env.get('DISCORD_BOT_TOKEN') or os.environ.get('DISCORD_BOT_TOKEN','')
