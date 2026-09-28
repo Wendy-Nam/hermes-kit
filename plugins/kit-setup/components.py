@@ -157,8 +157,7 @@ def install_component(source, data_dir, component_id):
         return result
 
 
-def retry_components(data_dir, *, selected_kits=None, seed_dir=Path('/opt/kit/seed'),
-                     private_token='', private_repo='Wendy-Nam/hermes-kit-packs', private_ref=None):
+def retry_components(data_dir, *, selected_kits=None, seed_dir=Path('/opt/kit/seed')):
     data = Path(data_dir).resolve(); results = []
     with _locked(data):
         state = _read_state(data)
@@ -178,10 +177,6 @@ def retry_components(data_dir, *, selected_kits=None, seed_dir=Path('/opt/kit/se
         if (Path(seed_dir) / 'kskill').is_dir():  # absent in images before k7
             results.append(_install_kskills(data, state, Path(seed_dir) / 'kskill'))
             _save_state(data, state)
-    if private_token:
-        from fetch_packs import fetch
-        ok, message = fetch(private_repo, private_ref or '', private_token, data)
-        results.append({'id': 'private-packs', 'status': 'installed' if ok else 'unavailable', 'message': message})
     return results
 
 

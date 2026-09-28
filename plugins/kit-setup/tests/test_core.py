@@ -6,7 +6,6 @@ manual E2E checklist in the plan (Task 9 Step 3).
 """
 import asyncio
 import importlib.util
-import io
 import tarfile
 import time
 import json
@@ -305,108 +304,6 @@ class ApplyFlow(unittest.TestCase):
         self.assertEqual(config_store.read(self.tmp)['stt']['provider'], 'groq')
 
 
-class PacksFetch(unittest.TestCase):
-    """Downloading the private packs repo must never damage a working install."""
-
-    def setUp(self):
-        import fetch_packs
-        self.fp = fetch_packs
-        self.data = Path(tempfile.mkdtemp())
-
-    def _tarball(self, build):
-        """Build an in-memory .tar.gz the way GitHub serves one (single top-level dir)."""
-        import io, tarfile
-        raw = io.BytesIO()
-        with tarfile.open(fileobj=raw, mode="w:gz") as tf:
-            root = tarfile.TarInfo("Wendy-Nam-hermes-kit-packs-abc123/")
-            root.type = tarfile.DIRTYPE
-            tf.addfile(root)
-            build(tf)
-        return raw.getvalue()
-
-    def _add(self, tf, name, data=b"x"):
-        info = tarfile.TarInfo(f"Wendy-Nam-hermes-kit-packs-abc123/{name}")
-        info.size = len(data)
-        tf.addfile(info, io.BytesIO(data))
-
-    def _fetch(self, blob):
-        return self.fp._safe_extract(blob, Path(tempfile.mkdtemp()))
-
-    def test_no_token_means_skip_and_success(self):
-        ok, msg = self.fp.fetch("o/r", "main", "", self.data)
-        self.assertFalse(ok)
-        self.assertIn("KIT_ACCESS_CODE", msg)
-
-    def _bundle(self, text, version="1.0.0"):
-        import hashlib
-        def build(tf):
-            self._add(tf, "manifest.json", json.dumps({"schema_version":"kit-bundle/v1","version":version,"components":["job"]}).encode())
-            self._add(tf, "kits/job/manifest.json", json.dumps({"schema_version":"kit-component/v1","id":"job","version":version,"files":{"SKILL.md":hashlib.sha256(text).hexdigest()}}).encode())
-            self._add(tf, "kits/job/SKILL.md", text)
-        return self._tarball(build)
-
-    def test_installs_kit_skills_and_replaces_them_on_a_later_run(self):
-        with patch.object(self.fp, "_download", return_value=self._bundle(b"v1")):
-            self.assertTrue(self.fp.fetch("o/r", "a"*40, "tok", self.data)[0])
-        target = self.data / "skills/kit/job/SKILL.md"
-        self.assertEqual(target.read_bytes(), b"v1")
-        with patch.object(self.fp, "_download", return_value=self._bundle(b"v2", "1.0.1")):
-            self.assertTrue(self.fp.fetch("o/r", "b"*40, "tok", self.data)[0])
-        self.assertEqual(target.read_bytes(), b"v2")
-
-    def test_soul_and_omniroute_are_not_overwritten(self):
-        self.data.mkdir(exist_ok=True)
-        (self.data / "soul").mkdir()
-        (self.data / "soul" / "SOUL.md").write_text("학생이 고친 버전")
-        blob = self._tarball(lambda tf: self._add(tf, "soul/SOUL.md", b"author"))
-        with patch.object(self.fp, "_download", return_value=blob):
-            self.fp.fetch("o/r", "a"*40, "tok", self.data)
-        self.assertEqual((self.data / "soul" / "SOUL.md").read_text(), "학생이 고친 버전")
-
-    def test_a_symlink_in_the_tarball_aborts_everything(self):
-        def build(tf):
-            link = tarfile.TarInfo("Wendy-Nam-hermes-kit-packs-abc123/skills/kit/evil")
-            link.type = tarfile.SYMTYPE
-            link.linkname = "/opt/data/.env"
-            tf.addfile(link)
-        with self.assertRaises(ValueError) as ctx:
-            self._fetch(self._tarball(build))
-        self.assertIn("링크", str(ctx.exception))
-
-    def test_path_traversal_is_refused(self):
-        def build(tf):
-            self._add(tf, "skills/kit/../../escape.md")
-        with self.assertRaises(ValueError):
-            self._fetch(self._tarball(build))
-
-    def test_a_failed_download_leaves_the_previous_skills_intact(self):
-        import urllib.error
-        with patch.object(self.fp, "_download", return_value=self._bundle(b"v1")):
-            self.fp.fetch("o/r", "a"*40, "tok", self.data)
-        target = self.data / "skills/kit/job/SKILL.md"
-        good = target.read_bytes()
-        err = urllib.error.HTTPError("u", 404, "Not Found", {}, None)
-        with patch.object(self.fp, "_download", side_effect=err):
-            ok, msg = self.fp.fetch("o/r", "a"*40, "tok", self.data)
-        self.assertFalse(ok)
-        self.assertIn("404", msg)
-        self.assertEqual(target.read_bytes(), good)
-
-    def test_expired_token_says_so(self):
-        import urllib.error
-        err = urllib.error.HTTPError("u", 401, "Bad credentials", {}, None)
-        with patch.object(self.fp, "_download", side_effect=err):
-            ok, msg = self.fp.fetch("o/r", "a"*40, "expired", self.data)
-        self.assertFalse(ok)
-        self.assertIn("만료", msg)
-
-    def test_network_error_never_raises(self):
-        with patch.object(self.fp, "_download", side_effect=TimeoutError("no route")):
-            ok, msg = self.fp.fetch("o/r", "a"*40, "tok", self.data)
-        self.assertFalse(ok)
-        self.assertIn("실패", msg)
-
-
 class Doctor(unittest.TestCase):
     """The report is what a student sends to their instructor, so redaction is the point."""
 
@@ -644,7 +541,7 @@ class Entrypoints(unittest.TestCase):
 
     def test_every_module_imports_cleanly(self):
         for name in ("env_store", "validators", "packs", "owner", "discord_ui",
-                     "doctor", "backup", "updates", "fetch_packs"):
+                     "doctor", "backup", "updates"):
             spec = importlib.util.spec_from_file_location(f"m_{name}", HERE / f"{name}.py")
             m = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(m)

@@ -124,7 +124,7 @@
   },
   {
     "id": "google",
-    "title": "🔗 구글 연동 (Gmail·캘린더)",
+    "title": "🔗 Composio 앱 연동 (MCP · Gmail·캘린더·Notion 등)",
     "features": [
       "google"
     ],
