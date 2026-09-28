@@ -171,12 +171,6 @@ class Packs(unittest.TestCase):
         with self.assertRaises(ValueError):
             packs.packs_for_kits(["nope"], packs.load_packs(v.VALIDATORS), packs.load_kits())
 
-    def test_alternative_sub_models_may_share_a_group_without_colliding(self):
-        subs = [p for p in packs.load_packs(v.VALIDATORS) if p.required_one_of == "sub"]
-        self.assertGreaterEqual(len(subs), 2)
-        envs = [k.env for p in subs for k in p.keys]
-        self.assertEqual(len(envs), len(set(envs)))
-
     def test_missing_keys_reports_only_required_packs(self):
         ps = packs.load_packs(v.VALIDATORS)
         self.assertTrue(packs.missing_keys(ps, {}))
@@ -196,7 +190,6 @@ class Packs(unittest.TestCase):
     def test_load_packs_rejects_a_duplicate_env_claim(self):
         bad = json.loads((HERE / "packs.json").read_text())
         bad[1]["keys"][0]["env"] = "GEMINI_API_KEY"
-        bad[1].pop("required_one_of", None)
         with self._load_bad(bad), self.assertRaises(ValueError):
             packs.load_packs(v.VALIDATORS)
 

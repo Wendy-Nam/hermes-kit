@@ -20,7 +20,6 @@
     "id": "sub-opencode-go",
     "title": "⚡ 보조 모델: OpenCode Go",
     "features": [],
-    "required_one_of": "sub",
     "keys": [
       {
         "env": "OPENCODE_GO_API_KEY",
@@ -39,7 +38,6 @@
     "id": "sub-commandcode",
     "title": "⚡ 보조 모델: Command Code GOAT",
     "features": [],
-    "required_one_of": "sub",
     "keys": [
       {
         "env": "COMMANDCODE_API_KEY",
