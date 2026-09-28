@@ -125,9 +125,19 @@ def connect_mode(data_dir, password, chat_text, strong_text=''):
                 # outage must never leave the bot unable to answer.
                 changes.update({'model.provider': PROVIDER_NAME, 'model.default': chat_combo,
                                 'model.base_url': None, 'model.api_mode': None, 'fallback_providers': fallback})
-            set_env(data / '.env', {KEY_ENV: inference})
             from config_store import write
-            write(data, changes)
+            from env_store import drop_env
+            old_key = get_env(data / '.env').get(KEY_ENV)
+            set_env(data / '.env', {KEY_ENV: inference})
+            try:
+                write(data, changes)
+            except Exception:
+                # The config still points at the old combos: give it back the key they work with.
+                if old_key:
+                    set_env(data / '.env', {KEY_ENV: old_key})
+                else:
+                    drop_env(data / '.env', [KEY_ENV])
+                raise
             previous = state.get('mode') or {}
             delegation = config.get('delegation') or {}
             state['mode'] = {'chat': [s['id_'] for s in chat_steps], 'strong': [s['id_'] for s in strong_steps],

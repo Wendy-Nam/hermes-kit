@@ -51,8 +51,8 @@ services:
         if [ "$$(m MemTotal)" -ge 7340032 ]; then echo "[swap] 메모리 충분, 만들지 않음"; exit 0; fi
         if [ "$$(df -Pk /host | awk 'NR==2{print $$4}')" -lt 6291456 ]; then echo "[swap] 디스크 여유 부족, 만들지 않음"; exit 0; fi
         f=/host/swapfile
-        [ -e "$$f" ] || { run fallocate -l 2G "$$f" || run dd if=/dev/zero of="$$f" bs=1M count=2048; run chmod 600 "$$f"; run mkswap "$$f"; }
-        run swapon "$$f" || { echo "[swap] 켜지 못함 (VPS가 허용하지 않을 수 있음)"; exit 0; }
+        new=; [ -e "$$f" ] || { new=1; run fallocate -l 2G "$$f" || run dd if=/dev/zero of="$$f" bs=1M count=2048; run chmod 600 "$$f"; run mkswap "$$f"; }
+        run swapon "$$f" || { [ -n "$$new" ] && run rm -f "$$f"; echo "[swap] 켜지 못함 (VPS가 허용하지 않을 수 있음), 파일은 남기지 않음"; exit 0; }
         grep -q '^/swapfile ' /host/etc/fstab || run sh -c "echo '/swapfile none swap sw 0 0' >> /host/etc/fstab"
         echo "[swap] 2GB 스왑을 켰습니다"
 
