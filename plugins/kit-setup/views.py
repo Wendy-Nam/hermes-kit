@@ -307,12 +307,14 @@ class ActionButton(discord.ui.Button):
         if a=='import':return await interaction.response.send_modal(TextActionModal(a,'대화 ZIP 가져오기','personal/Inbox/import의 ZIP 파일명',max_length=180))
         if a=='proactive':return await interaction.response.send_modal(ProactiveModal(self.home.channel_id))
         if a=='omni':
+            from omniroute_mode import tunnel_maybe_open
+            warn='\n⚠️ 전에 연 대시보드 링크가 닫히지 않았을 수 있습니다. **대시보드 링크 닫기**를 눌러 주세요.' if tunnel_maybe_open(ENV_FILE.parent) else ''
             return await interaction.response.send_message(
-                '**OmniRoute 연결 방법 두 가지**\n'
-                '· **API 키 하나로 연결**: 키 하나로 보조(위임) 모델만 OmniRoute에 둡니다.\n'
-                '· **OmniRoute 모드**: OmniRoute 대시보드에서 연결한 계정(구독·무료·API 키)의 모델로 대화·위임·역할 프로필을 돌립니다. '
-                '대시보드 모델 목록에 보이는 `접두사/모델` ID를 대화용·강한 작업용으로 각각 최대 5개 입력하면, '
-                '하나씩 도구 호출 시험을 한 뒤 통과한 것만 씁니다. OmniRoute가 멈추면 지금의 직접 연결 모델로 자동 전환됩니다.',
+                '**OmniRoute 쓰는 순서**\n'
+                '1. **대시보드 열기 (15분)** → 받은 링크에서 비밀번호로 로그인하고, 쓰고 싶은 계정(구독·무료·API 키)을 연결합니다.\n'
+                '2. **모델 고르기** → 연결한 계정의 모델이 목록으로 나옵니다. 대화용·강한 작업용을 고르면, 하나씩 도구 호출 시험을 한 뒤 통과한 것만 씁니다.\n'
+                '3. 고급 설정의 **적용하기**로 재시작합니다. OmniRoute가 멈추면 지금의 직접 연결 모델로 자동 전환됩니다.\n'
+                '목록에 없는 모델은 **ID 직접 입력**, 키 하나로 보조 모델만 연결하려면 **API 키 하나로 연결**.'+warn,
                 view=OmniChoiceView(interaction.user.id),ephemeral=True)
         if a=='vision':return await interaction.response.send_modal(OmniVisionModal())
         if a=='disconnect':
@@ -615,15 +617,23 @@ class OmniChoiceView(OwnedView):
     def __init__(self, owner_id):
         super().__init__(owner_id, timeout=900)
 
-    @discord.ui.button(label='API 키 하나로 연결')
+    @discord.ui.button(label='1. 대시보드 열기 (15분)', style=discord.ButtonStyle.primary, row=0)
+    async def dashboard(self, interaction, button):
+        await interaction.response.send_modal(OmniPasswordModal('dashboard', self.owner_id))
+
+    @discord.ui.button(label='2. 모델 고르기', style=discord.ButtonStyle.primary, row=0)
+    async def pick(self, interaction, button):
+        await interaction.response.send_modal(OmniPasswordModal('pick', self.owner_id))
+
+    @discord.ui.button(label='ID 직접 입력', row=1)
+    async def typed(self, interaction, button):
+        await interaction.response.send_modal(OmniModeModal())
+
+    @discord.ui.button(label='API 키 하나로 연결', row=1)
     async def single(self, interaction, button):
         await interaction.response.send_modal(OmniModal())
 
-    @discord.ui.button(label='OmniRoute 모드', style=discord.ButtonStyle.primary)
-    async def mode(self, interaction, button):
-        await interaction.response.send_modal(OmniModeModal())
-
-    @discord.ui.button(label='모드 끄기 (직접 연결로)')
+    @discord.ui.button(label='모드 끄기 (직접 연결로)', row=1)
     async def leave(self, interaction, button):
         from omniroute_mode import leave_mode
         await interaction.response.defer(ephemeral=True, thinking=True)
@@ -632,6 +642,82 @@ class OmniChoiceView(OwnedView):
         except Exception as exc:
             msg = f'되돌리지 못했습니다 ({type(exc).__name__}). 기존 설정은 그대로입니다.'
         await interaction.followup.send(msg, ephemeral=True)
+
+    @discord.ui.button(label='대시보드 링크 닫기', row=2)
+    async def close(self, interaction, button):
+        await interaction.response.send_modal(OmniPasswordModal('close', self.owner_id))
+
+
+class OmniPasswordModal(discord.ui.Modal):
+    """The dashboard password lives only in this process, for the few minutes the task needs it."""
+
+    def __init__(self, purpose, owner_id):
+        super().__init__(title='OmniRoute 대시보드 비밀번호')
+        self.purpose, self.owner_id = purpose, owner_id
+        self.password = discord.ui.TextInput(label='KIT_OMNIROUTE_PASSWORD로 정한 비밀번호', max_length=200)
+        self.add_item(self.password)
+
+    async def on_submit(self, interaction):
+        import omniroute_mode as om
+        pw, root = str(self.password), ENV_FILE.parent
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        if self.purpose == 'close':
+            ok, msg = await asyncio.to_thread(om.close_dashboard, root, pw)
+            return await interaction.followup.send(msg, ephemeral=True)
+        if self.purpose == 'pick':
+            ok, rows = await asyncio.to_thread(om.list_models, root, pw)
+            if not ok:
+                return await interaction.followup.send(CROSS + ' ' + rows, ephemeral=True)
+            return await interaction.followup.send(
+                '대화용 모델(필수)과 강한 작업용 모델(선택, 비우면 대화용과 같게)을 고른 뒤 **연결**을 누르세요. 목록 순서가 우선순위입니다.',
+                view=ModelPickView(self.owner_id, pw, rows), ephemeral=True)
+        ok, url = await asyncio.to_thread(om.open_dashboard, root, pw)
+        if not ok:
+            return await interaction.followup.send(CROSS + ' ' + url, ephemeral=True)
+        await interaction.followup.send(
+            f'대시보드 링크 (본인만 보입니다, {om.TUNNEL_MINUTES}분 뒤 자동으로 닫힘):\n{url}\n'
+            '같은 비밀번호로 로그인해 계정을 연결한 뒤, 다시 /setup → 고급 설정 → OmniRoute 연결 → **2. 모델 고르기**를 누르세요. '
+            '링크를 다른 사람에게 보내지 마세요.', ephemeral=True)
+
+        async def close_later():
+            await asyncio.sleep(om.TUNNEL_MINUTES * 60)
+            ok, msg = await asyncio.to_thread(om.close_dashboard, root, pw)
+            try:
+                await interaction.followup.send(('대시보드 링크를 닫았습니다.' if ok else msg), ephemeral=True)
+            except Exception:
+                pass  # the interaction token expires after 15 minutes; closing already happened
+        asyncio.get_event_loop().create_task(close_later())
+
+
+class ModelPickView(OwnedView):
+    def __init__(self, owner_id, password, rows):
+        super().__init__(owner_id, timeout=600)
+        self.password, self.order = password, [value for value, _ in rows]
+        options = [discord.SelectOption(label=label, value=value) for value, label in rows]
+        self.chat_select = discord.ui.Select(placeholder='대화용 모델 (1~5개)', min_values=1,
+                                             max_values=min(5, len(options)), options=options, row=0)
+        self.strong_select = discord.ui.Select(placeholder='강한 작업용 모델 (선택, 0~5개)', min_values=0,
+                                               max_values=min(5, len(options)), options=list(options), row=1)
+        self.chat_select.callback = self._chosen
+        self.strong_select.callback = self._chosen
+        self.add_item(self.chat_select); self.add_item(self.strong_select)
+
+    async def _chosen(self, interaction):
+        await interaction.response.defer()
+
+    @discord.ui.button(label='연결', style=discord.ButtonStyle.success, row=2)
+    async def connect(self, interaction, button):
+        from omniroute_mode import connect_mode
+        # Priority is the list order, whatever order the student clicked in.
+        chat, strong = (sorted(sel.values, key=self.order.index) for sel in (self.chat_select, self.strong_select))
+        if not chat:
+            return await interaction.response.send_message('대화용 모델을 하나 이상 고르세요.', ephemeral=True)
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        ok, msg = await asyncio.to_thread(connect_mode, ENV_FILE.parent, self.password, ','.join(chat), ','.join(strong))
+        await interaction.followup.send((TICK if ok else CROSS) + ' ' + msg[:1800], ephemeral=True)
+        if ok:
+            self.password = ''
+            self.stop()
 
 
 class OmniModeModal(discord.ui.Modal):

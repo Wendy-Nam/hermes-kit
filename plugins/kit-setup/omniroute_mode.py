@@ -188,3 +188,106 @@ def leave_mode(data_dir):
     from omh_enhancements import sync_base_route
     sync_base_route(data, route['provider'], route['model'])
     return True, f"대화를 {first['model']} 직접 연결로 되돌렸습니다. 적용하기(재시작) 후 반영됩니다."
+
+
+# ── Picking models from the dashboard connections ─────────────────────────────────────────
+_NOT_CHAT = re.compile(r'embed|tts|whisper|transcri|rerank|image|imagen|dall-e|moderation|speech|audio', re.I)
+
+
+def _chat_models(entries):
+    for m in entries:
+        mid = str(m.get('id') or '')
+        endpoints = m.get('supportedEndpoints')
+        if (not mid or mid == 'auto' or (m.get('apiFormat') not in (None, 'chat'))
+                or (endpoints and 'chat' not in endpoints) or _NOT_CHAT.search(mid + ' ' + str(m.get('name') or ''))):
+            continue
+        yield mid, str(m.get('name') or mid)
+
+
+def list_models(data_dir, password, limit=25):
+    """(ok, [(value 'prefix/model', label)] or message): chat models of the student's own connections,
+    interleaved across connections so one large catalog cannot crowd out the others."""
+    try:
+        client = Client()
+        client.request('POST', '/api/auth/login', {'password': password})
+        per = []
+        for prefix, c in _connections(client).items():
+            result, _ = client.request('GET', '/api/providers/' + _identifier(c.get('id')) + '/models')
+            rows = [(f'{prefix}/{mid}', f'{prefix} · {name}') for mid, name in _chat_models(result.get('models') or [])]
+            if c.get('defaultModel'):
+                rows.insert(0, (f"{prefix}/{c['defaultModel']}", f"{prefix} · {c['defaultModel']} (기본)"))
+            per.append([r for r in rows if MODEL_ID.fullmatch(r[0]) and len(r[0]) <= 100])
+        picked, seen = [], set()
+        while len(picked) < limit and any(per):
+            for rows in per:
+                while rows and rows[0][0] in seen:
+                    rows.pop(0)
+                if rows and len(picked) < limit:
+                    value, label = rows.pop(0)
+                    seen.add(value)
+                    picked.append((value, label[:100]))
+        if not picked:
+            return False, '대시보드에 연결된 계정이 없거나 대화용 모델을 찾지 못했습니다. 대시보드에서 계정을 먼저 연결해 주세요.'
+        return True, picked
+    except SetupError as exc:
+        return False, str(exc)
+    except Exception as exc:
+        return False, f'모델 목록을 읽지 못했습니다 ({type(exc).__name__}).'
+
+
+# ── Opening the dashboard without SSH ───────────────────────────────────────────────────
+# OmniRoute's own Cloudflare Quick Tunnel: a random https://*.trycloudflare.com address that the
+# dashboard password still guards. The kit opens it for a short window and closes it again.
+TUNNEL_MARK = '.kit-omniroute-tunnel'
+TUNNEL_MINUTES = 15
+
+
+def open_dashboard(data_dir, password, *, wait=90):
+    import time
+    try:
+        client = Client()
+        client.request('POST', '/api/auth/login', {'password': password})
+        client.request('POST', '/api/tunnels/cloudflared', {'action': 'enable'})
+        deadline = time.time() + wait
+        while time.time() < deadline:
+            status, _ = client.request('GET', '/api/tunnels/cloudflared')
+            url = status.get('publicUrl')
+            if status.get('running') and isinstance(url, str) and url.startswith('https://'):
+                (Path(data_dir) / TUNNEL_MARK).write_text(str(int(time.time()) + TUNNEL_MINUTES * 60))
+                # A fresh trycloudflare name takes a few seconds to resolve; hand it over once it does.
+                import socket
+                host = url.split('/')[2]
+                while time.time() < deadline + 30:
+                    try:
+                        socket.getaddrinfo(host, 443)
+                        break
+                    except OSError:
+                        time.sleep(2)
+                return True, url
+            if status.get('lastError'):
+                break
+            time.sleep(3)
+        client.request('POST', '/api/tunnels/cloudflared', {'action': 'disable'})
+        return False, '대시보드 링크를 만들지 못했습니다. 잠시 후 다시 시도해 주세요.'
+    except SetupError as exc:
+        return False, str(exc)
+    except Exception as exc:
+        return False, f'대시보드 링크를 만들지 못했습니다 ({type(exc).__name__}).'
+
+
+def close_dashboard(data_dir, password):
+    try:
+        client = Client()
+        client.request('POST', '/api/auth/login', {'password': password})
+        client.request('POST', '/api/tunnels/cloudflared', {'action': 'disable'})
+        (Path(data_dir) / TUNNEL_MARK).unlink(missing_ok=True)
+        return True, '대시보드 링크를 닫았습니다.'
+    except SetupError as exc:
+        return False, str(exc) + ' · 링크가 열려 있을 수 있습니다. 대시보드 설정 → Tunnels에서 끌 수 있습니다.'
+    except Exception as exc:
+        return False, f'링크를 닫지 못했습니다 ({type(exc).__name__}).'
+
+
+def tunnel_maybe_open(data_dir):
+    """True when a link the kit opened was never confirmed closed (e.g. the bot restarted mid-window)."""
+    return (Path(data_dir) / TUNNEL_MARK).exists()
