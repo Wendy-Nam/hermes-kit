@@ -16,7 +16,7 @@
 |---|---|
 | VPS | Docker를 쓸 수 있는 VPS, RAM 4GB 이상, 디스크 여유 6GB 이상. 7GB 미만이면 Compose가 스왑 2GB를 자동으로 만들고 역할 작업을 하나씩 돌립니다. OmniRoute도 4GB에서 쓸 수 있습니다(2GB 상한) |
 | Discord | 본인 계정과 **본인이 소유한 서버** 하나 (없으면 새로 만들기) |
-| 대화 모델 | ChatGPT 구독(로그인으로 연결) 또는 OpenCode Go·Command Code API 키 중 하나 |
+| 대화 모델 | ChatGPT 구독(로그인으로 연결) 또는 ChatGPT 로그인이 가능한 제공자. 비용 최소 선택지는 [대화 모델 가이드](student-model-guide.md) |
 | Gemini 키 | https://aistudio.google.com/apikey 에서 무료 키 발급 (영상 요약용, `AIza`로 시작) |
 | 선택 | 음성(Groq), 차단 우회(Webshare), SNS 수집(Apify), Composio 앱 연동 키 — 당일 없어도 됨 |
 

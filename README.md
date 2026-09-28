@@ -33,6 +33,8 @@
 
 키트 상태는 `/setup → 고급 설정`의 **선택 기능 안내**에서 한눈에 볼 수 있습니다(기능 설명 + 현재 켜짐 여부). 키의 *값*은 절대 표시되지 않습니다.
 
+비용을 최소화해야 한다면 [대화 모델 선택 가이드](docs/student-model-guide.md)를 보세요.
+
 ### 막혔을 때
 
 | 상황 | 할 일 |
@@ -54,7 +56,7 @@ Compose 환경변수는 `DISCORD_BOT_TOKEN` 하나입니다. 나머지 키는 �
 | `/setup` 항목 | 키 | 필요 여부 |
 |---|---|---|
 | 기본 (영상 요약) | `GEMINI_API_KEY` (무료 키 가능) | 필수 |
-| 대화 모델 | ChatGPT 구독은 **ChatGPT 로그인**, API 제공자는 아래 해당 키 | 필수 (하나) |
+| 대화 모델 | ChatGPT 구독은 **ChatGPT 로그인**, API 제공자는 아래 해당 키 | 필수 (하나). 비용 최소 선택지는 [대화 모델 가이드](student-model-guide.md) |
 | 보조 모델: OpenCode Go | `OPENCODE_GO_API_KEY` | 선택. 위임을 따로 돌릴 때만 |
 | 보조 모델: Command Code | `COMMANDCODE_API_KEY` | 선택. 위임을 따로 돌릴 때만 |
 | 음성 비서 (한국어) | `GROQ_API_KEY` | 선택 |
