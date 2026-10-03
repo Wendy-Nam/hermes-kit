@@ -43,6 +43,10 @@ USER node
 USER root
 COPY patch-ui.cjs /tmp/patch-ui.cjs
 RUN node /tmp/patch-ui.cjs && rm /tmp/patch-ui.cjs
-LABEL io.hermes.ui-health-patch="active-eligible-key-alerts-v1"
-LABEL io.hermes.patches+="commandcode-anthropic,ui-health"
+# Docker has no `LABEL +=`: an unknown key is taken literally, so `io.hermes.patches+=`
+# would create a label *named* "io.hermes.patches+" and querying io.hermes.patches would
+# return nothing. Declare the full value in one instruction instead. The base image
+# carries no io.hermes.* labels, so this is the complete list.
+LABEL io.hermes.ui-health-patch="active-eligible-key-alerts-v1" \
+      io.hermes.patches="rtk-envelope,context-reconcile,compression-worker-deps,commandcode-anthropic,ui-health"
 USER node
