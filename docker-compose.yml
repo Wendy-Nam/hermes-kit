@@ -12,7 +12,7 @@ services:
         condition: service_completed_successfully
       syncthing-init:
         condition: service_completed_successfully
-    image: ghcr.io/wendy-nam/hermes-kit:0.21.2-k17
+    image: ghcr.io/wendy-nam/hermes-kit:0.21.2-k18
     restart: unless-stopped
     volumes:
       - hermes-data:/opt/data
