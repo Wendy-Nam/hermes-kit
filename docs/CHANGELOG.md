@@ -32,6 +32,18 @@
   [advanced/omniroute-patches](advanced/omniroute-patches)의 선택형 오버레이로
   제공합니다. `KIT_OMNIROUTE_IMAGE`로 지정해 opting in 합니다.
 
+- **차단 우회(Webshare)는 API 키 하나만 넣으면 됩니다.** 예전엔 프록시 Username과
+  Password를 따로 물어봤는데, 학생들이 Webshare 대시보드 **로그인 정보**를 그 칸에
+  붙여넣는 일이 반복돼 두 칸 모두 "로그인 정보 아님"을 경고해야 했습니다. API 키 하나로
+  프록시 인증정보를 조회해 자동으로 채웁니다. 로그인 이메일이 프록시 인증정보가 될 수
+  없으므로, 잘못 넣을 여지 자체가 없어집니다. 키가 맞아도 프록시가 죽어 있으면
+  저장하지 않습니다(원티드 접속으로 확인).
+- **OpenCode Go 발급처 주소가 실제와 달랐습니다.** `opencode.ai/go`는 키 발급 페이지가
+  아니라 안내 문서였습니다. `/zen/go`가 실제 Go 플랜 경로입니다(모델 카탈로그도 다릅니다).
+- **README 키 목록을 코드와 대조해 고쳤습니다.** Webshare 2개 → API 키 1개,
+  대화 모델이 "아래 해당 키"로 되어 있던 부분을 실제 지원 제공자 4개로 명시.
+- 상세: [저장소 통합 문서](2026-10-03-repo-consolidation.md)
+
 ## 0.21.2-k16 — 막히는 두 지점을 없앱니다
 
 - **봇 초대 링크 복구.** 링크가 첫 부팅 로그의 `[kit] 봇 초대:` 한 줄에만 있던 것을 데이터 볼륨(`/opt/data/.kit-invite-url`, 0600)에 저장하고, 서버 소유자가 **`/invite`** 로 다시 봅니다(ephemeral). 아직 초대하지 못한 경우에는 Developer Portal의 URL Generator 절차를 대신 알려 줍니다(클라이언트 ID를 지어내지 않습니다). 컨테이너에서 `python /opt/data/plugins/kit-setup/owner.py` 로도 같은 링크가 나오고, `/doctor` 에 **봇 초대 링크** 항목이 생겼습니다.

@@ -80,9 +80,11 @@ class FeatureGuide(unittest.TestCase):
         self.assertNotIn("ck_secret_value", text)
 
     def test_a_half_filled_pack_is_not_reported_as_ready(self):
+        # Half a proxy pack is one key now, so "half filled" is a derived credential
+        # with no API key behind it: the guide must not claim the feature is on.
         env_store.set_env(self.root / ".env", {"WEBSHARE_PROXY_USERNAME": "u"})
         text = onboarding.feature_guide(self.root)
-        self.assertIn("WEBSHARE_PROXY_USERNAME, WEBSHARE_PROXY_PASSWORD", text)
+        self.assertIn("WEBSHARE_API_KEY", text)
         self.assertNotIn("현재: 설정됨", [l for l in text.splitlines() if "차단 우회" in l][0])
 
     def test_an_over_budget_guide_drops_whole_lines_and_keeps_the_tail(self):

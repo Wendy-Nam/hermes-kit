@@ -351,7 +351,7 @@ class ApplyFlow(unittest.TestCase):
     def test_verify_reports_each_key_and_never_leaks_the_value(self):
         with patch.dict(v.VALIDATORS, {"gemini": lambda k: (False, "키가 거부됐습니다 (HTTP 401)")}):
             out = asyncio.run(self.du._verify([(self.spec, "SECRET")]))
-        self.assertEqual(out, [("GEMINI_API_KEY", False, "키가 거부됐습니다 (HTTP 401)")])
+        self.assertEqual(out, [("GEMINI_API_KEY", False, "키가 거부됐습니다 (HTTP 401)", None)])
         self.assertNotIn("SECRET", repr(out))
 
     def test_verify_survives_a_validator_that_raises(self):

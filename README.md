@@ -86,11 +86,11 @@ Compose 환경변수는 `DISCORD_BOT_TOKEN` 하나입니다. 나머지 키는 �
 | `/setup` 항목 | 키 | 필요 여부 |
 |---|---|---|
 | 기본 (영상 요약) | `GEMINI_API_KEY` (무료 키 가능) | 필수 |
-| 대화 모델 | ChatGPT 구독은 **ChatGPT 로그인**, API 제공자는 아래 해당 키 | 필수 (하나). 비용 최소 선택지는 [대화 모델 가이드](student-model-guide.md) |
+| 대화 모델 | **ChatGPT 구독**은 ChatGPT 로그인(키 없음). API 제공자는 `GEMINI_API_KEY`, `OPENCODE_GO_API_KEY`, `COMMANDCODE_API_KEY` 중 하나 | 필수 (하나). 비용 최소 선택지는 [대화 모델 가이드](student-model-guide.md) |
 | 보조 모델: OpenCode Go | `OPENCODE_GO_API_KEY` | 선택. 위임을 따로 돌릴 때만 |
 | 보조 모델: Command Code | `COMMANDCODE_API_KEY` | 선택. 위임을 따로 돌릴 때만 |
 | 음성 비서 (한국어) | `GROQ_API_KEY` | 선택 |
-| 차단 우회 (원티드 등) | `WEBSHARE_PROXY_USERNAME`, `WEBSHARE_PROXY_PASSWORD` | 선택 |
+| 차단 우회 (원티드 등) | `WEBSHARE_API_KEY` | 선택. 키 하나만 넣으면 프록시 인증정보는 자동으로 채워집니다 |
 | SNS·플랫폼 수집 | `APIFY_TOKEN` | 선택 |
 | Composio 앱 연동 (MCP) | `COMPOSIO_CONSUMER_KEY` (`ck_`로 시작) | 선택. 앱 권한 허용은 Composio에서 본인이 |
 | OmniRoute 연결 | 대시보드 비밀번호·제공자 키 (**OmniRoute 연결** 메뉴) | 선택. 심화 Compose 배포 후 |

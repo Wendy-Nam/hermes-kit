@@ -106,22 +106,40 @@ async def _verify(entries) -> list[tuple[str, bool, str]]:
     if proxy_entries:
         ok, msg = await asyncio.to_thread(v.webshare_credentials,
             proxy_entries.get("WEBSHARE_PROXY_USERNAME", ""), proxy_entries.get("WEBSHARE_PROXY_PASSWORD", ""))
-        return [(name, ok, msg) for name in sorted(proxy_names)]
+        return [(name, ok, msg, None) for name in sorted(proxy_names)]
+    api = [val for s, val in entries if s.env == "WEBSHARE_API_KEY"]
+    if api:
+        # One field in, two env vars out. webshare_from_api_key returns the credentials
+        # rather than writing them, so the caller decides what is persisted. The rows it
+        # gets back are (name, ok, msg, value): the fourth element is None for every key
+        # that is stored as typed, and holds a derived value only for this case.
+        ok, msg, derived = await asyncio.to_thread(v.webshare_from_api_key, api[0])
+        rows = [("WEBSHARE_API_KEY", ok, msg, api[0])]
+        rows += [(k, ok, "프록시 인증정보를 자동으로 채웠습니다", val) for k, val in sorted(derived.items())]
+        return rows
     results = await asyncio.gather(*(one(s, val) for s, val in entries), return_exceptions=True)
     out = []
     for r in results:
         if isinstance(r, Exception):
-            out.append(("?", False, f"검증 중 오류: {type(r).__name__}"))
+            out.append(("?", False, f"검증 중 오류: {type(r).__name__}", None))
         else:
             env_name, (ok, msg) = r
-            out.append((env_name, ok, msg))
+            out.append((env_name, ok, msg, None))
     return out
 
 
-def _apply(entries, config) -> list[str]:
-    """Write a verified pack. Returns human-readable status lines (never the values)."""
+def _apply(entries, config, derived=None) -> list[str]:
+    """Write a verified pack. Returns human-readable status lines (never the values).
+
+    `derived` holds extra env values the validator produced from a key the student
+    typed (Webshare: proxy Username and Password from one API key). They are written
+    alongside the key so the feature actually works, and only after validation said
+    the proxy answered.
+    """
     lines = [f"{TICK} {spec.label} 저장" for spec, _ in entries]
-    lines += _write({spec.env: val for spec, val in entries}, config)
+    values = {spec.env: val for spec, val in entries}
+    values.update(derived or {})
+    lines += _write(values, config)
     return lines
 
 

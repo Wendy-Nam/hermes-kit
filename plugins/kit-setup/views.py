@@ -65,19 +65,22 @@ class PackModal(discord.ui.Modal):
             # Nothing is written. A half-configured pack is the state nobody can debug later.
             bad = {name for name, _, _ in failed}
             body = ("확인에 실패한 키 — **아무것도 저장되지 않았습니다.**\n"
-                    + "\n".join(f"{CROSS} {name}: {msg}" for name, _, msg in failed))
+                    + "\n".join(f"{CROSS} {name}: {msg}" for name, _, msg, _ in failed))
             for spec, _ in entries:
                 if spec.env in bad and spec.url:
                     body += f"\n발급: {spec.url}"
             await interaction.followup.send(body[:1900], ephemeral=True)
             return
+        # Values the validator derived from the key (Webshare proxy credentials), and
+        # only the ones that passed: a failed lookup must not overwrite what was there.
+        derived = {name: value for name, ok, _, value in results if value is not None and ok}
         try:
-            lines = await asyncio.to_thread(_apply, entries, self.pack.config)
+            lines = await asyncio.to_thread(_apply, entries, self.pack.config, derived)
         except Exception as e:
             log.exception("pack apply failed")
             await interaction.followup.send(f"저장에 실패했습니다: {type(e).__name__}", ephemeral=True)
             return
-        detail = "\n".join(f"· {msg}" for _, ok, msg in results if ok)
+        detail = "\n".join(f"· {msg}" for _, ok, msg, _ in results if ok)
         await interaction.followup.send("\n".join(lines) + "\n" + detail, ephemeral=True)
         self.home.refresh()
 
@@ -621,10 +624,11 @@ class ApiModelModal(discord.ui.Modal):
         await interaction.response.defer(ephemeral=True, thinking=True)
         entries = [(self.pack.keys[0], str(self.key).strip())]
         results = await _verify(entries)
-        bad = [msg for _, ok, msg in results if not ok]
+        bad = [msg for _, ok, msg, _ in results if not ok]
         if bad:
             return await interaction.followup.send(f'{CROSS} 키 확인 실패 — 저장하지 않았습니다: ' + bad[0], ephemeral=True)
-        lines = await asyncio.to_thread(_apply, entries, self.pack.config)
+        derived = {name: value for name, ok, _, value in results if value is not None and ok}
+        lines = await asyncio.to_thread(_apply, entries, self.pack.config, derived)
         ok, msg = await asyncio.to_thread(select_model, ENV_FILE.parent, self.provider, str(self.model).strip())
         report = [l for l in (lines or []) if l]
         await interaction.followup.send('\n'.join(report + [(TICK if ok else CROSS) + ' ' + msg]), ephemeral=True)

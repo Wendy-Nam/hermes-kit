@@ -84,12 +84,33 @@ class SetupFlow(unittest.TestCase):
         with patch.object(bootstrap.subprocess,'run',side_effect=install) as runner:
             second=bootstrap.retry_installation(self.root,seed_dir=self.root/'seed')
         self.assertEqual(second[-1]['status'],'installed');self.assertEqual(runner.call_count,1)
-    def test_proxy_is_verified_as_one_credential_pair(self):
+    def test_proxy_is_verified_from_one_api_key(self):
+        # One field, not a Username/Password pair: students pasted their dashboard
+        # login into the old form often enough that both hints had to warn about it.
         import discord_ui,validators,packs
         proxy=next(p for p in packs.load_packs() if p.id=='proxy')
-        with patch.object(validators,'webshare_credentials',return_value=(True,'connected')) as verify:
-            rows=asyncio.run(discord_ui._verify(list(zip(proxy.keys,['username','password']))))
-        verify.assert_called_once_with('username','password');self.assertTrue(all(r[1] for r in rows))
+        self.assertEqual([k.env for k in proxy.keys],['WEBSHARE_API_KEY'])
+        with patch.object(validators,'webshare_from_api_key',
+            return_value=(True,'connected',{'WEBSHARE_PROXY_USERNAME':'u-rotate','WEBSHARE_PROXY_PASSWORD':'p'})):
+            rows=asyncio.run(discord_ui._verify(list(zip(proxy.keys,['tok']))))
+        self.assertTrue(all(r[1] for r in rows))
+        # Row four carries what the caller should persist: the typed key plus the two
+        # derived credentials. The message stays a status line and leaks neither.
+        persisted={name:value for name,ok,_,value in rows if value is not None}
+        self.assertEqual(persisted,{'WEBSHARE_API_KEY':'tok','WEBSHARE_PROXY_USERNAME':'u-rotate',
+                                    'WEBSHARE_PROXY_PASSWORD':'p'})
+        self.assertNotIn('u-rotate',[msg for _,_,msg,_ in rows][0])
+
+    def test_a_failed_proxy_lookup_writes_nothing(self):
+        import discord_ui,validators,packs,env_store
+        proxy=next(p for p in packs.load_packs() if p.id=='proxy')
+        with patch.object(validators,'webshare_from_api_key',return_value=(False,'키가 거부됐습니다',{})):
+            rows=asyncio.run(discord_ui._verify(list(zip(proxy.keys,['bad']))))
+        self.assertTrue(all(not r[1] for r in rows))
+        # The typed key is still reported back, so the caller can store it; the two
+        # derived credentials are absent, and a failed pack writes nothing at all.
+        self.assertEqual([name for name,ok,_,value in rows if value is not None],['WEBSHARE_API_KEY'])
+        self.assertNotIn('WEBSHARE_PROXY_PASSWORD',env_store.get_env(self.root/'.env'))
     def test_selected_kit_failed_upgrade_is_not_ready(self):
         folder=self.root/'skills/kit/job';folder.mkdir(parents=True);(folder/'SKILL.md').write_text('old')
         (self.root/'.kit-components.json').write_text(json.dumps({'schema_version':'kit-components/v1','selected_kits':['job'],'components':{},'last_results':{'job':{'status':'failed'}}}))

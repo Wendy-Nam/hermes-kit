@@ -34,6 +34,10 @@ class Pack:
     env: dict = field(default_factory=dict)
     required: bool = False
     features: tuple[str, ...] = ()
+    # env names this pack fills in from a key the student typed, rather than asking
+    # for them. Webshare is the case: one API key returns the proxy Username and
+    # Password, and asking for both meant students pasted their dashboard login.
+    derived: dict = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -86,10 +90,28 @@ def load_packs(validators: dict | None = None) -> list[Pack]:
             if k.env in seen_env and seen_env[k.env] != pid:
                 _fail(f"{k.env} is claimed by both {seen_env[k.env]!r} and {pid!r}")
             seen_env[k.env] = pid
+        # A derived target must not also be a field on the modal: the student would be
+        # asked for a value the kit is about to overwrite, and the two could disagree.
+        derived = p.get("derived") or {}
+        if not isinstance(derived, dict):
+            _fail(f"pack {pid} has a non-object 'derived'")
+        for source, targets in derived.items():
+            if source not in {k.env for k in keys}:
+                _fail(f"pack {pid} derives from unknown key {source!r}")
+            if not isinstance(targets, list) or not targets:
+                _fail(f"pack {pid} derived[{source!r}] must be a non-empty list")
+            for t in targets:
+                if not _ENV_NAME.match(t):
+                    _fail(f"pack {pid} derived target must be UPPER_SNAKE: {t!r}")
+                if t in {k.env for k in keys}:
+                    _fail(f"pack {pid} both asks for and derives {t!r}")
+                if t in seen_env and seen_env[t] != pid:
+                    _fail(f"{t} is claimed by both {seen_env[t]!r} and {pid!r}")
+                seen_env[t] = pid
         packs.append(Pack(id=pid, title=p.get("title", pid), keys=keys,
                           config=p.get("config") or {}, env=p.get("env") or {},
                           required=bool(p.get("required")),
-                          features=tuple(p.get("features") or [])))
+                          features=tuple(p.get("features") or []), derived=derived))
     return packs
 
 

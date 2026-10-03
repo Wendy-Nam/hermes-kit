@@ -103,15 +103,65 @@ VALIDATORS = {
     "groq": _simple("https://api.groq.com/openai/v1/models", lambda k: {"Authorization": f"Bearer {k}"}),
     "apify": _simple("https://api.apify.com/v2/users/me", lambda k: {"Authorization": f"Bearer {k}"}),
     "webshare": _webshare,
+    # Registered as a real validator rather than intercepted in the UI, so packs.py
+    # can still check at import time that every pack names a validator that exists.
+    "webshare_api_key": lambda key: webshare_from_api_key(key)[:2],
     "composio": _composio,
     "opencode_go": _simple("https://opencode.ai/zen/go/v1/models", lambda k: {"Authorization": f"Bearer {k}"}),
     "commandcode": _simple("https://api.commandcode.ai/provider/v1/models", lambda k: {"Authorization": f"Bearer {k}"}),
 }
 
 
-def webshare_credentials(username, password):
-    """Validate the proxy credentials as a pair, never as two API tokens."""
+def webshare_from_api_key(token):
+    """Look up proxy credentials with the API key alone, so the student pastes one thing.
+
+    Webshare shows the same Username/Password in two places: the API key page and
+    the Proxy list. The dashboard login email is neither of them, and students
+    paste that by mistake often enough that the old two-field form spelled the
+    difference out in both hints. One field removes the opportunity entirely.
+
+    Returns (ok, message, {env: value}) or (ok, message, {}). The credentials are
+    returned rather than written so the caller decides where they land, and they
+    never appear in the message.
+    """
+    status, body = _get(
+        "https://proxy.webshare.io/api/v2/proxy/list/?mode=direct&page=1&page_size=1",
+        {"Authorization": f"Token {token.strip()}"},
+    )
+    if status != 200:
+        return False, _denied(status), {}
+    try:
+        entry = json.loads(body)["results"][0]
+        username, password = entry["username"], entry["password"]
+    except Exception:
+        return False, "Webshare 응답을 해석하지 못했습니다 — 다시 시도해 주세요", {}
+    if not username or not password:
+        return False, "이 API 키에는 프록시가 없습니다 — Webshare에서 프록시 하나를 먼저 열어야 합니다", {}
+    # p.webshare.io only accepts "<user>-rotate"; the API returns the plain form.
+    if not username.endswith("-rotate"):
+        username += "-rotate"
+    # A valid key is not a working proxy. The whole point of the pack is reaching
+    # blocked sites, so confirm that before telling the student it is set up.
+    status2, _ = _get("https://www.wanted.co.kr/", {}, proxy=_proxy_url(username, password))
+    if status2 != 200:
+        return False, f"키는 맞지만 프록시 접속이 실패했습니다 (HTTP {status2})", {}
+    return True, "프록시로 원티드 접속 확인", {
+        "WEBSHARE_PROXY_USERNAME": username,
+        "WEBSHARE_PROXY_PASSWORD": password,
+    }
+
+
+def _proxy_url(username, password):
     from urllib.parse import quote
+    return "http://" + quote(username, safe="") + ":" + quote(password, safe="") + "@p.webshare.io:80"
+
+
+def webshare_credentials(username, password):
+    """Validate the proxy credentials as a pair, never as two API tokens.
+
+    Kept for students who already have the Username/Password pair from the Proxy
+    list screen, or whose API key lookup did not work.
+    """
     if not username or not password:
         return False, "프록시 사용자명과 비밀번호를 모두 입력해 주세요"
     # p.webshare.io only accepts "<user>-rotate", the same form youtube-transcript-api builds from
@@ -119,8 +169,7 @@ def webshare_credentials(username, password):
     username = username.strip()
     if not username.endswith("-rotate"):
         username += "-rotate"
-    proxy = "http://" + quote(username, safe="") + ":" + quote(password.strip(), safe="") + "@p.webshare.io:80"
-    status, _ = _get("https://www.wanted.co.kr/", {}, proxy=proxy)
+    status, _ = _get("https://www.wanted.co.kr/", {}, proxy=_proxy_url(username, password.strip()))
     if status == 200:
         return True, "프록시 접속 확인"
     if status == 407:

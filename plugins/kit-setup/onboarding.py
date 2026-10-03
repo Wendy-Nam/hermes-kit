@@ -23,11 +23,11 @@ FEATURES = (
     ("sync", "PC 옵시디언 노트", "PC의 옵시디언에서 서버 볼트를 봅니다. 서버는 PC에 파일을 보내기만 합니다.",
      (), ""),
     ("proxy", "차단 우회", "차단된 사이트에 프록시로 접속합니다. 국내 서비스 등에서는 오히려 막힐 수 있습니다.",
-     ("WEBSHARE_PROXY_USERNAME", "WEBSHARE_PROXY_PASSWORD"), "https://dashboard.webshare.io/"),
+     ("WEBSHARE_API_KEY",), "https://dashboard.webshare.io/proxy/settings"),
     ("scrape", "SNS·플랫폼 수집", "Apify로 SNS·플랫폼 데이터를 모읍니다. 과금되므로 필요한 학생만 씁니다.",
      ("APIFY_TOKEN",), "https://console.apify.com/settings/integrations"),
     ("aux-opencode", "보조 모델 (OpenCode Go)", "지시하는 봇이 하위 작업을 이 모델로 넘깁니다.",
-     ("OPENCODE_GO_API_KEY",), "https://opencode.ai/go"),
+     ("OPENCODE_GO_API_KEY",), "https://opencode.ai/zen/go"),
     ("aux-commandcode", "보조 모델 (Command Code)", "위임할 작업을 싸게 처리하고 싶을 때 씁니다.",
      ("COMMANDCODE_API_KEY",), "https://commandcode.ai/pricing"),
 )
