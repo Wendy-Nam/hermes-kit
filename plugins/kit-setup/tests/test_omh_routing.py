@@ -126,6 +126,38 @@ class OmhRouting(unittest.TestCase):
         self.assertIn(report['status'], ('unavailable', 'error', 'degraded'))
         self.assertIsInstance(report['message'], str)
 
+    def test_verify_does_not_call_a_missing_omh_a_dead_first_choice(self):
+        """OMH not installed must not read as "a category's first choice is dead".
+
+        verify.py imports omh.hermes_delegation at module scope. Without OMH that
+        raised, exited 1, and the caller maps exit 1 to "a first choice has no live
+        provider" -- telling the student to edit providers.json for a problem that is
+        really an uninstalled OMH. Exit 2 is the "cannot read the gateway" signal.
+        """
+        checker = self.data / 'verify.py'
+        checker.write_text(
+            'import importlib, sys\n'
+            'try:\n'
+            '    importlib.import_module("omh.hermes_delegation")\n'
+            'except ModuleNotFoundError:\n'
+            '    print("OMH is not installed")\n'
+            '    raise SystemExit(2)\n'
+            'raise SystemExit(0)\n')
+        with patch.object(omh_routing, 'PATCH_DIR', self.data):
+            report = omh_routing.verify(self.data)
+        self.assertEqual(report['status'], 'unavailable')
+        self.assertNotEqual(report['status'], 'degraded')
+        self.assertIn('OMH is not installed', report['detail'])
+
+    def test_verify_carries_the_checker_output_into_the_detail(self):
+        omh_routing.apply(self.data)
+        checker = self.data / 'verify.py'
+        checker.write_text('print("resources: ok  combos=0  connections=0")\nraise SystemExit(1)\n')
+        with patch.object(omh_routing, 'PATCH_DIR', self.data):
+            report = omh_routing.verify(self.data)
+        self.assertEqual(report['status'], 'degraded')
+        self.assertIn('combos=0', report['detail'])
+
 
 if __name__ == '__main__':
     unittest.main()

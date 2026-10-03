@@ -14,7 +14,15 @@ sys.path.insert(0, "/opt/data/plugins/omh")
 
 import omh_provider_mapper as MAP  # noqa: E402
 
-OMH = importlib.import_module("omh.hermes_delegation")
+try:
+    OMH = importlib.import_module("omh.hermes_delegation")
+except ModuleNotFoundError:
+    # OMH is optional and may not be installed yet. Importing at module scope used
+    # to raise, so the caller saw a traceback instead of a report, and a missing
+    # OMH looked like a broken gateway. Exit 2 is the "cannot read the gateway"
+    # signal the caller already distinguishes.
+    print("OMH is not installed; run the kit's OMH setup first.")
+    raise SystemExit(2)
 
 
 def main() -> int:
