@@ -178,6 +178,26 @@ def check_maintenance(data_dir):
         return Finding('백업·업데이트 예약',BAD,'예약 정보를 읽을 수 없습니다')
 
 
+def check_omh_routing(data_dir):
+    """The routing patches are what makes a spent quota fall through to the next
+    candidate instead of failing the turn, so a drifted patch is worth reporting
+    even though OMH itself is healthy."""
+    try:
+        from omh_routing import omh_installed, status
+        if not omh_installed(data_dir):
+            return Finding('OMH 라우팅 폴백',OK,'OMH 미설치 (선택 기능)')
+        report=status(data_dir)
+    except Exception:
+        return Finding('OMH 라우팅 폴백',WARN,'패치 상태를 읽을 수 없습니다')
+    if report['status']=='ok':
+        return Finding('OMH 라우팅 폴백',OK,'쿼터 인식 폴백 적용됨')
+    if report['status']=='unavailable':
+        return Finding('OMH 라우팅 폴백',WARN,'키트에 패치가 없습니다. 이미지를 갱신하세요')
+    drifted=[n for n,s in report.get('files',{}).items() if s in ('missing','drifted')]
+    return Finding('OMH 라우팅 폴백',WARN,
+        'OMH 업데이트로 원본이 복원됨: '+', '.join(drifted)+' — 컨테이너를 재시작하면 다시 적용됩니다')
+
+
 def check_omh(data_dir):
     """OMH is optional: absent is fine; installed without calibration or with an
     unreadable route is worth a look, since every delegated task depends on it."""
@@ -241,6 +261,7 @@ def collect(data_dir: Path, env_file: Path, process=None, run_models=False) -> l
     findings += check_components(data_dir)
     findings.append(check_maintenance(data_dir))
     findings.append(check_omh(data_dir))
+    findings.append(check_omh_routing(data_dir))
     if run_models: findings += check_models(data_dir)
     findings.append(check_optional("http://omniroute:20128/healthz", "OmniRoute 심화팩"))
     return findings

@@ -35,6 +35,34 @@
 
 비용을 최소화해야 한다면 [대화 모델 선택 가이드](docs/student-model-guide.md)를 보세요.
 
+### PC 노트 동기화
+
+서버 설정은 그대로 두고 PC에서 Obsidian을 연동하려면 [clients/pc-sync](clients/pc-sync)의
+스킬을 사용합니다. Mac은 `~/.claude/skills/hermes-vps-setup`, Windows는
+`C:\Users\<이름>\.claude\skills\hermes-vps-setup`에 놓고 3단계를 차례로 실행합니다.
+전체 흐름(준비물 → VPS 배포 → `/setup` → PC 동기화)은 그 폴더의 `ONBOARDING.md`에 있습니다.
+
+이 스크립트들은 Syncthing·Obsidian을 PC에 설치하고 볼트 2개를 페어링할 뿐, 서버 설정은
+건드리지 않습니다. 모델·API 키는 Discord `/setup`이 담당합니다.
+
+### 이미 켜져 있는 호스트에 붙일 때
+
+Hermes가 이미 돌아가고 있는 호스트에 OMH와 OmniRoute를 새로 붙이려면, 키트 이미지를 다시
+배포하지 않고 **대상 호스트에서** 아래를 실행합니다. 이미 실행 중인 OmniRoute는 재사용합니다.
+
+```sh
+docker exec <hermes-컨테이너> python3 /opt/data/plugins/kit-setup/bootstrap.py omh-routing apply
+docker exec <hermes-컨트이너> python3 /opt/data/plugins/kit-setup/bootstrap.py omh-routing verify
+```
+
+`apply`는 [patches/omh-routing](patches/omh-routing)의 라우팅 폴백을 적용합니다.
+`verify`는 작업 종류별로 1순위 경로에 실제 연결이 있는지 읽기 전용으로 보고합니다.
+`status`로 현재 상태만 보고, `rollback`으로 OMH 원본을 되돌릴 수 있습니다.
+
+OMH를 업데이트하면 OMH가 자체 플러그인 사본을 덮어씁니다. 키트는 부팅할 때마다 자동으로
+다시 적용하므로 손해가 없지만, 바로 확인하려면 위의 `status`를 실행하세요.
+`/doctor`에도 `OMH 라우팅 폴백` 항목이 추가되어 복원 여부를 알려 줍니다.
+
 ### 막혔을 때
 
 | 상황 | 할 일 |

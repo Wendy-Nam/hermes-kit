@@ -1,0 +1,8 @@
+{
+  "schema_version": "provider_entitlements/v1",
+  "providers": {
+    "omniroute": "gateway"
+  },
+  "subscription_clis": [],
+  "excluded_providers": []
+}
