@@ -6,6 +6,32 @@
 이미지: `ghcr.io/wendy-nam/hermes-kit:0.21.2-kN`. 기수 배포 기준은
 [설치 도우미 안내](instructor-install-guide.md)의 "강사·운영자 출시 기준"을 따릅니다.
 
+## 다음 릴리즈에 포함 — 저장소 통합 (0.21.2-k17 예정)
+
+`hermes-vps-setup`과 `omh-omniroute-setup`을 이 저장소에 편입했습니다. 학생이 설치할
+패키지는 이제 이 저장소 하나입니다. 상세 판단 근거는
+[저장소 통합 문서](2026-10-03-repo-consolidation.md)를 보세요.
+
+- **OMH 라우팅 폴백이 키트에 들어왔습니다.** 구독 계정은 사용 한도가 소진돼도
+  `isActive: true`로 남습니다. OmniRoute는 이런 계정을 사전 필터에서 빼고 429로 응답하는데,
+  기존 판정은 이를 살아 있는 경로로 보아 **1순위에 턴을 쓰고 폴백하지 못한 채 끝냈습니다.**
+  이제 [patches/omh-routing](patches/omh-routing)의 패치가 라우팅 시점에 한도를 읽어
+  다음 후보로 넘어갑니다. 100%로 확정된 판정만 소진으로 봅니다.
+- **OMH 업데이트로 패치가 사라지지 않습니다.** OMH는 패치된 파일의 자체 사본을 함께
+  배포하므로 `omh update`가 원본을 되돌립니다. 이제 키트가 부팅할 때마다와 OMH 설치 직후에
+  자동으로 다시 적용합니다. 원본은 `.kit-omh-routing-backups`에 한 번만 보관합니다.
+- **학생이 직접 고친 `providers.json`은 건드리지 않습니다.** 이 파일은 그 사람이 실제로
+  가진 연결 목록입니다. 기본 템플릿과 같을 때만 키트가 씁니다.
+- **이미 켜진 호스트에 붙일 수 있습니다.** `docker exec <컨테이너> python3
+  /opt/data/plugins/kit-setup/bootstrap.py omh-routing [status|apply|verify|rollback]`.
+  이미 실행 중인 OmniRoute는 재사용하고, 이미지 재배포는 필요 없습니다.
+- **`/doctor`에 `OMH 라우팅 폴백` 항목**이 생겼습니다. 복원되었는지 바로 봅니다.
+- **PC 노트 동기화가 `clients/pc-sync`로 들어왔습니다.** 동작과 안전 규칙은 그대로이며,
+  이제 이미지 빌드 CI에서 문법 검사와 개인정보 스캔을 함께 받습니다.
+- **CommandCode Anthropic shim과 대시보드 키 경고 패치**는 게시 이미지를 건드리지 않도록
+  [advanced/omniroute-patches](advanced/omniroute-patches)의 선택형 오버레이로
+  제공합니다. `KIT_OMNIROUTE_IMAGE`로 지정해 opting in 합니다.
+
 ## 0.21.2-k16 — 막히는 두 지점을 없앱니다
 
 - **봇 초대 링크 복구.** 링크가 첫 부팅 로그의 `[kit] 봇 초대:` 한 줄에만 있던 것을 데이터 볼륨(`/opt/data/.kit-invite-url`, 0600)에 저장하고, 서버 소유자가 **`/invite`** 로 다시 봅니다(ephemeral). 아직 초대하지 못한 경우에는 Developer Portal의 URL Generator 절차를 대신 알려 줍니다(클라이언트 ID를 지어내지 않습니다). 컨테이너에서 `python /opt/data/plugins/kit-setup/owner.py` 로도 같은 링크가 나오고, `/doctor` 에 **봇 초대 링크** 항목이 생겼습니다.

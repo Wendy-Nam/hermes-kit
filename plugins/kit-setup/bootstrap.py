@@ -77,6 +77,12 @@ def boot(data_dir):
     from omh_enhancements import upgrade_enhanced_omh
     upgraded=upgrade_enhanced_omh(root)
     if upgraded:print('[kit] OMH 보정 갱신: '+upgraded['status'])
+    # Re-assert the routing patches on every boot. `omh update` restores OMH's own
+    # copies of these files, and a student who ran it should not silently lose
+    # quota-aware fallback on the next request.
+    from omh_routing import apply as apply_omh_routing
+    routing=apply_omh_routing(root)
+    if routing['changed']:print('[kit] OMH 라우팅: '+routing['message'])
     try:
         from roles import sync_roles
         sync_roles(root)
@@ -103,6 +109,23 @@ def boot(data_dir):
 
 if __name__=='__main__':
     import sys
+    args=sys.argv[1:]
     home=Path(os.environ.get('HERMES_HOME','/opt/data'))
-    if sys.argv[1:]==['rtk']:print('[kit] Hermes RTK: '+('켜짐' if rtk_follows_route(home) else 'OmniRoute가 압축하므로 꺼짐'))
+    if args==['rtk']:print('[kit] Hermes RTK: '+('켜짐' if rtk_follows_route(home) else 'OmniRoute가 압축하므로 꺼짐'))
+    elif args[:1]==['omh-routing']:
+        # Same entry point as the old standalone installer, now inside the image:
+        #   python3 plugins/kit-setup/bootstrap.py omh-routing [status|apply|verify|rollback]
+        # Matching on the first argument rather than the whole list: with an exact
+        # comparison, `omh-routing apply` fell through to boot() and ran a full
+        # re-seed instead of the requested action.
+        from omh_routing import apply as _apply, rollback as _rollback, status as _status, verify as _verify
+        action=args[1] if len(args)>1 else 'status'
+        fn={'status':_status,'apply':_apply,'verify':_verify,'rollback':_rollback}.get(action)
+        if fn is None:
+            print('usage: bootstrap.py omh-routing [status|apply|verify|rollback]');raise SystemExit(2)
+        report=fn(home)
+        print(report.get('message',''))
+        if report.get('files'):
+            for name,state in sorted(report['files'].items()):print(f'  {state:<8} {name}')
+        if report.get('detail'):print(report['detail'])
     else:boot(home)

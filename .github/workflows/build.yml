@@ -23,6 +23,19 @@ jobs:
           python3 -m pip install -q pyyaml
           python3 -m unittest discover -s tests -v
           cd plugins/kit-setup && python3 -m unittest discover -s tests -v
+      - name: PC sync client is syntactically clean and ships nothing personal
+        # These scripts run on a student's own machine and were only ever checked
+        # on the author's. They are handed to students, so a leaked personal path
+        # or key ends up in a public repository.
+        run: |
+          cd clients/pc-sync
+          for f in scripts/*.sh tests/*.sh; do bash -n "$f"; done
+          python3 -m py_compile scripts/remote/st_pair.py
+          shellcheck -x -S warning -e SC2034 scripts/*.sh || \
+            { sudo apt-get update -qq && sudo apt-get install -y -qq shellcheck && shellcheck -x -S warning -e SC2034 scripts/*.sh; }
+          ! git grep -nEI '(sk-[A-Za-z0-9_-]{20,}|ghp_[A-Za-z0-9]{30,}|xox[bp]-|apify_api_)' -- . ':!tests'
+          ! git grep -nEI '/Users/[a-z]|/home/[a-z][a-z0-9_-]+/|100\.[0-9]+\.[0-9]+\.[0-9]+' -- . ':!tests'
+          ! git grep -nEI '[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}' -- . ':!tests'
       - name: student Compose versions and companion image exist
         run: |
           python3 - <<'PYCODE'

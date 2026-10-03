@@ -303,6 +303,15 @@ def install_upstream_omh(data_dir, *, routing, host_version):
                        'live_dispatch_verified':False}
             state['components']['omh-upstream'] = receipt
             message = 'OMH 기본 팩 설치 완료. 작업 종류별 권장 추론 강도와 모델 보정이 켜졌습니다.'
+            # Apply the quota-aware routing patches while OMH's own files are the
+            # fresh upstream ones, so the first boot already has fallback. A
+            # failure here is not an install failure: the pack works without it.
+            try:
+                from omh_routing import apply as apply_omh_routing
+                if apply_omh_routing(data)['changed']:
+                    message += ' 라우팅 폴백(쿼터 인식)도 적용했습니다.'
+            except Exception as exc:
+                message += f' 라우팅 폴백은 적용하지 못했습니다 ({type(exc).__name__}).'
             try:
                 try:
                     enable_locked(data, updates=restored or {})

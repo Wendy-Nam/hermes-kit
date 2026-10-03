@@ -1,0 +1,6 @@
+.omc/
+__pycache__/
+setup.env
+*.tmp
+*.bak
+
