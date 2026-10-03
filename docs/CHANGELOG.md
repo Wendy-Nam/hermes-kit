@@ -6,7 +6,7 @@
 이미지: `ghcr.io/wendy-nam/hermes-kit:0.21.2-kN`. 기수 배포 기준은
 [설치 도우미 안내](instructor-install-guide.md)의 "강사·운영자 출시 기준"을 따릅니다.
 
-## 다음 릴리즈에 포함 — 저장소 통합 (0.21.2-k17 예정)
+## 0.21.2-k17 — 저장소 하나, 차단 우회는 키 하나
 
 `hermes-vps-setup`과 `omh-omniroute-setup`을 이 저장소에 편입했습니다. 학생이 설치할
 패키지는 이제 이 저장소 하나입니다. 상세 판단 근거는
