@@ -1,0 +1,47 @@
+{
+  "status": "ok",
+  "source": "synthetic-workshop-fixture",
+  "records": [
+    {
+      "schema_version": "outbound-source/v1",
+      "record_type": "job_posting",
+      "source": "synthetic-workshop-fixture",
+      "source_id": "fixture-job-001",
+      "company": "가상정밀",
+      "company_candidate": "가상정밀",
+      "company_confidence": "fixture-confirmed",
+      "title": "해외영업 담당자 채용",
+      "url": "https://example.invalid/fixtures/job-001",
+      "published_at": "2026-10-10T09:00:00+09:00",
+      "stack": ["CRM", "영어"],
+      "evidence": {
+        "source": "synthetic-workshop-fixture",
+        "url": "https://example.invalid/fixtures/job-001",
+        "source_id": "fixture-job-001",
+        "retrieved_at": "2026-10-13T09:00:00+09:00",
+        "raw_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    },
+    {
+      "schema_version": "outbound-source/v1",
+      "record_type": "funding_signal",
+      "source": "synthetic-workshop-fixture",
+      "source_id": "fixture-invest-001",
+      "company": "예시로보틱스",
+      "company_candidate": "예시로보틱스",
+      "company_confidence": "fixture-confirmed",
+      "title": "시리즈 A 투자 유치",
+      "url": "https://example.invalid/fixtures/invest-001",
+      "published_at": "2026-10-11T10:00:00+09:00",
+      "stack": null,
+      "evidence": {
+        "source": "synthetic-workshop-fixture",
+        "url": "https://example.invalid/fixtures/invest-001",
+        "source_id": "fixture-invest-001",
+        "retrieved_at": "2026-10-13T09:00:00+09:00",
+        "raw_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+      }
+    }
+  ],
+  "errors": []
+}

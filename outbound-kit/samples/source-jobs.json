@@ -1,0 +1,20 @@
+{
+  "postings": [
+    {
+      "회사": "베타소프트",
+      "포지션": "GTM Engineer",
+      "링크": "https://www.saramin.co.kr/zf_user/jobs/relay/view?rec_idx=9001&utm_source=fixture",
+      "게시일": "2026-10-11",
+      "기술스택": ["Python", "HubSpot"],
+      "보드": "saramin"
+    },
+    {
+      "company": "베타소프트",
+      "title": "Account Executive",
+      "url": "https://www.saramin.co.kr/zf_user/jobs/relay/view?rec_idx=9002",
+      "date": null,
+      "stack": null,
+      "source": "saramin"
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "positions": {
+    "data": [
+      {
+        "id": 41001,
+        "position": "B2B 솔루션 영업",
+        "company": {"name": "샘플테크"},
+        "address": {"location": "서울"}
+      },
+      {
+        "id": 41002,
+        "title": "해외 사업개발",
+        "company_name": "예시메디컬",
+        "location": "부산"
+      }
+    ]
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "jobs": [
+    {
+      "id": 7001,
+      "title": "Business Development Representative",
+      "location": {"name": "Seoul, South Korea"},
+      "absolute_url": "https://boards.greenhouse.io/example/jobs/7001?utm_source=fixture",
+      "updated_at": "2026-10-10T01:02:03Z"
+    }
+  ]
+}

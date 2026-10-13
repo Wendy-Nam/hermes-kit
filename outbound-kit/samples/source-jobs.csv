@@ -1,0 +1,4 @@
+company,title,url,date,stack,source,location
+알파로보틱스,Sales Operations Manager,https://jobs.example/alpha/42?utm_source=fixture,2026-10-10,"CRM,SQL,Python",company-export,서울
+,AI 솔루션 영업,https://jobs.example/unknown/9,,"[""B2B"",""SaaS""]",company-export,
+알파로보틱스,Sales Operations Manager,https://jobs.example/alpha/42?utm_campaign=duplicate,2026-10-10,"CRM,SQL",company-export,서울

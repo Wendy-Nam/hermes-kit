@@ -1,0 +1,30 @@
+[
+  {
+    "id": 101,
+    "date": "2026-10-10T09:00:00",
+    "link": "https://news.example/funding/alpha?utm_source=fixture",
+    "title": {"rendered": "‘알파로보틱스’ 50억원 시리즈A 투자 유치"},
+    "excerpt": {"rendered": "물류 로봇 스타트업이 신규 투자를 유치했다."}
+  },
+  {
+    "id": 102,
+    "date": "2026-10-11T12:00:00",
+    "link": "https://news.example/funding/ai-infra",
+    "title": {"rendered": "AI 인프라 스타트업, 프리A 투자 유치"},
+    "excerpt": {"rendered": "회사명과 투자 금액은 본문 확인이 필요하다."}
+  },
+  {
+    "id": 103,
+    "date": "2026-10-12T08:30:00",
+    "link": "https://news.example/funds/not-a-startup",
+    "title": {"rendered": "베타벤처스, 500억원 규모 펀드 결성"},
+    "excerpt": {"rendered": "신규 투자조합을 조성했다."}
+  },
+  {
+    "id": 104,
+    "date": "2026-10-12T14:00:00",
+    "link": "https://news.example/funding/gamma",
+    "title": {"rendered": "‘감마헬스’ 투자 유치"},
+    "excerpt": {"rendered": "시장규모 1,000억원과 투자금 20억원이 함께 언급됐다."}
+  }
+]

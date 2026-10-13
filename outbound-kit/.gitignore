@@ -1,0 +1,15 @@
+setup.json
+.env
+.env.*
+*.pem
+*.key
+__pycache__/
+*.pyc
+dist/
+output/
+results/
+/vault/
+/profiles/
+.installer-state/
+.official-hermes-docs/
+*.log

@@ -1,0 +1,5 @@
+[
+  {"name":"샘플제조 A (가상)","fit":{"industry":1,"region":1,"size":null},"signal":"영업 담당자 채용 (합성)","urgency":70,"evidence":"synthetic:A"},
+  {"name":"샘플유통 B (가상)","fit":{"industry":0.5,"region":1,"size":1},"signal":"대리점 확대 (합성)","urgency":50,"evidence":"synthetic:B"},
+  {"name":"샘플기업 C (가상)","fit":{"industry":1,"region":null,"size":null},"signal":"미확인","urgency":null,"evidence":"synthetic:C"}
+]
