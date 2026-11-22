@@ -171,15 +171,15 @@ detect_hermes_container() {
 }
 
 build_local_images() {
-  log "Building hermes-kit:${RELEASE_TAG} locally from Dockerfile ..."
+  log "Building ${DEFAULT_HERMES_IMAGE} locally from Dockerfile ..."
   docker build \
     --build-arg "HERMES_BASE_IMAGE=${HERMES_BASE_IMAGE}" \
     --build-arg "HERMES_VERSION=${HERMES_VERSION}" \
     --build-arg "RTK_VERSION=${RTK_VERSION}" \
     --build-arg "KIT_VERSION=${KIT_VERSION}" \
+    -t "${DEFAULT_HERMES_IMAGE}" \
     -t "hermes-kit:${RELEASE_TAG}" \
     "${REPO_ROOT}"
-  export KIT_HERMES_IMAGE="hermes-kit:${RELEASE_TAG}"
 
   if [[ "${WITH_OMNIROUTE}" -eq 1 ]]; then
     log "Building OmniRoute v3.8.54-web RTK adapter & CommandCode/UI overlay locally ..."

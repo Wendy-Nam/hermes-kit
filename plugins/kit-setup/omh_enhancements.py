@@ -35,7 +35,7 @@ VERSION = 3
 # Same grammar OMH accepts for delegation values: anything wider is refused upstream.
 TOKEN = re.compile(r'^[A-Za-z0-9][A-Za-z0-9._/-]{0,127}$')
 EFFORTS = ('low', 'medium', 'high', 'xhigh', 'max')
-# OMH 2.0.5's shipped chain-head effort per task type, capped at `high`: a student's
+# OMH's shipped chain-head effort per task type, capped at `high`: a student's
 # provider is not known to accept xhigh. Calibration applies from `high` upward.
 DEFAULT_EFFORTS = {
     'ultrabrain': 'high', 'deep': 'high', 'architect': 'high', 'artistry': 'high',

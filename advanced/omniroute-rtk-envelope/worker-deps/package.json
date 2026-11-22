@@ -1,7 +1,7 @@
 {
   "name": "hermes-kit-omniroute-worker-deps",
   "private": true,
-  "description": "Packages OmniRoute 3.8.51 declares but its standalone image omits; the compression worker imports them.",
+  "description": "Packages OmniRoute 3.8.54-web declares but its standalone image omits; the compression worker imports them.",
   "dependencies": {
     "@toon-format/toon": "^4.1.1",
     "omniglyph": "^1.4.0",
