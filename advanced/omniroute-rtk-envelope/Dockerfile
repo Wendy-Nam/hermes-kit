@@ -1,4 +1,4 @@
-ARG OMNIROUTE_BASE_IMAGE=diegosouzapw/omniroute:next-web@sha256:3c8698a83d40205914aa9e343fd3b1378c4ba8940a3a3adb5ecfc7f0b1b9cb61
+ARG OMNIROUTE_BASE_IMAGE=diegosouzapw/omniroute:3.8.54-web@sha256:b3231dc681f46ee79f1f2e0c9b80ff83b221c3477b5c8b4003f74e822db23dd2
 FROM ${OMNIROUTE_BASE_IMAGE}
 USER root
 COPY envelope.cjs /app/hermes-rtk-envelope.cjs
@@ -11,6 +11,6 @@ RUN node /tmp/patch-hermes-rtk.cjs && node /tmp/patch-hermes-reconcile.cjs && rm
 # (integrity-checked, no install scripts) and add only packages the image lacks.
 COPY worker-deps/package.json worker-deps/package-lock.json /tmp/worker-deps/
 RUN cd /tmp/worker-deps && npm ci --ignore-scripts --no-audit --no-fund \
- && node -e 'const fs=require("fs"),path=require("path");const src="/tmp/worker-deps/node_modules",dst="/app/node_modules";const top=d=>fs.readdirSync(d).filter(n=>!n.startsWith(".")).flatMap(n=>n.startsWith("@")?fs.readdirSync(path.join(d,n)).map(m=>n+"/"+m):[n]);for(const n of top(src)){if(fs.existsSync(path.join(dst,n)))throw new Error("already in image, refusing to mix versions: "+n);fs.cpSync(path.join(src,n),path.join(dst,n),{recursive:true})}' \
+ && node -e 'const fs=require("fs"),path=require("path");const src="/tmp/worker-deps/node_modules",dst="/app/node_modules";const top=d=>fs.readdirSync(d).filter(n=>!n.startsWith(".")).flatMap(n=>n.startsWith("@")?fs.readdirSync(path.join(d,n)).map(m=>n+"/"+m):[n]);for(const n of top(src)){if(fs.existsSync(path.join(dst,n)))continue;fs.cpSync(path.join(src,n),path.join(dst,n),{recursive:true})}' \
  && chown -R node:node /app/node_modules && rm -rf /tmp/worker-deps /root/.npm
 USER node

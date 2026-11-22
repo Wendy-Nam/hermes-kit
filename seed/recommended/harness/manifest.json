@@ -1,0 +1,14 @@
+{
+  "schema_version": "kit-component/v1",
+  "id": "harness",
+  "version": "1.20261121.0",
+  "files": {
+    "SKILL.md": "b771f2f24ec97fc1b1f2ec0e6df0feceade3df09328dbec9ac50ca1284f33918",
+    "references/agent-design-patterns.md": "1ce2eaf61f54c0d69a197edc6b80c4316858df817055f429a8941f750662913b",
+    "references/orchestrator-template.md": "b948d278836bc9085f19de8d6893f695972dc45e9c7389fff0f10d8fa8037763",
+    "references/qa-agent-guide.md": "4d22939ddb8df52924d7e3acd8daa41a9afc6e9480aa4869194d964ec8891698",
+    "references/skill-testing-guide.md": "6bbf62f35571598edcde1fe65b78faedd9eefbcea47816d7c21a6713de1b7214",
+    "references/skill-writing-guide.md": "cf9e6778b64a6bd75ac1db4b2db3a76bcfae3762d52c14fa1ff99269d5941f5e",
+    "references/team-examples.md": "3a51b549f21ceb78541a0e0517de4aa3eae613d520d08e4c65a0e4440f1f5ebd"
+  }
+}

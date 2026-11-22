@@ -1,0 +1,12 @@
+{
+  "schema_version": "kit-component/v1",
+  "id": "job-match",
+  "version": "1.20261121.0",
+  "files": {
+    "SKILL.md": "292632a4df010c030572384cd603c6a124a93626e868b57032a5794efa9c6e9e",
+    "references/ats-email-status-update.md": "663337191dbd5ab4dc33955bbe15a782b7d781312a231d5f312305b06e1662a0",
+    "references/linkedin-jd-scraping.md": "08fa396dd03c42fed55fdfeec88fc801e790de16e5c63cd6b107fd5cb1c84dc1",
+    "scripts/fetch_jd.py": "5c151a09daec15f435306f90dc354cb48f2e42d487944e87fda36776a5c8be32",
+    "scripts/similar_jobs.py": "e6ae89ad9ff1f71a2808dad44b7fbd6ec6a2068f0f6f1ce4698304679f773e03"
+  }
+}

@@ -22,7 +22,7 @@ import os, py_compile, sys
 TARGET = "/opt/hermes/gateway/kanban_watchers_notifier.py"
 MARK = "hermes-patch: kanban-progress"
 
-REPLACEMENTS = [
+REPLACEMENTS_COMMON = [
     # 1+2) kind 목록: crashed를 깨움에서 빼고, 알림 kind에 claimed/heartbeat 추가
     (
         '_WAKE_KINDS = ("completed", "gave_up", "crashed", "timed_out", "blocked", "review_requested", "changes_requested", "block_loop_detected")\n',
@@ -78,18 +78,32 @@ REPLACEMENTS = [
         '\n'
         'def _fmt_completed(ev, n) -> tuple:\n',
     ),
-    (
-        '    "gave_up": lambda ev, n: (\n'
-        '        f"✖ {n.head} gave up after repeated spawn failures{_clip(ev, \'error\', _NL, 200)}", None, None,\n'
-        '    ),\n'
-        '    "crashed": lambda ev, n: (f"✖ {n.head} worker crashed (pid gone); dispatcher will retry", None, None),\n',
-        '    "gave_up": lambda ev, n: _fmt_failure(\n'
-        '        ev, n, f"✖ {n.head} gave up after repeated spawn failures{_clip(ev, \'error\', _NL, 200)}"),\n'
-        '    "crashed": lambda ev, n: _fmt_failure(ev, n, f"✖ {n.head} worker crashed (pid gone); dispatcher will retry"),\n'
-        '    "claimed": lambda ev, n: (f"▶ {n.head} 작업 시작 — {n.title}", None, None),\n'
-        '    "heartbeat": _fmt_heartbeat,\n',
-    ),
 ]
+
+FMT_V21 = (
+    '    "gave_up": lambda ev, n: (\n'
+    '        f"✖ {n.head} gave up after repeated spawn failures{_clip(ev, \'error\', _NL, 200)}", None, None,\n'
+    '    ),\n'
+    '    "crashed": lambda ev, n: (f"✖ {n.head} worker crashed (pid gone); dispatcher will retry", None, None),\n',
+    '    "gave_up": lambda ev, n: _fmt_failure(\n'
+    '        ev, n, f"✖ {n.head} gave up after repeated spawn failures{_clip(ev, \'error\', _NL, 200)}"),\n'
+    '    "crashed": lambda ev, n: _fmt_failure(ev, n, f"✖ {n.head} worker crashed (pid gone); dispatcher will retry"),\n'
+    '    "claimed": lambda ev, n: (f"▶ {n.head} 작업 시작 — {n.title}", None, None),\n'
+    '    "heartbeat": _fmt_heartbeat,\n',
+)
+
+FMT_V23 = (
+    '    "gave_up": _fmt_gave_up,\n'
+    '    "crashed": lambda ev, n: (t("gateway.kanban.ping.crashed", head=n.head), None, None),\n',
+    '    "gave_up": lambda ev, n: _fmt_failure(ev, n, _fmt_gave_up(ev, n)[0]),\n'
+    '    "crashed": lambda ev, n: _fmt_failure(ev, n, t("gateway.kanban.ping.crashed", head=n.head)),\n'
+    '    "claimed": lambda ev, n: (f"▶ {n.head} 작업 시작 — {n.title}", None, None),\n'
+    '    "heartbeat": _fmt_heartbeat,\n',
+)
+
+src_probe = open(TARGET, encoding="utf-8").read() if os.path.exists(TARGET) else ""
+REPLACEMENTS = REPLACEMENTS_COMMON + [FMT_V23 if FMT_V23[0] in src_probe else FMT_V21]
+
 
 src = open(TARGET, encoding="utf-8").read()
 if MARK in src:

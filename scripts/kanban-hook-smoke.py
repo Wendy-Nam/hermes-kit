@@ -32,7 +32,8 @@ assert '401' in message and '401' in handoff and 'sk-synthetic0123456789abcdef' 
 
 from hermes_cli import plugins_dispatch
 source = open(plugins_dispatch.__file__, encoding='utf-8').read()
-assert '_POLICY_SERIALIZATION_DEADLINE_V2' in source and 'waited_for_policy_overlap' in source
+assert (('_POLICY_SERIALIZATION_DEADLINE_V2' in source and 'waited_for_policy_overlap' in source)
+        or ('_hook_abandoned' in source and 'gate_key' in source))
 from hermes_cli.plugins import PluginManager, get_plugin_manager
 manager = get_plugin_manager()
 calls, release = [], threading.Event()
@@ -44,7 +45,7 @@ def policy(**kwargs):
 manager._hooks.setdefault('pre_tool_call', []).append(policy)
 results = []
 def invoke(name):
-    results.append(manager.invoke_hook('pre_tool_call', tool_name=name, args={}, session_id=name))
+    results.append(manager.invoke_hook('pre_tool_call', tool_name=name, args={}, session_id=name, tool_call_id=name, turn_id=name))
 first_call = threading.Thread(target=invoke, args=('first',)); first_call.start()
 time.sleep(0.3)
 second_call = threading.Thread(target=invoke, args=('second',)); second_call.start()

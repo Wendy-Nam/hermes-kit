@@ -19,6 +19,12 @@ log = logging.getLogger(__name__)
 
 def register(ctx):
     """Entry point. Everything Discord-specific lives in discord_ui, which imports discord."""
+    try:
+        import voice_adapter
+        voice_adapter.install_all()
+    except Exception:
+        log.debug("kit-setup: voice_adapter load skipped", exc_info=True)
     from discord_ui import build
 
     ctx.register_platform_handler("discord", build)
+

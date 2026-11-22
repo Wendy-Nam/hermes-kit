@@ -52,9 +52,13 @@ def sha256(data: bytes) -> str:
 def version_matches(root: Path) -> bool:
     marker = root / "hermes_agent.egg-info" / "PKG-INFO"
     try:
-        return any(line.strip() == f"Version: {VERSION}" for line in marker.read_text(encoding="utf-8").splitlines())
+        lines = [line.strip() for line in marker.read_text(encoding="utf-8").splitlines()]
+        return any(line.startswith("Version: 0.21.") or line.startswith("Version: 0.22.") or line.startswith("Version: 0.23.") for line in lines)
     except OSError:
         return False
+
+
+UPSTREAM_V23_ALREADY_DEDUPED = b"    if _looks_like_gateway_provider_error(text):\n        return None\n"
 
 
 def main() -> int:
@@ -63,11 +67,16 @@ def main() -> int:
     parser.add_argument("--apply", action="store_true")
     args = parser.parse_args()
     root = args.root.resolve()
-    if not version_matches(root):
-        raise SystemExit(f"refusing: expected Hermes {VERSION}")
     path = root / RELATIVE_PATH
+    if not path.is_file():
+        raise SystemExit(f"refusing: missing {path}")
     raw = path.read_bytes()
     current = sha256(raw)
+    if UPSTREAM_V23_ALREADY_DEDUPED in raw:
+        print({"path": str(path), "version": "0.23.x", "state": "already patched upstream", "sha256": current})
+        return 0
+    if not version_matches(root):
+        raise SystemExit(f"refusing: expected Hermes {VERSION} or 0.23.x")
     # hermes-kit: the recorded hashes describe the author's run.py after other local
     # patches; the image build anchors on the exact block instead (one match or refuse).
     if current == ORIGINAL_SHA256 or (raw.count(OLD.encode()) == 1 and NEW.encode() not in raw):

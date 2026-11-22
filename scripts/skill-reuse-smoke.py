@@ -24,7 +24,8 @@ with tempfile.TemporaryDirectory() as directory:
         row = raw.execute('SELECT system_prompt,system_prompt_hash FROM sessions WHERE id=?',('upgrade-fixture',)).fetchone()
     assert row[0] is None and row[1]
     assert db.get_session('upgrade-fixture')['system_prompt'] == old
-    agent = SimpleNamespace(_session_db=db,session_id='upgrade-fixture',_cached_system_prompt=None)
+    from agent.agent_init_session import stand_in_interface
+    agent = SimpleNamespace(_session_db=db,persistence=stand_in_interface(db),session_id='upgrade-fixture',_cached_system_prompt=None)
     with patch('agent.conversation_loop._stored_prompt_matches_runtime',return_value=True), \
          patch('agent.conversation_loop._bot_chat_prompt_stale',return_value=False), \
          patch('agent.conversation_loop.stage_surface_switch_note',return_value=False), \

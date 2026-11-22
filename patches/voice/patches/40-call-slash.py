@@ -22,7 +22,8 @@ HANDLER = '''
         if args == "status":
             return await self._handle_voice_command(event)
 
-        adapter = self._adapter_for_source(event.source)
+        adapter = getattr(self, "_delivery_adapter_for", None) or getattr(self, "_adapter_for_source", None)
+        adapter = adapter(event.source) if callable(adapter) else None
         if not hasattr(adapter, "join_voice_channel"):
             return "Voice calls are not supported on this platform."
         guild_id = self._get_guild_id(event)
@@ -77,17 +78,24 @@ if __name__ == "__main__":
         '    CommandDef("call", "Start voice call mode in voice channel", "Actions",\n'
         '               args_hint="[leave|status]", subcommands=("leave", "status"), desktop="composer-voice"),\n'
         '    CommandDef("voice", "Toggle voice mode", "Configuration",')], 'CommandDef("call"')
-    replace_blocks(root / "plugins/platforms/discord/adapter.py", [(
-        '    ("voice", "Toggle voice reply mode",',
+    adapter_py = root / "plugins/platforms/discord/adapter.py"
+    adapter_src = adapter_py.read_text(encoding="utf-8") if adapter_py.exists() else ""
+    voice_anchor = ('    ("voice", "platform.discord.command.voice.description",'
+                    if '    ("voice", "platform.discord.command.voice.description",' in adapter_src
+                    else '    ("voice", "Toggle voice reply mode",')
+    replace_blocks(adapter_py, [(
+        voice_anchor,
         '    ("call", "Join voice channel and start voice call mode immediately",\n'
         '     (("action", str, "", "Action: leave to disconnect, or leave empty to start call",\n'
         '       (("leave — leave voice call", "leave"), ("status — check call status", "status"))),),\n'
-        '     "/call {action}", None),\n'
-        '    ("voice", "Toggle voice reply mode",')], '("call", "Join voice channel')
-    replace_blocks(root / "gateway/run_busy.py", [(
-        '        "loop", "refine", "review", "voice",',
-        '        "loop", "refine", "review", "voice", "call",')], '"voice", "call",')
+        '     "/call {action}", None),\n' + voice_anchor)], '("call", "Join voice channel')
+    busy_py = root / "gateway/run_busy.py"
+    if busy_py.exists() and '        "loop", "refine", "review", "voice",' in busy_py.read_text(encoding="utf-8"):
+        replace_blocks(busy_py, [(
+            '        "loop", "refine", "review", "voice",',
+            '        "loop", "refine", "review", "voice", "call",')], '"voice", "call",', optional=True)
     replace_blocks(root / "gateway/slash_commands.py", [(
         "    async def _handle_voice_command(self, event: MessageEvent) -> str:",
         HANDLER + "\n    async def _handle_voice_command(self, event: MessageEvent) -> str:")],
         "async def _handle_call_command")
+

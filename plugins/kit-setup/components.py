@@ -177,6 +177,9 @@ def retry_components(data_dir, *, selected_kits=None, seed_dir=Path('/opt/kit/se
         if (Path(seed_dir) / 'kskill').is_dir():  # absent in images before k7
             results.append(_install_kskills(data, state, Path(seed_dir) / 'kskill'))
             _save_state(data, state)
+        if (Path(seed_dir) / 'recommended').is_dir():
+            results.append(_install_recommended_skills(data, state, Path(seed_dir) / 'recommended'))
+            _save_state(data, state)
     return results
 
 
@@ -188,6 +191,20 @@ def kskill_names(selected_kits):
         names += spec['kits'].get(kit, [])
     for name in list(names):
         names += spec['requires'].get(name, [])
+    return list(dict.fromkeys(names))
+
+
+def recommended_skill_names(selected_kits):
+    """Vendored recommended skills (solo-skills, job-hunt, image-prompt, bookforge) for everyone + selected kits."""
+    spec_path = Path(__file__).with_name('recommended_skills.json')
+    if not spec_path.is_file():
+        return []
+    spec = json.loads(spec_path.read_text())
+    names = list(spec.get('common', []))
+    for kit in selected_kits:
+        names += spec.get('kits', {}).get(kit, [])
+    for name in list(names):
+        names += spec.get('requires', {}).get(name, [])
     return list(dict.fromkeys(names))
 
 
@@ -208,6 +225,26 @@ def _install_kskills(data, state, source):
     else:
         result = {'id': 'k-skill', 'status': 'installed', 'message': f'한국형 스킬 {len(names)}개 설치 확인'}
     state.setdefault('last_results', {})['k-skill'] = result
+    return result
+
+
+def _install_recommended_skills(data, state, source):
+    """One summary row: each recommended skill is installed under skills/recommended/<id>."""
+    names = recommended_skill_names(state.get('selected_kits', []))
+    failed = []
+    for name in names:
+        try:
+            result = _install(source / name, data / 'skills' / 'recommended' / name, name, state)
+        except Exception:
+            result = {'status': 'failed'}
+        if result['status'] == 'failed':
+            failed.append(name)
+    if failed:
+        result = {'id': 'recommended-skills', 'status': 'failed',
+                  'message': '추천 스킬 일부 설치 실패: ' + ', '.join(failed) + '. 설치 재시도를 눌러 주세요.'}
+    else:
+        result = {'id': 'recommended-skills', 'status': 'installed', 'message': f'추천 스킬 {len(names)}개 설치 확인'}
+    state.setdefault('last_results', {})['recommended-skills'] = result
     return result
 
 

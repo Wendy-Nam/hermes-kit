@@ -19,9 +19,9 @@ import urllib.request
 
 from components import _locked, _read_state, _save_state
 
-OMH_COMMIT = 'b84f096e59d50fc933ed4b43fd36675e8cff593a'
-OMH_VERSION = '2.0.5'
-OMH_SHA256 = '3a27c03301cc7f4dcb96a1476bd5a38bef57117148ba7f7e7aba4f15fffe608a'
+OMH_COMMIT = '78e2c3b62e75a15da59e0e7e9cbc60762dc074cf'
+OMH_VERSION = '5.0.0'
+OMH_SHA256 = '717a5636942f3d600036891caf754c27d14bcd3488f438876136ba57fe15139b'
 OMH_URL = 'https://codeload.github.com/rlaope/oh-my-hermes/tar.gz/' + OMH_COMMIT
 CATEGORIES = ('quick', 'deep', 'architect', 'artistry', 'ultrabrain', 'writing',
               'visual-engineering', 'capable', 'simple-work', 'deep-work',
@@ -87,16 +87,23 @@ def validate_routing(routing):
 
 
 def _source(blob, destination):
-    if len(blob) > 64 * 1024 * 1024 or hashlib.sha256(blob).hexdigest() != OMH_SHA256:
+    if len(blob) > 96 * 1024 * 1024 or hashlib.sha256(blob).hexdigest() != OMH_SHA256:
         raise ValueError('upstream archive checksum mismatch')
     with tarfile.open(fileobj=io.BytesIO(blob), mode='r:gz') as tf:
         members = tf.getmembers()
-        if len(members) > 6000 or sum(m.size for m in members) > 128 * 1024 * 1024:
+        if len(members) > 12000 or sum(m.size for m in members) > 256 * 1024 * 1024:
             raise ValueError('upstream archive limit')
+        safe_members = []
         for m in members:
-            if m.issym() or m.islnk() or m.name.startswith('/') or '..' in Path(m.name).parts:
+            parts = Path(m.name).parts
+            if m.name.startswith('/') or '..' in parts:
                 raise ValueError('unsafe upstream archive')
-        tf.extractall(destination, members=members, filter='data')
+            if m.issym() or m.islnk():
+                if len(parts) > 2 and parts[1] == 'tests':
+                    continue
+                raise ValueError('unsafe upstream archive')
+            safe_members.append(m)
+        tf.extractall(destination, members=safe_members, filter='data')
     return destination / ('oh-my-hermes-' + OMH_COMMIT)
 
 
@@ -223,6 +230,90 @@ def _restored_routes(data):
         return {}
 
 
+def _fetch_omh_archive():
+    local = os.environ.get('KIT_OMH_TARBALL', '').strip()
+    if local and Path(local).is_file():
+        return Path(local).read_bytes()
+    with urllib.request.urlopen(OMH_URL, timeout=120) as response:
+        return response.read(96 * 1024 * 1024 + 1)
+
+
+def upgrade_upstream_omh(data_dir, *, host_version=None):
+    """Upgrade an existing OMH installation in-place to the pinned OMH_VERSION (v5.0.0),
+    preserving the user's saved per-task routing chains, providers.json, and profiles."""
+    data = Path(data_dir).resolve()
+    state = _read_state(data)
+    receipt = (state.get('components') or {}).get('omh-upstream') or {}
+    if receipt.get('version') == OMH_VERSION and (data / 'plugins/omh').is_dir():
+        from omh_routing import apply as apply_omh_routing
+        apply_omh_routing(data)
+        return {'id': 'omh', 'status': 'current', 'version': OMH_VERSION,
+                'message': f'OMH가 이미 최신 버전(v{OMH_VERSION})입니다.'}
+    # Read existing routing and per-task chains before moving old installation aside.
+    routing = receipt.get('routing')
+    if not isinstance(routing, dict) or not routing.get('model') or not routing.get('provider'):
+        from config_store import read
+        cfg = read(data)
+        delegation = cfg.get('delegation') or {}
+        model_cfg = cfg.get('model') or {}
+        routing = {
+            'provider': str(delegation.get('provider') or model_cfg.get('provider') or 'omniroute'),
+            'model': str(delegation.get('model') or model_cfg.get('default') or 'hermes-fast'),
+        }
+    saved_categories = {}
+    settings_path = data / '.omh/routing/kit-enhanced.json'
+    if settings_path.is_file():
+        try:
+            from omh_enhancements import validate_categories
+            raw_settings = json.loads(settings_path.read_text(encoding='utf-8'))
+            saved_categories = validate_categories(raw_settings.get('categories') or {})
+        except Exception:
+            saved_categories = {}
+    saved_entitlement = None
+    entitlement_path = data / '.omh/routing/providers.json'
+    if entitlement_path.is_file():
+        try:
+            saved_entitlement = entitlement_path.read_bytes()
+        except OSError:
+            saved_entitlement = None
+    # Back up existing .omh, plugins/omh, and launcher into .kit-tools/omh-upgrade-backup
+    backup_root = data / '.kit-tools' / f'backup-omh-pre-{OMH_VERSION}'
+    if backup_root.exists():
+        shutil.rmtree(backup_root)
+    backup_root.mkdir(parents=True, exist_ok=True)
+    for rel in ('.omh', 'plugins/omh', '.local/bin/omh', '.kit-tools/omh-enhancements.json'):
+        target = data / rel
+        if target.exists() or target.is_symlink():
+            dest = backup_root / rel
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            shutil.move(str(target), str(dest))
+    # Stage saved_categories as a restored-only .omh/routing/kit-enhanced.json so install_upstream_omh picks it up
+    if saved_categories:
+        stage_routing = data / '.omh/routing'
+        stage_routing.mkdir(parents=True, exist_ok=True)
+        (stage_routing / 'kit-enhanced.json').write_text(
+            json.dumps({'categories': saved_categories}, indent=2) + '\n', encoding='utf-8')
+    version_str = host_version or os.environ.get('HERMES_VERSION') or '0.23.3'
+    res = install_upstream_omh(data, routing=routing, host_version=version_str)
+    if res.get('status') == 'installed':
+        if saved_entitlement is not None:
+            entitlement_path.parent.mkdir(parents=True, exist_ok=True)
+            entitlement_path.write_bytes(saved_entitlement)
+            from omh_routing import apply as apply_omh_routing
+            apply_omh_routing(data)
+        return dict(res, status='upgraded', version=OMH_VERSION)
+    # Restore backup if upgrade failed
+    for rel in ('.omh', 'plugins/omh', '.local/bin/omh', '.kit-tools/omh-enhancements.json'):
+        src = backup_root / rel
+        dst = data / rel
+        if src.exists() or src.is_symlink():
+            if dst.exists() or dst.is_symlink():
+                _remove(dst)
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            shutil.move(str(src), str(dst))
+    return res
+
+
 def install_upstream_omh(data_dir, *, routing, host_version):
     """Install upstream core + explicit same-model student chain, without personal defaults.
 
@@ -231,8 +322,9 @@ def install_upstream_omh(data_dir, *, routing, host_version):
     """
     try:
         route = validate_routing(routing)
-        if not re.fullmatch(r'0\.21\.[0-9]+', host_version) or int(host_version.split('.')[-1]) < 1:
-            raise ValueError('supported Hermes version is >=0.21.1,<0.22.0')
+        m = re.fullmatch(r'0\.(2[1-4])\.([0-9]+)', host_version or '')
+        if not m or (int(m.group(1)) == 21 and int(m.group(2)) < 1):
+            raise ValueError('supported Hermes version is >=0.21.1,<0.25.0')
     except Exception as exc:
         return {'id':'omh','status':'failed','message':f'설치 조건 확인 실패 ({type(exc).__name__})'}
     data = Path(data_dir).resolve()
@@ -257,7 +349,7 @@ def install_upstream_omh(data_dir, *, routing, host_version):
             return {'id':'omh','status':'failed','message':'명령 설치 경로 링크를 허용하지 않습니다.'}
         before = config.read_bytes()
         tools_dir = data / '.kit-tools'; tools_dir.mkdir(exist_ok=True)
-        work = Path(tempfile.mkdtemp(prefix='omh-2.0.5-', dir=tools_dir))
+        work = Path(tempfile.mkdtemp(prefix=f'omh-{OMH_VERSION}-', dir=tools_dir))
         if restored is not None:
             # Only routing documents from a backup: keep them aside, reapply the task chains.
             shutil.move(str(data / '.omh'), str(work / 'restored-omh'))
@@ -272,8 +364,7 @@ def install_upstream_omh(data_dir, *, routing, host_version):
                    PIP_CACHE_DIR=str(work / 'pip-cache'), XDG_CACHE_HOME=str(work / 'cache'))
         result = {'id':'omh','status':'failed','message':'OMH 설치 실패. 기존 설정을 복원했습니다.'}
         try:
-            with urllib.request.urlopen(OMH_URL, timeout=60) as response:
-                blob = response.read(64 * 1024 * 1024 + 1)
+            blob = _fetch_omh_archive()
             source = _source(blob, work)
             venv = work / 'venv'
             _run([sys.executable, '-m', 'venv', str(venv)], env)

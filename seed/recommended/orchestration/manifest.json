@@ -1,0 +1,8 @@
+{
+  "schema_version": "kit-component/v1",
+  "id": "orchestration",
+  "version": "1.20261121.0",
+  "files": {
+    "SKILL.md": "9fa8e400978f2c5f461ae4d5f640ddbc2412db508027c6745dcd2b7fa8a3fcfb"
+  }
+}

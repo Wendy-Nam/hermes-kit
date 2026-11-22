@@ -1,0 +1,44 @@
+{
+  "sources": {
+    "solo-skills": {
+      "repo": "bam-bam-2/solo-skills",
+      "license": "MIT"
+    },
+    "hermes-job-hunt-for-korean": {
+      "repo": "Wendy-Nam/hermes-job-hunt-for-korean",
+      "license": "MIT"
+    },
+    "gongnyang-prompt-kit": {
+      "repo": "gongnyang/gongnyang-prompt-kit",
+      "license": "MIT"
+    },
+    "bookforge": {
+      "repo": "custom-io/bookforge",
+      "license": "MIT"
+    }
+  },
+  "common": [
+    "harness",
+    "orchestration",
+    "style-skill-creator",
+    "meeting-summary",
+    "meeting-minutes",
+    "workshop-prep",
+    "humanize-korean",
+    "image-prompt",
+    "bookforge"
+  ],
+  "kits": {
+    "job": [
+      "company-interview-research",
+      "interview-grill",
+      "job-match",
+      "cover-letter-pdf"
+    ],
+    "sales": [],
+    "mkt": [],
+    "pm": [],
+    "dev": []
+  },
+  "requires": {}
+}

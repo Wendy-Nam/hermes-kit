@@ -5,6 +5,8 @@ const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm');
 const ROOT='/app/.build/next/server/chunks';
 const before='}(a);return i(b,{getCatalogWindow:(a,b)=>(0,f.w8)({provider:a,model:b},{persistedOverrides:!1}).contextWindow';
 const after='}(a);const __hermesReconcileSnapshot=(await c(838997)).m();return i(b,{getCatalogWindow:(a,b)=>(0,f.w8)({provider:a,model:b},{persistedOverrides:!1},__hermesReconcileSnapshot).contextWindow';
+const beforeV2='(await m(a.providers)),c=!1;try{return await l(b,{getCatalogWindow:(a,b)=>(0,f.w8)({provider:a,model:b},{persistedOverrides:!1}).contextWindow';
+const afterV2='(await m(a.providers)),c=!1;const __hermesReconcileSnapshot=(0,f.mP)();try{return await l(b,{getCatalogWindow:(a,b)=>(0,f.w8)({provider:a,model:b},{persistedOverrides:!1},__hermesReconcileSnapshot).contextWindow';
 function patch(root=ROOT){
  const files=fs.readdirSync(root).filter(f=>f.endsWith('.js')).map(f=>path.join(root,f));
  // Patch the Node standalone startup module observed in this pinned build.
@@ -13,15 +15,19 @@ function patch(root=ROOT){
  if(candidates.length!==1)throw Error('Unsupported OmniRoute reconcile module count');
  const {file,text}=candidates[0];
  // This is a capability-snapshot API in the pinned upstream, not a private cache.
- if(!files.some(f=>fs.readFileSync(f,'utf8').includes('838997:(a,b,c)=>')))
+ if(!files.some(f=>fs.readFileSync(f,'utf8').includes('838997:(a,b,c)=>'))&&!files.some(f=>fs.readFileSync(f,'utf8').includes('mP:()=>')))
   throw Error('Unsupported OmniRoute build: capability snapshot module missing');
- if(text.includes(after)){
-  if(text.includes(before)||text.split(after).length!==2)throw Error('Partial reconcile snapshot patch');
-  new vm.Script(text,{filename:file});return file;
+ for(const [b,a] of [[before,after],[beforeV2,afterV2]]){
+  if(text.includes(a)){
+   if(text.includes(b)||text.split(a).length!==2)throw Error('Partial reconcile snapshot patch');
+   new vm.Script(text,{filename:file});return file;
+  }
+  if(!text.includes('__hermesReconcileSnapshot')&&text.split(b).length===2){
+   const result=text.replace(b,a);new vm.Script(result,{filename:file});fs.writeFileSync(file,result);return file;
+  }
  }
- if(text.includes('__hermesReconcileSnapshot')||text.split(before).length!==2)
-  throw Error('Unsupported OmniRoute build: reconcile anchor missing or ambiguous');
- const result=text.replace(before,after);new vm.Script(result,{filename:file});fs.writeFileSync(file,result);return file;
+ throw Error('Unsupported OmniRoute build: reconcile anchor missing or ambiguous');
 }
 if(require.main===module)console.log('OmniRoute per-run reconciliation snapshot patched: '+path.basename(patch(process.argv[2])));
-module.exports={patch,before,after};
+module.exports={patch,before,after,beforeV2,afterV2};
+

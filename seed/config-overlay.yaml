@@ -21,6 +21,7 @@ skills:
     - email
     - research
     - k-skill                     # vendored NomaDamas/k-skill (seed/kskill)
+    - recommended                 # vendored recommended skills (seed/recommended)
 tts:
   provider: none                  # voice patch 10; the voice pack switches it on
 voice:

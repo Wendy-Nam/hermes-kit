@@ -655,6 +655,10 @@ class OmniChoiceView(OwnedView):
     async def pick(self, interaction, button):
         await interaction.response.send_modal(OmniPasswordModal('pick', self.owner_id))
 
+    @discord.ui.button(label='추천 가용 리소스 콤보 + OMH 자동 셋업', style=discord.ButtonStyle.success, row=0)
+    async def preset(self, interaction, button):
+        await interaction.response.send_modal(OmniPasswordModal('preset', self.owner_id))
+
     @discord.ui.button(label='ID 직접 입력', row=1)
     async def typed(self, interaction, button):
         await interaction.response.send_modal(OmniModeModal())
@@ -694,6 +698,11 @@ class OmniPasswordModal(discord.ui.Modal):
         if self.purpose == 'close':
             ok, msg = await asyncio.to_thread(om.close_dashboard, root, pw)
             return await interaction.followup.send(msg, ephemeral=True)
+        if self.purpose == 'preset':
+            from omniroute_presets import apply_presets
+            res = await asyncio.to_thread(apply_presets, root, pw)
+            prefix = TICK if res.get('status') == 'ok' else CROSS
+            return await interaction.followup.send(prefix + ' ' + res.get('message', '')[:1850], ephemeral=True)
         if self.purpose == 'pick':
             ok, rows = await asyncio.to_thread(om.list_models, root, pw)
             if not ok:

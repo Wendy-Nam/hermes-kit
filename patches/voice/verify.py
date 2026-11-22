@@ -23,16 +23,17 @@ from tools.tts_tool import DEFAULT_PROVIDER, _get_provider, text_to_speech_tool 
 for v in ["none", "off", "disabled", "false", "no", " None ", False]:
     assert _get_provider({"provider": v}) == "none", v
 assert _get_provider({}) == DEFAULT_PROVIDER and _get_provider({"provider": "elevenlabs"}) == "elevenlabs"
-r = json.loads(text_to_speech_tool(text="Hello world", provider="off"))
-assert r.get("success") is False and "disabled" in r.get("error", ""), r
 with tempfile.TemporaryDirectory() as d:
     Path(d, "config.yaml").write_text("tts:\n  provider: off\n", encoding="utf-8")
     prev = os.environ.get("HERMES_HOME"); os.environ["HERMES_HOME"] = d
     try:
         import hermes_cli.config as hc; hc._LOAD_CONFIG_CACHE.clear()
+        r = json.loads(text_to_speech_tool(text="Hello world"))
+        assert r.get("success") is False and "disabled" in r.get("error", ""), r
         m = object.__new__(GatewayVoiceMixin)
         m._voice_mode = {"discord:chat": "all"}; m._voice_key_for_source = lambda s: "discord:chat"
         m._adapter_for_source = lambda s: SimpleNamespace(_should_auto_tts_for_chat=lambda c: True)
+        m._delivery_adapter_for = m._adapter_for_source
         ev = MessageEvent(text="hi", source=SessionSource(platform=Platform.DISCORD, chat_id="chat", chat_type="dm"))
         assert m._should_send_voice_reply(ev, "Hello world", []) is False
     finally:

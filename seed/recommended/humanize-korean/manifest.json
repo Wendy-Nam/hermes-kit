@@ -1,0 +1,17 @@
+{
+  "schema_version": "kit-component/v1",
+  "id": "humanize-korean",
+  "version": "1.20261121.0",
+  "files": {
+    "SKILL.md": "1403a5b97a567d9b131d5126c6f061336edec3258d8de0a893a3bf2f6a8a7fc7",
+    "references/ai-tell-taxonomy.md": "b061ad516056434cd58e86961cde510d5b6c580bb8e2fc7025acee82335d904d",
+    "references/baseline.json": "3880335a2b760fd505531e303ff9fff7f0725f8f2e98dc965a7808c21616d958",
+    "references/baseline_v2.json": "b5f1725bd02fb4cc40eece68c5b8f1d7c7655775743196d8fd0bc5978f2ed916",
+    "references/metrics.py": "a665faef60c88a045e232ac633fe19335d123a58a5dd8e493708c7c5954a5f60",
+    "references/metrics_v2.py": "4551621f74f042c44bca871f372c14d2f6fce40582fe49b41b0a8d6d8dca8b98",
+    "references/quick-rules.md": "ad84c6dc8136378dc4434bd90d1e68e8fdc2bb63ccbbadc9394f9e2c5d3c92ff",
+    "references/rewriting-playbook.md": "2fb785cb418f79676cec80ce98a427cc4ef4dffd9fddf831fe3f7383dc8d4b58",
+    "references/scholarship.md": "f496dffcce98cbd7b496eb2708e7de1a2e48035e53bedabd750e9f840c5cf246",
+    "references/web-service-spec.md": "be887c5e60b9a37e63a4aa8156ada0da4298098a51451925a3a22b9a37e25f6a"
+  }
+}

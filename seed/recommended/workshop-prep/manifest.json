@@ -1,0 +1,11 @@
+{
+  "schema_version": "kit-component/v1",
+  "id": "workshop-prep",
+  "version": "1.20261121.0",
+  "files": {
+    "SKILL.md": "648abff1350c572a1eb75325fa8f62766605e2544365c8244a8701e229510b62",
+    "references/examples.md": "73ad3fd6da2d92eb62889db3f17a70af7c308aafad9cc9385f853d6bc9202900",
+    "references/integrations.md": "11ac44ee2b4beb2bffa212c93d6e79e623490b5878221c1e941b8281796ad7db",
+    "references/template.md": "8ae62c9ba40053a1882866e3fbe42c72b7edf77fb018532a013164a6988fe25b"
+  }
+}
