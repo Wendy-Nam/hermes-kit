@@ -85,7 +85,7 @@ def reset_route(data_dir, category):
 
 
 def recommendations(data_dir):
-    """OMH 2.0.5's shipped chain per task type: what OMH itself would pick, for reference."""
+    """OMH's shipped chain per task type: what OMH itself would pick, for reference."""
     try:
         from omh_enhancements import _python
         script=('import json\nfrom omh.plugin_bundle.omh.hermes_delegation import HERMES_MIXTURE_CATEGORY_CHAINS as c\n'
