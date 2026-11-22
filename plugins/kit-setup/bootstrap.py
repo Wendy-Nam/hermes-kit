@@ -27,6 +27,9 @@ def component_status(data_dir):
         if last:
             # Optional add-on: reported, never blocks setup completion.
             rows.append({'id':'k-skill','required':False,'status':last.get('status'),'message':last.get('message','')})
+        rec_last=state.get('last_results',{}).get('recommended-skills')
+        if rec_last:
+            rows.append({'id':'recommended-skills','required':False,'status':rec_last.get('status'),'message':rec_last.get('message','')})
     except Exception:
         rows.append({'id':'components','required':True,'status':'failed','message':'설치 상태를 읽을 수 없습니다. 진단이 필요합니다.'})
     return rows
@@ -128,4 +131,23 @@ if __name__=='__main__':
         if report.get('files'):
             for name,state in sorted(report['files'].items()):print(f'  {state:<8} {name}')
         if report.get('detail'):print(report['detail'])
+    elif args[:1]==['omh-upgrade']:
+        from upstream_omh import upgrade_upstream_omh
+        version_file=Path('/opt/kit/RELEASE_VERSION')
+        host_ver=version_file.read_text().strip().split('-k')[0] if version_file.exists() else '0.23.3'
+        report=upgrade_upstream_omh(home, host_version=host_ver)
+        print(report.get('message',''))
+        raise SystemExit(0 if report.get('status') in ('upgraded','current','installed') else 1)
+    elif args[:1]==['omniroute-preset']:
+        from omniroute_presets import apply_presets, plan
+        action=args[1] if len(args)>1 else 'plan'
+        pw=(args[2] if len(args)>2 else os.environ.get('KIT_OMNIROUTE_PASSWORD','')).strip()
+        if action=='plan':
+            report=plan(home, pw)
+        elif action=='apply':
+            report=apply_presets(home, pw)
+        else:
+            print('usage: bootstrap.py omniroute-preset [plan|apply] [password]');raise SystemExit(2)
+        print(report.get('message',''))
+        raise SystemExit(0 if report.get('status')=='ok' else 1)
     else:boot(home)

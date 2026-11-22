@@ -3,8 +3,25 @@
 학생용 [README](../README.md)는 현재 버전의 준비물·설치 순서·필수 키만 담습니다. 버전별 변경 내역은
 여기에 있고, 각 버전의 상세 릴리스 노트는 `docs/*-release.md`에 남습니다.
 
-이미지: `ghcr.io/wendy-nam/hermes-kit:0.21.2-kN`. 기수 배포 기준은
+이미지: `ghcr.io/wendy-nam/hermes-kit:0.23.3-kN`. 기수 배포 기준은
 [설치 도우미 안내](instructor-install-guide.md)의 "강사·운영자 출시 기준"을 따릅니다.
+
+## 0.23.3-k19 — 최신 업스트림 전면 업그레이드 + 보이스 경량 어댑터 + 추천 스킬 & OmniRoute/OMH 프리셋 + SSH 올인원 배포
+
+- **전 컴포넌트 최신 업스트림 업그레이드**
+  - **Hermes Agent `v0.23.3`**: Python 3.14 런타임 및 `hermes_yaml` 전환에 맞춘 `yaml` 호환 레이어 내장, 15종 코어 패치 전체 `v0.23.3` 대응 완료.
+  - **OMH (`oh-my-hermes`) `v5.0.0`**: `v5.0.0`의 `pre_tool_call` 라우트 노트(`route_note`)와 키트의 라우트 강제·모델별 편향 보정(calibration) 훅이 충돌 없이 결합되도록 개선하고, 기존 설치를 보존하며 업그레이드하는 `bootstrap.py omh-upgrade` 추가.
+  - **OmniRoute `v3.8.54-web`**: 최신 `3.8.54-web` 다이제스트 고정, RTK JSON envelope 어댑터 및 CommandCode Anthropic shim + 대시보드 키 경고 UI 패치 호환성 확보.
+  - **RTK `v1.2.1`**: 최신 바이너리 체크섬 검증 적용.
+- **디스코드 보이스룸 간편통화(`/call`) + 자동 따라가기(`voice_auto_follow`) 경량 런타임 어댑터**
+  - 순정 Hermes 컨테이너의 코어 파일을 수정하지 않고도 플러그인 로드 시점에 런타임 몽키패치로 동작하는 [`plugins/kit-setup/voice_adapter.py`](../plugins/kit-setup/voice_adapter.py) 추가 (이미지 빌드 시점 [`patches/voice/`](../patches/voice/) 패치와도 100% 호환·중복 방지).
+- **추천 스킬 번들 13종(`seed/recommended`) 추가 및 기본 불필요 스킬 정리 유지**
+  - 기존 기본 스킬 정리(`seed/bundled-keep.txt` 13개만 유지) + `k-skill` 25종에 더해, 감사 완료된 추천 스킬 13종(`harness`, `orchestration`, `style-skill-creator`, `meeting-summary`, `meeting-minutes`, `workshop-prep`, `humanize-korean`, `image-prompt`, `bookforge`, 직무 `job` 선택 시 `company-interview-research`, `interview-grill`, `job-match`, `cover-letter-pdf`)을 체크섬 매니페스트(`kit-component/v1`)로 내장했습니다.
+- **OmniRoute 가용 리소스 콤보 프리셋 + OMH 12개 카테고리 라우팅/보정 원클릭 연동**
+  - [`plugins/kit-setup/omniroute_presets.py`](../plugins/kit-setup/omniroute_presets.py)를 통해 사용자의 OmniRoute에 실제로 연결된 무료 풀 및 구독 계정만 자동 감지하여 7종 추천 콤보(`hermes-chat`, `hermes-free`, `hermes-fast`, `hermes-coding`, `hermes-ultrabrain`, `hermes-writing`, `hermes-visual-engineering`)를 구성하고, OMH 12개 작업 카테고리 체인과 편향 보정 프롬프트를 한 번에 연결합니다 (Discord `/setup → 고급 설정 → OmniRoute 연결 → 추천 가용 리소스 콤보 + OMH 자동 셋업` 또는 `bootstrap.py omniroute-preset apply`).
+- **원격 SSH 및 로컬 겸용 올인원 설치·마이그레이션 CLI ([`bin/hermes-kit-deploy.sh`](../bin/hermes-kit-deploy.sh))**
+  - 로컬 VPS 또는 원격 SSH(`--ssh user@host`)에서 `install`, `migrate`, `preset`, `verify`를 한 번에 수행하며 기존 컨테이너 데이터와 설정을 안전하게 백업·보존합니다.
+- **저장소 정리**: 루트에 잘못 커밋되어 있던 `costRules.ts` 및 미사용 프로토타입 `spikes/s2` 제거.
 
 ## 0.21.2-k18 — OMH가 없을 때 안내가 갈리는 것을 고쳤습니다
 

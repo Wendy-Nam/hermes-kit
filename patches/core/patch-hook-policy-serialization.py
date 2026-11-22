@@ -203,6 +203,8 @@ def patch_source(source: str) -> str:
     """Return patched source; require the installed overlap patch baseline."""
     if "_POLICY_SERIALIZATION_DEADLINE_V2" in source:
         return source
+    if "gate_key = (*suppression_key, _hook_call_identity(kwargs, hook_name))" in source:
+        return source
     if "_hook_running_callback_events" in source and "waited_for_policy_overlap" in source:
         # Upgrade the first serialization-patch revision in place if a dry run
         # or deployment used it before the shared-deadline review adjustment.

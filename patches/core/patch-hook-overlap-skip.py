@@ -22,6 +22,10 @@ from pathlib import Path
 p = Path("/opt/hermes/hermes_cli/plugins_dispatch.py")
 s = p.read_text()
 
+if "gate_key = (*suppression_key, _hook_call_identity(kwargs, hook_name))" in s:
+    print("already patched upstream (v0.23+ per-call gate_key and abandoned worker tracking)")
+    raise SystemExit(0)
+
 # --- 1. sentinel definition ---
 sentinel_anchor = "_HOOK_SKIPPED = object()  # returned by _run_hook_callback_bounded on skip/timeout\n"
 sentinel_add = (
@@ -103,3 +107,4 @@ else:
 
 p.write_text(s)
 print("done")
+

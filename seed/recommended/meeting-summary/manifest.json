@@ -1,0 +1,8 @@
+{
+  "schema_version": "kit-component/v1",
+  "id": "meeting-summary",
+  "version": "1.20261121.0",
+  "files": {
+    "SKILL.md": "7fa787be54effe99a9fdb3f8c61592bb22b1550bbb63e86d72787b0611f8be59"
+  }
+}

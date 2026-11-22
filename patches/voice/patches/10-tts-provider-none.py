@@ -7,7 +7,7 @@ Touches: tools/tts_tool.py, gateway/run_voice.py, hermes_cli/config_defaults.py 
 """
 from _patchlib import replace_blocks, root_from_args
 
-TTS_EDITS = [
+TTS_EDITS_V21 = [
     ('DEFAULT_PROVIDER = "edge"\n',
      'DEFAULT_PROVIDER = "edge"\n'
      '# ``tts.provider`` spellings that mean "no TTS". PyYAML reads a bare ``off``/``false``/``no`` as the\n'
@@ -29,6 +29,25 @@ TTS_EDITS = [
      '    return tts_config, _normalize_provider(provider) or _get_provider(tts_config)\n'),
     ('    tts_config, provider = _apply_call_overrides(_load_tts_config(), speed, provider)\n',
      '    tts_config, provider = _apply_call_overrides(_load_tts_config(), speed, provider)\n'
+     '    if provider == "none":\n'
+     '        return tool_error("TTS is disabled (tts.provider: none)", success=False)\n'),
+]
+
+TTS_EDITS_V23 = [
+    ('DEFAULT_PROVIDER = "edge"\n',
+     'DEFAULT_PROVIDER = "edge"\n'
+     '_DISABLED_PROVIDERS = frozenset({"none", "off", "disabled", "false", "no"})\n'),
+    ('def _get_provider(tts_config: dict[str, Any]) -> str:\n',
+     'def _normalize_provider(value: Any) -> str:\n'
+     '    name = "none" if value is False else str(value or "").lower().strip()\n'
+     '    return "none" if name in _DISABLED_PROVIDERS else name\n'
+     '\n'
+     '\n'
+     'def _get_provider(tts_config: dict[str, Any]) -> str:\n'),
+    ('    provider = (tts_config.get("provider") or DEFAULT_PROVIDER).lower().strip()\n',
+     '    provider = _normalize_provider(tts_config.get("provider")) or DEFAULT_PROVIDER\n'),
+    ('    tts_config, provider = _apply_call_overrides(_load_tts_config(), speed)\n',
+     '    tts_config, provider = _apply_call_overrides(_load_tts_config(), speed)\n'
      '    if provider == "none":\n'
      '        return tool_error("TTS is disabled (tts.provider: none)", success=False)\n'),
 ]
@@ -60,6 +79,11 @@ DEFAULTS_EDITS = [
 
 if __name__ == "__main__":
     root = root_from_args()
-    replace_blocks(root / "tools/tts_tool.py", TTS_EDITS, "_DISABLED_PROVIDERS")
+    tts_path = root / "tools/tts_tool.py"
+    tts_src = tts_path.read_text(encoding="utf-8") if tts_path.exists() else ""
+    edits = TTS_EDITS_V23 if "def _get_provider(tts_config: dict[str, Any]) -> str:" in tts_src else TTS_EDITS_V21
+    replace_blocks(tts_path, edits, "_DISABLED_PROVIDERS")
     replace_blocks(root / "gateway/run_voice.py", RUN_VOICE_EDITS, '_get_provider(_load_tts_config()) == "none"')
-    replace_blocks(root / "hermes_cli/config_defaults.py", DEFAULTS_EDITS, '# | "none" (TTS off', optional=True)
+    if (root / "hermes_cli/config_defaults.py").exists() and '        # "gemini" | "deepinfra" | "neutts" (local) | "kittentts" (local) | "piper" (local)\n        "provider": "edge",\n' in (root / "hermes_cli/config_defaults.py").read_text(encoding="utf-8"):
+        replace_blocks(root / "hermes_cli/config_defaults.py", DEFAULTS_EDITS, '# | "none" (TTS off', optional=True)
+

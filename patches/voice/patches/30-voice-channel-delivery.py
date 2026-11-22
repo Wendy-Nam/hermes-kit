@@ -28,5 +28,18 @@ EDITS = [
             event._voice_reply_sent = True'''),
 ]
 
+BASE_EDITS = [
+    ('''        return bool(
+            self._should_auto_tts_for_chat(event.source.chat_id)''',
+     '''        return bool(
+            not getattr(event, "_voice_reply_sent", False)
+            and self._should_auto_tts_for_chat(event.source.chat_id)'''),
+]
+
 if __name__ == "__main__":
-    replace_blocks(root_from_args() / "gateway/run_voice.py", EDITS, "event._voice_reply_sent = True")
+    root = root_from_args()
+    replace_blocks(root / "gateway/run_voice.py", EDITS, "event._voice_reply_sent = True")
+    base_py = root / "gateway/platforms/base.py"
+    if base_py.exists() and "self._should_auto_tts_for_chat(event.source.chat_id)" in base_py.read_text(encoding="utf-8"):
+        replace_blocks(base_py, BASE_EDITS, 'getattr(event, "_voice_reply_sent", False)', optional=True)
+

@@ -45,7 +45,11 @@ DEFAULT_EFFORTS = {
 }
 BASE_ALIAS = 'student-selected'
 HOOK_FILE = 'plugins/omh/hooks/tool_hooks.py'
-PINNED_FILES = {HOOK_FILE: 'a0382ed1cf9f78f0cf9202395c027cd29a01953a3b7983d2142747d764b60e3b'}
+PINNED_FILES = {HOOK_FILE: '93411ca09687aced2e891820e7526659d0a4b04ca45b4638f091cf70b458b4db'}
+KNOWN_HOOK_HASHES = frozenset({
+    'a0382ed1cf9f78f0cf9202395c027cd29a01953a3b7983d2142747d764b60e3b',  # OMH 2.0.5
+    '93411ca09687aced2e891820e7526659d0a4b04ca45b4638f091cf70b458b4db',  # OMH 5.0.0
+})
 ROUTE_TOOL = 'plugins/omh/tools/delegate_route_tool.py'  # patched only by v1 receipts
 SETTINGS = '.omh/routing/kit-enhanced.json'
 RUNTIME = 'plugins/omh/kit_enhanced.py'
@@ -111,12 +115,16 @@ def current_route():
     return read_delegation_route(HOME)
 
 def family_model(route):
-    """The kit's own OmniRoute combo holds exactly one model: calibrate for that model."""
+    """The kit's own OmniRoute combo or preset combo calibrates against its primary head model."""
     model=str(route.get('model') or '')
-    if route.get('provider')=='kit-omniroute':
+    if route.get('provider') in ('kit-omniroute', 'omniroute'):
         try:
-            active=json.loads(OMNIROUTE_STATE.read_text()).get('active') or {}
+            doc=json.loads(OMNIROUTE_STATE.read_text())
+            active=doc.get('active') or {}
             if active.get('name')==model and isinstance(active.get('model'),str): return active['model']
+            presets=(doc.get('presets') or {}).get('combos') or {}
+            head=presets.get(model)
+            if isinstance(head,list) and head and isinstance(head[0],str): return head[0].split('/',1)[-1]
         except (OSError,ValueError,AttributeError):
             pass
     return model
@@ -224,7 +232,7 @@ _KIT_BASIC_PRE_TOOL = pre_tool_call
 from .. import kit_enhanced as _kit_enhanced
 def pre_tool_call(**kwargs):
     original = _KIT_BASIC_PRE_TOOL(**kwargs)
-    if original and original.get('action') != 'modify': return original
+    if original and original.get('action') not in (None, 'modify'): return original
     try:
         args = kwargs.get('tool_input') if 'tool_input' in kwargs else kwargs.get('args')
         if isinstance(args, dict):
@@ -410,8 +418,10 @@ def enable_locked(data, *, updates=None, remove=(), base=False):
         hook_before = receipt['before'][HOOK_FILE]
     else:
         hook = _read(data, HOOK_FILE)
-        if hook is None or _sha(hook) != PINNED_FILES[HOOK_FILE]:
-            raise ValueError('pinned unmodified OMH 2.0.5 required')
+        pinned = PINNED_FILES[HOOK_FILE]
+        allowed_hashes = KNOWN_HOOK_HASHES if pinned in KNOWN_HOOK_HASHES else {pinned}
+        if hook is None or _sha(hook) not in allowed_hashes:
+            raise ValueError('pinned unmodified OMH 5.0.0 required')
         if _read(data, RUNTIME) is not None or _read(data, SETTINGS) is not None:
             raise ValueError('unmanaged enhancement exists')
         provider_blob, chain_blob = (_read(data, name) for name in ROUTE_FILES)

@@ -1,0 +1,9 @@
+{
+  "schema_version": "kit-component/v1",
+  "id": "cover-letter-pdf",
+  "version": "1.20261121.0",
+  "files": {
+    "SKILL.md": "6cec38d4685453df48a9170001e428101f0b63fe0aa1281687aeaa693735fe12",
+    "templates/cover-letter.html": "5e6adf09aac2c355f497ffb118fabdd4daf6fd5ede0cb7d9751a4b2bb6e715dc"
+  }
+}

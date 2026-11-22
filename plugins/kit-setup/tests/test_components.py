@@ -125,7 +125,7 @@ class UpstreamOmh(unittest.TestCase):
         import upstream_omh as u
         with self.assertRaises(ValueError): u.validate_routing({'model':'x','provider':'auto'})
         with tempfile.TemporaryDirectory() as d:
-            result = u.install_upstream_omh(d, routing={'model':'x','provider':'openai'}, host_version='0.22.0')
+            result = u.install_upstream_omh(d, routing={'model':'x','provider':'openai'}, host_version='0.20.0')
             self.assertEqual(result['status'], 'failed')
             self.assertFalse((Path(d) / '.kit-tools').exists())
 

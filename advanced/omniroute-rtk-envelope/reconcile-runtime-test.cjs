@@ -6,8 +6,11 @@ process.env.DATA_DIR=home;process.env.CONTEXT_WINDOW_RECONCILE_INTERVAL='0';
 require('/app/.build/next/server/app/api/compression/preview/route.js');
 const runtime=require('/app/.build/next/server/webpack-runtime.js');
 (async()=>{
- await runtime.e(88705);await runtime.e(89935);
- const reconciler=await runtime(488705),resolver=await runtime(789935),snapshots=await runtime(838997),catalog=await runtime(281653),database=await runtime(33653);
+ for(const cid of [42613,88705,89935,81653,40967,69749]){
+  if(fs.existsSync('/app/.build/next/server/chunks/'+cid+'.js'))await runtime.e(cid);
+ }
+ const reconciler=await runtime(488705),resolver=await runtime(789935),snapshots=await runtime(838997),catalog=await runtime(281653);
+ let database;try{database=await runtime(240967);}catch{database=await runtime(33653);}
  const db=database.getDbInstance();
  const provider='openai',sameModel='gpt-4o',newModel='hermes-kit-synthetic-window',manualModel='hermes-kit-synthetic-manual';
  const baseline=resolver.w8({provider,model:sameModel},{persistedOverrides:false}).contextWindow;

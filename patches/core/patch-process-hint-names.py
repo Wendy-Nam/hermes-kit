@@ -111,6 +111,13 @@ def _replace_file(path: Path, rel: str, *, apply: bool, enforce_hash: bool) -> d
     if before_hash != meta["original_sha256"] and enforce_hash:
         raise ValueError(f"unrecognized pre-patch state for {rel}: {before_hash}")
     if ast_count == 0:
+        new_count = sum(
+            node.value.count(NEW)
+            for node in ast.walk(ast.parse(source, filename=rel))
+            if isinstance(node, ast.Constant) and isinstance(node.value, str)
+        )
+        if not enforce_hash and new_count > 0:
+            return {"file": rel, "changed": False, "matches": 0, "sha256": before_hash}
         if enforce_hash or apply:  # hermes-kit: nothing to patch at build time is drift
             raise ValueError(f"no eligible stale hint in expected original file {rel}")
         return {"file": rel, "changed": False, "matches": 0, "sha256": before_hash}

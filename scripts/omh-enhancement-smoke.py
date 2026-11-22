@@ -58,7 +58,7 @@ with tempfile.TemporaryDirectory(prefix='kit-omh-acceptance-') as directory:
               'student_marker': 'keep'}
     (data / 'config.yaml').write_text(yaml.safe_dump(config))
     untouched = {
-        '.env': b'FIXTURE_NOT_A_REAL_KEY=synthetic-value\n',
+        '.env': b'FIXTURE_NOT_A_REAL_KEY=synthetic-value\nGEMINI_API_KEY=synthetic-gemini\nOPENCODE_GO_API_KEY=synthetic-opencode\n',
         'profiles/work/config.yaml': b'model:\n  default: fixture-work\n',
         'profiles/work/.env': b'FIXTURE_WORK=synthetic-profile-value\n',
     }

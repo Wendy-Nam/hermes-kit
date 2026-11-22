@@ -1,0 +1,11 @@
+{
+  "schema_version": "kit-component/v1",
+  "id": "company-interview-research",
+  "version": "1.20261121.0",
+  "files": {
+    "SKILL.md": "eba949951dc0e5238bd42a1aad49d9217de13ef83192eac9b6426fa30ffbac91",
+    "references/company-research-example.md": "3896cc941a3cc186cffd77426e60e415fb412a9495ad3dc4b77209cae41c0b74",
+    "references/job-board-email-triage.md": "6d2262d459de6d51b77aeae0ddf21c0c132497848722515fe72cd28f8f4c020d",
+    "references/recruiter-email-triage.md": "1c6110e221767c2f7e6669bcbbc2f4d666c877b9e21410c2ab07956e5fca4f16"
+  }
+}

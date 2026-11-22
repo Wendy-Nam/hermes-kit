@@ -3,7 +3,7 @@
 수강생이 개인 VPS에 Hermes를 설치하고, Discord에서 모델·서비스 키·직무 스킬을 연결하는 키트입니다.
 업무와 개인 노트는 별도 볼트로 관리합니다.
 
-**현재 버전: `0.21.2-k18`** — 이미지 `ghcr.io/wendy-nam/hermes-kit:0.21.2-k18`.
+**현재 버전: `0.23.3-k19`** — 이미지 `ghcr.io/wendy-nam/hermes-kit:0.23.3-k19` (Hermes `v0.23.3` + OMH `v5.0.0` + OmniRoute `v3.8.54-web` + RTK `v1.2.1`).
 이전 버전의 변경 사항은 [CHANGELOG](docs/CHANGELOG.md)에 있습니다. 강사용 설치 지원 절차는
 [설치 도우미 안내](docs/instructor-install-guide.md)에 있습니다.
 소스와 빌드 스크립트는 이 저장소에 공개되어 있습니다. 이미지 다운로드는 공개 저장소라
@@ -23,14 +23,14 @@ GitHub 로그인이 필요 없습니다. 각 학생의 키·대화·볼트는 �
 
 1. Discord Developer Portal에서 새 앱과 봇을 만들고 봇 토큰을 발급합니다.
    - 왼쪽 **Bot** → **Reset Token**. **Privileged Gateway Intents**의 **Message Content Intent**를 켭니다.
-2. [docker-compose.yml](docker-compose.yml)을 Hostinger Docker Manager의 Compose 프로젝트에 넣습니다.
+2. [docker-compose.yml](docker-compose.yml)을 Hostinger Docker Manager의 Compose 프로젝트에 넣거나, SSH 원격 올인원 설치 스크립트([`bin/hermes-kit-deploy.sh`](bin/hermes-kit-deploy.sh))를 실행합니다.
    - 환경변수는 `DISCORD_BOT_TOKEN` 하나입니다. 환경변수 입력란이 자동 생성되지 않으면 프로젝트의 환경변수 설정에서 직접 추가합니다.
 3. 배포 후 Hermes 컨테이너 로그의 `[kit] 봇 초대:` 링크를 열어 본인 서버에 초대합니다. 봇이 온라인으로 보이면 됩니다.
 4. **서버 소유자 계정**으로 Discord에서 `/setup`을 실행하고, **설정 순서** 화면의 번호대로 누릅니다.
    1. **ChatGPT로 로그인** 또는 **API 키로 연결** — 권장 모델 ID가 미리 채워져 있고, 실제 응답을 확인한 뒤 저장합니다.
    2. **Gemini 키** — 영상 요약용 무료 키.
-   3. **직무 선택** — 구직·세일즈·마케팅·기획·개발. 직무별 한국형 스킬도 같이 설치됩니다.
-   4. **권장 설정 적용 (재시작)** — OMH와 역할 프로필(조사 `research`·코딩 `coder`·콘텐츠 `creator`)을 대화 모델로 설치하고, 연결 확인 후 재시작합니다.
+   3. **직무 선택** — 구직·세일즈·마케팅·기획·개발. 직무별 한국형 스킬(`k-skill`)과 추천 실무 스킬(`recommended`)도 같이 설치됩니다.
+   4. **권장 설정 적용 (재시작)** — OMH(`v5.0.0`)와 역할 프로필(조사 `research`·코딩 `coder`·콘텐츠 `creator`)을 대화 모델로 설치하고, 연결 확인 후 재시작합니다.
 5. 다시 연결된 뒤 `/doctor`와 실제 질문 하나로 확인합니다. 영상 요약도 짧은 공개 영상 하나로 시험해 보세요.
 
 키트 상태는 `/setup → 고급 설정`의 **선택 기능 안내**에서 한눈에 볼 수 있습니다(기능 설명 + 현재 켜짐 여부). 키의 *값*은 절대 표시되지 않습니다.
@@ -47,14 +47,26 @@ GitHub 로그인이 필요 없습니다. 각 학생의 키·대화·볼트는 �
 이 스크립트들은 Syncthing·Obsidian을 PC에 설치하고 볼트 2개를 페어링할 뿐, 서버 설정은
 건드리지 않습니다. 모델·API 키는 Discord `/setup`이 담당합니다.
 
-### 이미 켜져 있는 호스트에 붙일 때
+### 원격 SSH 또는 이미 켜져 있는 호스트에 한 번에 설치·마이그레이션할 때
 
-Hermes가 이미 돌아가고 있는 호스트에 OMH와 OmniRoute를 새로 붙이려면, 키트 이미지를 다시
-배포하지 않고 **대상 호스트에서** 아래를 실행합니다. 이미 실행 중인 OmniRoute는 재사용합니다.
+[`bin/hermes-kit-deploy.sh`](bin/hermes-kit-deploy.sh) 하나로 로컬 VPS 내부에서 실행하거나, 내 PC에서 `--ssh user@host`로 원격 VPS에 한 번에 배포·업그레이드할 수 있습니다. 기존 컨테이너의 데이터(`.env`, `auth.json`, 볼트, 세션 DB, 사용자 스킬)는 절대 덮어쓰거나 삭제하지 않고 백업 후 마이그레이션합니다.
 
 ```sh
-docker exec <hermes-컨테이너> python3 /opt/data/plugins/kit-setup/bootstrap.py omh-routing apply
-docker exec <hermes-컨트이너> python3 /opt/data/plugins/kit-setup/bootstrap.py omh-routing verify
+# 1) 원격 SSH 서버에 신규 설치 (Hermes v0.23.3-k19 + Syncthing + OmniRoute v3.8.54-web)
+DISCORD_BOT_TOKEN=... KIT_OMNIROUTE_PASSWORD=... \
+  ./bin/hermes-kit-deploy.sh --ssh root@<VPS-IP> install --with-omniroute
+
+# 2) 기존 Hermes/OMH 서버를 최신 버전(Hermes v0.23.3 + OMH v5.0.0 + OmniRoute 3.8.54-web + 보이스 어댑터 + 추천 스킬)으로 무중단 마이그레이션
+KIT_OMNIROUTE_PASSWORD=... \
+  ./bin/hermes-kit-deploy.sh --ssh root@<VPS-IP> migrate --with-omniroute --apply-presets
+
+# 3) 이미 돌고 있는 컨테이너 내부에서 OmniRoute 추천 가용 리소스 콤보(7종) + OMH 12개 카테고리 라우팅/보정만 즉시 적용
+docker exec -e KIT_OMNIROUTE_PASSWORD=... <hermes-컨테이너> \
+  /opt/hermes/.venv/bin/python /opt/data/plugins/kit-setup/bootstrap.py omniroute-preset apply
+
+# 4) OMH 쿼터 인식 라우팅 폴백 상태 확인 및 적용
+docker exec <hermes-컨테이너> /opt/hermes/.venv/bin/python /opt/data/plugins/kit-setup/bootstrap.py omh-routing apply
+docker exec <hermes-컨테이너> /opt/hermes/.venv/bin/python /opt/data/plugins/kit-setup/bootstrap.py omh-routing verify
 ```
 
 `apply`는 [patches/omh-routing](patches/omh-routing)의 라우팅 폴백을 적용합니다.

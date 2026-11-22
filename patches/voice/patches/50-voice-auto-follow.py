@@ -162,13 +162,36 @@ RUN_VOICE_METHODS = '''
 
 if __name__ == "__main__":
     root = root_from_args()
-    replace_blocks(root / "plugins/platforms/discord/adapter.py",
-                   ADAPTER_EDITS + [("# ---- END PLUGIN-COMPAT ----\n", "# ---- END PLUGIN-COMPAT ----\n" + ADAPTER_APPEND)],
-                   "_voice_auto_follow_callback")
+    adapter_py = root / "plugins/platforms/discord/adapter.py"
+    adapter_src = adapter_py.read_text(encoding="utf-8") if adapter_py.exists() else ""
+    if "# ---- END PLUGIN-COMPAT ----\n" in adapter_src:
+        adapter_edits = ADAPTER_EDITS + [("# ---- END PLUGIN-COMPAT ----\n", "# ---- END PLUGIN-COMPAT ----\n" + ADAPTER_APPEND)]
+    else:
+        # In v0.23.3, place _voice_auto_follow_users right before SLASH_COMMANDS or at the end of the file
+        anchor = "_DISCORD_APP_COMMAND_TEXT_LIMIT = 100\n"
+        if anchor in adapter_src:
+            adapter_edits = ADAPTER_EDITS + [(anchor, anchor + ADAPTER_APPEND)]
+        else:
+            adapter_edits = ADAPTER_EDITS
+    replace_blocks(adapter_py, adapter_edits, "_voice_auto_follow_callback")
+    if "_voice_auto_follow_users" not in adapter_py.read_text(encoding="utf-8"):
+        adapter_py.write_text(adapter_py.read_text(encoding="utf-8") + ADAPTER_APPEND, encoding="utf-8")
     replace_blocks(root / "gateway/run_voice.py", [(
         "    async def _handle_voice_channel_input(",
         RUN_VOICE_METHODS + "\n    async def _handle_voice_channel_input(")], "_wire_voice_auto_follow")
-    replace_blocks(root / "gateway/run_startup.py", [(
-        "        self._wire_teams_pipeline_runtime()\n",
-        "        self._wire_teams_pipeline_runtime()\n        self._wire_voice_auto_follow()\n")],
-        "_wire_voice_auto_follow()")
+    startup_py = root / "gateway/run_startup.py"
+    startup_src = startup_py.read_text(encoding="utf-8") if startup_py.exists() else ""
+    if "        self._wire_teams_pipeline_runtime()\n" in startup_src:
+        replace_blocks(startup_py, [(
+            "        self._wire_teams_pipeline_runtime()\n",
+            "        self._wire_teams_pipeline_runtime()\n        self._wire_voice_auto_follow()\n")],
+            "_wire_voice_auto_follow()")
+    else:
+        for cand in (root / "gateway/run.py", startup_py):
+            if cand.exists() and "        self._wire_teams_pipeline_runtime()\n" in cand.read_text(encoding="utf-8"):
+                replace_blocks(cand, [(
+                    "        self._wire_teams_pipeline_runtime()\n",
+                    "        self._wire_teams_pipeline_runtime()\n        self._wire_voice_auto_follow()\n")],
+                    "_wire_voice_auto_follow()")
+                break
+

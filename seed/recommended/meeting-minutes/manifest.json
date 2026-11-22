@@ -1,0 +1,8 @@
+{
+  "schema_version": "kit-component/v1",
+  "id": "meeting-minutes",
+  "version": "1.20261121.0",
+  "files": {
+    "SKILL.md": "e1237dd634550982a7010bf9a1aa2ff7edb3665f6d2119cc85e954b1ef66acc4"
+  }
+}

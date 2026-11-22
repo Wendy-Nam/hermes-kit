@@ -236,6 +236,12 @@ def build(bot, adapter):
         log.exception("kit-setup: pack definitions are invalid — /setup is disabled")
         return
 
+    try:
+        import voice_adapter
+        voice_adapter.wire_discord_voice(bot, adapter)
+    except Exception:
+        log.debug("kit-setup: wire_discord_voice skipped", exc_info=True)
+
     async def setup(interaction: dc.Interaction):
         await setup_command(interaction, packs_list, kits_list, bot)
 
