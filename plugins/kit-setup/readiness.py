@@ -1,7 +1,5 @@
 """Setup completion is a measured result, not the presence of a key."""
 from pathlib import Path
-import json
-import time
 
 def check(data_dir, *, run_probe=True):
     from env_store import get_env

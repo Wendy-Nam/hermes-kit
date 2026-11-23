@@ -9,4 +9,5 @@ tests
 .scratch*
 ops
 optional-packs
-clients            # PC-side skill, distributed by copy, never baked into the image
+# PC-side skill, distributed by copy, never baked into the image
+clients

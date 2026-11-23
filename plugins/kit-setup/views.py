@@ -8,9 +8,31 @@ import logging
 
 import discord
 
+from pathlib import Path
 from discord_ui import (ENV_FILE, PENDING, TICK, CROSS, _apply, _env, _verify, restart_gateway)
 
 log = logging.getLogger(__name__)
+_BG_TASKS: set[asyncio.Task] = set()
+
+
+def _spawn(coro):
+    """Schedule a background task and retain a strong reference until completion."""
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        loop = asyncio.get_event_loop()
+    task = loop.create_task(coro)
+    _BG_TASKS.add(task)
+    task.add_done_callback(_BG_TASKS.discard)
+    return task
+
+
+def _host_version(default: str = "0.23.3") -> str:
+    vf = Path("/opt/kit/RELEASE_VERSION")
+    try:
+        return vf.read_text(encoding="utf-8").strip().split("-k")[0] or default
+    except OSError:
+        return default
 
 class DoctorView(discord.ui.View):
     """The /doctor result plus a button that renders the instructor-copy in a code block."""
@@ -63,7 +85,7 @@ class PackModal(discord.ui.Modal):
         failed = [r for r in results if not r[1]]
         if failed:
             # Nothing is written. A half-configured pack is the state nobody can debug later.
-            bad = {name for name, _, _ in failed}
+            bad = {name for name, _, _, _ in failed}
             body = ("확인에 실패한 키 — **아무것도 저장되지 않았습니다.**\n"
                     + "\n".join(f"{CROSS} {name}: {msg}" for name, _, msg, _ in failed))
             for spec, _ in entries:
@@ -83,19 +105,6 @@ class PackModal(discord.ui.Modal):
         detail = "\n".join(f"· {msg}" for _, ok, msg, _ in results if ok)
         await interaction.followup.send("\n".join(lines) + "\n" + detail, ephemeral=True)
         self.home.refresh()
-
-
-class PackButton(discord.ui.Button):
-    def __init__(self, pack, home):
-        env = _env()
-        done = all(env.get(k.env) for k in pack.keys)
-        super().__init__(style=discord.ButtonStyle.success if done else discord.ButtonStyle.secondary,
-                         label=pack.title[:80], custom_id=f"kit:pack:{pack.id}")
-        self.pack, self.home = pack, home
-
-    async def callback(self, interaction):
-        # The modal has to be the *first* response, so nothing may precede this call.
-        await interaction.response.send_modal(PackModal(self.pack, self.home))
 
 
 class ApplyButton(discord.ui.Button):
@@ -182,7 +191,7 @@ class ModelModal(discord.ui.Modal):
         self.role=discord.ui.TextInput(label='용도: main(대화) / aux(선택: 위임 전용)',default='main',max_length=4)
         self.add_item(self.provider);self.add_item(self.model);self.add_item(self.role)
     async def on_submit(self,interaction):
-        from model_setup import select_model,probe
+        from model_setup import select_model
         await interaction.response.defer(ephemeral=True,thinking=True)
         ok,msg=await asyncio.to_thread(select_model,ENV_FILE.parent,str(self.provider).strip(),str(self.model).strip(),str(self.role).strip())
         await interaction.followup.send(msg+(' 적용하기를 눌러 반영하세요.' if ok else ''),ephemeral=True)
@@ -220,20 +229,6 @@ class ProactiveModal(discord.ui.Modal):
         ok,msg=await asyncio.to_thread(enable,ENV_FILE.parent,str(self.channel_id),str(self.when),str(self.topic))
         await interaction.followup.send(msg,ephemeral=True)
 
-class OmniModal(discord.ui.Modal):
-    def __init__(self):
-        super().__init__(title='OmniRoute 연결 · 보조 모델')
-        self.password=discord.ui.TextInput(label='OmniRoute 대시보드 비밀번호',max_length=200)
-        self.provider=discord.ui.TextInput(label='제공자: gemini / openai / anthropic',max_length=32)
-        self.key=discord.ui.TextInput(label='해당 제공자의 API 키',max_length=512)
-        self.model=discord.ui.TextInput(label='사용할 정확한 모델 ID',max_length=200)
-        for item in (self.password,self.provider,self.key,self.model):self.add_item(item)
-    async def on_submit(self,interaction):
-        from omniroute_setup import configure
-        await interaction.response.defer(ephemeral=True,thinking=True)
-        ok,msg=await asyncio.to_thread(configure,ENV_FILE.parent,str(self.password),str(self.provider).strip(),str(self.key).strip(),str(self.model).strip())
-        await interaction.followup.send(msg[:1900],ephemeral=True)
-
 class OmniVisionModal(discord.ui.Modal):
     def __init__(self):
         super().__init__(title='현재 OmniRoute 모델로 이미지 읽기')
@@ -268,13 +263,12 @@ class ConfirmDisconnect(OwnedView):
         import disconnect
         from config_store import write
         from packs import load_packs
-        from model_setup import KEYS
         await interaction.response.defer(ephemeral=True,thinking=True)
         def execute():
             # Restore config first. If restoration fails retain keys and recovery snapshot.
             snap=disconnect._load(ENV_FILE.parent)
             write(ENV_FILE.parent,snap,remember=False)
-            names={k.env for p in load_packs() for k in p.keys}|{'KIT_OMNIROUTE_API_KEY'}
+            names=disconnect.managed_keys(load_packs())
             removed=disconnect.remove_keys(ENV_FILE,names)
             disconnect.forget(ENV_FILE.parent)
             return len(removed)
@@ -363,7 +357,7 @@ class ActionButton(discord.ui.Button):
                 if not route:
                     msg='두뇌 선택에서 대화 모델을 먼저 설정하세요. OMH는 그 경로(보조 모델이 있으면 보조 모델)만 사용하도록 설치합니다.'
                 else:
-                    row=await asyncio.to_thread(install_upstream_omh,ENV_FILE.parent,routing=route,host_version=Path('/opt/kit/RELEASE_VERSION').read_text().strip().split('-k')[0])
+                    row=await asyncio.to_thread(install_upstream_omh,ENV_FILE.parent,routing=route,host_version=_host_version())
                     msg=row['message']
             else:msg='지원하지 않는 작업입니다.'
         except Exception as exc:
@@ -575,7 +569,7 @@ async def run_recommended(interaction, view):
         route, _ = delegation_route(read(root))
         if not route:
             return await interaction.followup.send('대화 모델 설정이 없습니다. 1번부터 다시 설정해 주세요.', ephemeral=True)
-        version = Path('/opt/kit/RELEASE_VERSION').read_text().strip().split('-k')[0]
+        version = _host_version()
         omh = await asyncio.to_thread(install_upstream_omh, root, routing=route, host_version=version)
         roles = await asyncio.to_thread(ensure_roles, root)
     except Exception as exc:
@@ -659,14 +653,6 @@ class OmniChoiceView(OwnedView):
     async def preset(self, interaction, button):
         await interaction.response.send_modal(OmniPasswordModal('preset', self.owner_id))
 
-    @discord.ui.button(label='ID 직접 입력', row=1)
-    async def typed(self, interaction, button):
-        await interaction.response.send_modal(OmniModeModal())
-
-    @discord.ui.button(label='API 키 하나로 연결', row=1)
-    async def single(self, interaction, button):
-        await interaction.response.send_modal(OmniModal())
-
     @discord.ui.button(label='모드 끄기 (직접 연결로)', row=1)
     async def leave(self, interaction, button):
         from omniroute_mode import leave_mode
@@ -677,7 +663,7 @@ class OmniChoiceView(OwnedView):
             msg = f'되돌리지 못했습니다 ({type(exc).__name__}). 기존 설정은 그대로입니다.'
         await interaction.followup.send(msg, ephemeral=True)
 
-    @discord.ui.button(label='대시보드 링크 닫기', row=2)
+    @discord.ui.button(label='대시보드 링크 닫기', row=1)
     async def close(self, interaction, button):
         await interaction.response.send_modal(OmniPasswordModal('close', self.owner_id))
 
@@ -728,7 +714,7 @@ class OmniPasswordModal(discord.ui.Modal):
                 await interaction.followup.send(('대시보드 링크를 닫았습니다.' if ok else msg), ephemeral=True)
             except Exception:
                 pass  # the interaction token expires after 15 minutes; closing already happened
-        asyncio.get_event_loop().create_task(close_later())
+        _spawn(close_later())
 
 
 class ModelPickView(OwnedView):
@@ -760,21 +746,3 @@ class ModelPickView(OwnedView):
         if ok:
             self.password = ''
             self.stop()
-
-
-class OmniModeModal(discord.ui.Modal):
-    def __init__(self):
-        super().__init__(title='OmniRoute 모드')
-        self.password = discord.ui.TextInput(label='OmniRoute 대시보드 비밀번호', max_length=200)
-        self.chat = discord.ui.TextInput(label='대화용 모델 (쉼표로, 최대 5개, 앞이 우선)', max_length=600,
-                                         style=discord.TextStyle.paragraph, placeholder='codex/gpt-6-luna, command-code/deepseek/deepseek-v4.1-flash')
-        self.strong = discord.ui.TextInput(label='강한 작업용 모델 (비우면 대화용과 같게)', max_length=600, required=False,
-                                           style=discord.TextStyle.paragraph, placeholder='codex/gpt-6-sol, claude/claude-sonnet-5')
-        for item in (self.password, self.chat, self.strong):
-            self.add_item(item)
-
-    async def on_submit(self, interaction):
-        from omniroute_mode import connect_mode
-        await interaction.response.defer(ephemeral=True, thinking=True)
-        ok, msg = await asyncio.to_thread(connect_mode, ENV_FILE.parent, str(self.password), str(self.chat), str(self.strong))
-        await interaction.followup.send((TICK if ok else CROSS) + ' ' + msg[:1800], ephemeral=True)

@@ -64,10 +64,12 @@ def check_disk(data_dir: Path) -> Finding:
 
 
 def check_env_file(env_file: Path) -> Finding:
+    from env_store import is_secure
+
     if not env_file.exists():
         return Finding("설정 파일", BAD, ".env 가 없습니다 — /setup 을 실행해 주세요")
-    mode = os.stat(env_file).st_mode & 0o777
-    if mode & 0o077:
+    if not is_secure(env_file):
+        mode = os.stat(env_file).st_mode & 0o777
         return Finding("설정 파일", BAD, f".env 권한이 {oct(mode)[2:]} — 600 이어야 합니다")
     return Finding("설정 파일", OK, ".env 존재, 권한 600")
 
@@ -160,8 +162,16 @@ def copy_for_instructor(findings) -> str:
 
 def check_components(data_dir):
     from bootstrap import component_status
-    return [Finding('스킬 '+r['id'], OK if r['status']=='installed' else BAD, r['message'])
-            for r in component_status(data_dir)]
+    out = []
+    for r in component_status(data_dir):
+        if r['status'] in ('installed', 'preserved'):
+            st = OK
+        elif r.get('required', True):
+            st = BAD
+        else:
+            st = WARN
+        out.append(Finding('스킬 ' + r['id'], st, r['message']))
+    return out
 
 
 def check_maintenance(data_dir):

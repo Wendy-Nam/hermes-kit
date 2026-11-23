@@ -40,6 +40,14 @@ class MergeYaml(unittest.TestCase):
             merge_yaml.merge_file(d / "c.yaml", d / "o.yaml")
         self.assertEqual((d / "c.yaml").read_text(), "a: 1\n")
 
+    def test_non_mapping_target_is_rejected(self):
+        d = Path(tempfile.mkdtemp())
+        (d / "c.yaml").write_text("- list\n- target\n")
+        (d / "o.yaml").write_text("a: 1\n")
+        with self.assertRaises(ValueError):
+            merge_yaml.merge_file(d / "c.yaml", d / "o.yaml")
+        self.assertEqual((d / "c.yaml").read_text(), "- list\n- target\n")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -42,12 +42,14 @@ def restore(archive, target):
                 with tf.extractfile(member) as src, dest.open('xb') as out:
                     shutil.copyfileobj(src, out)
                 dest.chmod(0o600)
-                if member.name == 'cron/jobs.json':
+                if str(PurePosixPath(member.name)) == 'cron/jobs.json':
                     document = json.loads(dest.read_text())
                     jobs = document.get('jobs', []) if isinstance(document, dict) else document
                     if not isinstance(jobs, list):
                         raise ValueError('invalid cron registry')
                     for job in jobs:
+                        if not isinstance(job, dict):
+                            raise ValueError('invalid cron registry')
                         job['enabled'] = False
                     dest.write_text(json.dumps(document, ensure_ascii=False, indent=2))
         # Refuse a concurrently created target instead of replacing it.

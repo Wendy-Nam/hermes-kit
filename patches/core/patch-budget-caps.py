@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 """Patch /opt/hermes/tools/budget_config.py to enforce 8k tool result cap and 24k turn budget."""
-import sys
 from pathlib import Path
 
 TARGET = Path("/opt/hermes/tools/budget_config.py")

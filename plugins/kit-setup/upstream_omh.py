@@ -281,20 +281,34 @@ def upgrade_upstream_omh(data_dir, *, host_version=None):
     if backup_root.exists():
         shutil.rmtree(backup_root)
     backup_root.mkdir(parents=True, exist_ok=True)
-    for rel in ('.omh', 'plugins/omh', '.local/bin/omh', '.kit-tools/omh-enhancements.json'):
-        target = data / rel
-        if target.exists() or target.is_symlink():
-            dest = backup_root / rel
-            dest.parent.mkdir(parents=True, exist_ok=True)
-            shutil.move(str(target), str(dest))
-    # Stage saved_categories as a restored-only .omh/routing/kit-enhanced.json so install_upstream_omh picks it up
-    if saved_categories:
-        stage_routing = data / '.omh/routing'
-        stage_routing.mkdir(parents=True, exist_ok=True)
-        (stage_routing / 'kit-enhanced.json').write_text(
-            json.dumps({'categories': saved_categories}, indent=2) + '\n', encoding='utf-8')
-    version_str = host_version or os.environ.get('HERMES_VERSION') or '0.23.3'
-    res = install_upstream_omh(data, routing=routing, host_version=version_str)
+    def _restore_upgrade_backup():
+        for rel in ('.omh', 'plugins/omh', '.local/bin/omh', '.kit-tools/omh-enhancements.json'):
+            src = backup_root / rel
+            dst = data / rel
+            if src.exists() or src.is_symlink():
+                if dst.exists() or dst.is_symlink():
+                    _remove(dst)
+                dst.parent.mkdir(parents=True, exist_ok=True)
+                shutil.move(str(src), str(dst))
+
+    try:
+        for rel in ('.omh', 'plugins/omh', '.local/bin/omh', '.kit-tools/omh-enhancements.json'):
+            target = data / rel
+            if target.exists() or target.is_symlink():
+                dest = backup_root / rel
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                shutil.move(str(target), str(dest))
+        # Stage saved_categories as a restored-only .omh/routing/kit-enhanced.json so install_upstream_omh picks it up
+        if saved_categories:
+            stage_routing = data / '.omh/routing'
+            stage_routing.mkdir(parents=True, exist_ok=True)
+            (stage_routing / 'kit-enhanced.json').write_text(
+                json.dumps({'categories': saved_categories}, indent=2) + '\n', encoding='utf-8')
+        version_str = host_version or os.environ.get('HERMES_VERSION') or '0.23.3'
+        res = install_upstream_omh(data, routing=routing, host_version=version_str)
+    except Exception:
+        _restore_upgrade_backup()
+        raise
     if res.get('status') == 'installed':
         if saved_entitlement is not None:
             entitlement_path.parent.mkdir(parents=True, exist_ok=True)
@@ -303,14 +317,7 @@ def upgrade_upstream_omh(data_dir, *, host_version=None):
             apply_omh_routing(data)
         return dict(res, status='upgraded', version=OMH_VERSION)
     # Restore backup if upgrade failed
-    for rel in ('.omh', 'plugins/omh', '.local/bin/omh', '.kit-tools/omh-enhancements.json'):
-        src = backup_root / rel
-        dst = data / rel
-        if src.exists() or src.is_symlink():
-            if dst.exists() or dst.is_symlink():
-                _remove(dst)
-            dst.parent.mkdir(parents=True, exist_ok=True)
-            shutil.move(str(src), str(dst))
+    _restore_upgrade_backup()
     return res
 
 
@@ -356,6 +363,9 @@ def install_upstream_omh(data_dir, *, routing, host_version):
         try:
             snapshot = _snapshot_profiles(data)
         except Exception as exc:
+            if (work / 'restored-omh').exists() and not (data / '.omh').exists():
+                shutil.move(str(work / 'restored-omh'), str(data / '.omh'))
+            shutil.rmtree(work, ignore_errors=True)
             return {'id':'omh','status':'failed','message':f'프로필 보존 준비 실패 ({type(exc).__name__})'}
         # Upstream setup syncs its registration into every bot-profile home under
         # profiles/. Those homes belong to the student, so they are snapshotted and

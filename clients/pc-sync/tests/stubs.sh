@@ -182,9 +182,9 @@ cat > "$STUB_BIN/docker" <<'SH'
 if [ "${1:-}" != exec ]; then exit 0; fi
 
 shift
-# `if`, not `cond && shift`: the scripts run under `set -e`, where a false condition in the
-# last command of a branch exits the whole stub, so every `docker exec` without -u died here.
-if [ "${1:-}" = -u ]; then shift 2; fi
+while [ "${1:-}" = -i ] || [ "${1:-}" = -u ]; do
+  if [ "$1" = -u ]; then shift 2; else shift; fi
+done
 if [ $# -eq 0 ]; then echo "stub docker: exec with no command" >&2; exit 1; fi
 shift                                        # the container name
 

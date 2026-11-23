@@ -38,7 +38,7 @@ CLINE_FREE = ["cline/nvidia/nemotron-3-ultra-550b-a55b:free",
               "cline/nvidia/nemotron-3.5-lightning:free"]
 KIMI_FREE = ["unorouter/kimi-k3:free"]
 # Nous stays a direct Hermes provider: free tier = OAuth only, no API key, and OmniRoute nous-research is key-only
-# Antigravity: agy = Antigravity CLI Pro account (hanzoom2000, first), antigravity = second account (sharedwendy999).
+# Antigravity: agy = primary Antigravity CLI Pro account (first), antigravity = secondary account.
 # Its Gemini is allowed in tool tiers: OmniRoute's antigravity signature cache round-trips the Gemini 3 thought
 # signature (multi-turn loops passed 2026-09-27); plain gemini/* stays out of tool combos.
 AG_MAIN = ["agy/claude-sonnet-4-6", "agy/gemini-3.8-flash-medium", "antigravity/claude-sonnet-4-6", "antigravity/gemini-3.8-flash-tiered"]
@@ -284,7 +284,10 @@ def apply(dry):
                 return x.status, json.loads(x.read() or b"{}")
         except urllib.error.HTTPError as e:
             return e.code, {}
-    print("login:", req("POST", "/api/auth/login", {"password": sys.stdin.readline().strip()})[0])
+    login_status, _ = req("POST", "/api/auth/login", {"password": sys.stdin.readline().strip()})
+    print("login:", login_status)
+    if login_status != 200:
+        raise SystemExit(f"login failed: HTTP {login_status}")
     s, d = req("GET", "/api/combos")
     existing = {c["name"]: c for c in ((d.get("combos") if isinstance(d, dict) else d) or [])}
     for name, c in cand.items():

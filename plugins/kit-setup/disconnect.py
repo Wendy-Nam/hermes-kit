@@ -10,9 +10,9 @@ writes the new .env atomically like every other write.
 """
 import json
 import logging
-import os
-import tempfile
 from pathlib import Path
+
+from fs_util import atomic_write
 
 log = logging.getLogger(__name__)
 
@@ -35,17 +35,13 @@ def _save(data_dir: Path, snap: dict) -> None:
     Callers performing configuration changes hold config_store.locked throughout the
     snapshot/read/write transaction. This helper does not nest that same lock.
     """
-    root = Path(data_dir)
-    fd, temporary = tempfile.mkstemp(prefix='.kit-snapshot-', dir=root)
-    try:
-        with os.fdopen(fd, 'w', encoding='utf-8') as stream:
-            json.dump(snap, stream, ensure_ascii=False, indent=2)
-            stream.flush()
-            os.fsync(stream.fileno())
-        os.chmod(temporary, 0o600)
-        os.replace(temporary, root / SNAPSHOT)
-    finally:
-        Path(temporary).unlink(missing_ok=True)
+    atomic_write(
+        Path(data_dir) / SNAPSHOT,
+        json.dumps(snap, ensure_ascii=False, indent=2),
+        mode=0o600,
+        fsync=True,
+        prefix=".kit-snapshot-",
+    )
 
 
 def snapshot(data_dir: Path, config: dict, current: dict) -> None:
@@ -67,12 +63,32 @@ def remove_keys(env_file: Path, names) -> list[str]:
     return drop_env(Path(env_file), names)
 
 
+OMNIROUTE_ENV_KEYS = ("KIT_OMNIROUTE_API_KEY", "OMNIROUTE_API_KEY")
+
+
+def managed_keys(packs) -> list[str]:
+    """Every env key /setup or OmniRoute setup may write, in deterministic order."""
+    seen: list[str] = []
+    for p in packs:
+        for k in p.keys:
+            if k.env not in seen:
+                seen.append(k.env)
+        for derived_list in (getattr(p, "derived", None) or {}).values():
+            for derived_env in derived_list or ():
+                if derived_env not in seen:
+                    seen.append(derived_env)
+    for extra in OMNIROUTE_ENV_KEYS:
+        if extra not in seen:
+            seen.append(extra)
+    return seen
+
+
 def plan(data_dir: Path, env_file: Path, packs) -> tuple[list[str], list[str]]:
     """What a disconnect would do, without doing it — so the confirmation can be honest."""
     from env_store import get_env
 
     env = get_env(env_file) if Path(env_file).exists() else {}
-    keys = [k.env for p in packs for k in p.keys if env.get(k.env)]
+    keys = [name for name in managed_keys(packs) if env.get(name)]
     settings = list(_load(data_dir))
     return keys, settings
 

@@ -1,47 +1,73 @@
 # OmniRoute 심화팩 — 선택 사항. 기본 compose에 넣지 않습니다.
 #
-# 이유: Hermes 프로세스 하나가 이미 약 2.7GB를 쓰고, OmniRoute는 평소 0.8~1.5GB(첫 모델 동기화 때
-# 1.9GB)를 씁니다. 4GB VPS에서도 쓸 수 있습니다: 기본 Compose가 스왑 2GB를 만들고, OmniRoute는 2GB로 제한되며,
-# 역할 작업은 한 번에 하나만 돕니다. OmniRoute 모드에서 OmniRoute가 멈추면 대화는 직접 연결 모델로 넘어갑니다.
+# 3.8.54부터는 커스텀 패치 없이 원본 이미지(ghcr.io/diegosouzapw/omniroute:3.8.54)를 그대로 씁니다.
+# 상세 설정(전역 설정·압축 묶음·역할 콤보·Hermes 연동)은 docs/omniroute-setup-guide.md 를 참고하세요.
 #
 # 쓰려면: Hostinger Docker Manager에서 **두 번째 프로젝트**로 이 파일을 붙여넣고, 환경변수 칸에
 #   KIT_OMNIROUTE_PASSWORD — 대시보드 로그인 비밀번호(직접 정한 긴 문장)
 # 하나만 채우세요. 같은 비밀번호를 디스코드 /setup 💸 에서 한 번 더 입력하면 봇이 키 등록·콤보 구성을 합니다.
 #
-# 기본은 next-web 기반 + Hermes JSON RTK 어댑터를 검증한 수강생용 이미지입니다.
-# 기반 버전은 어댑터 호환성 검사 후 갱신합니다. upstream 자동 추종은 하지 않습니다.
-# 배포/up 때 새 이미지를 확인하며, 실행 중 자동 교체하지 않습니다.
-# 특정 버전으로 고정하려면 KIT_OMNIROUTE_IMAGE에 태그 또는 digest를 지정하세요.
-# 업데이트 전 데이터 볼륨 백업과 현재 이미지 digest를 보관하세요.
+# 업데이트 전에는 반드시 데이터 볼륨(storage.sqlite)을 스냅샷하고 현재 이미지 태그를 보관하세요.
 services:
   omniroute:
-    image: ${KIT_OMNIROUTE_IMAGE:-ghcr.io/wendy-nam/hermes-kit:omniroute-rtk-json-3}
+    image: ${KIT_OMNIROUTE_IMAGE:-ghcr.io/diegosouzapw/omniroute:3.8.54}
     pull_policy: always
     restart: unless-stopped
     stop_grace_period: 40s
-    # 평소 0.8GB, 첫 모델 동기화 때 1.9GB. 2GB를 넘으면 스왑(기본 Compose의 swap-init)을 1GB까지 쓰고,
-    # 그래도 넘으면 OmniRoute만 재시작됩니다. 봇은 직접 연결 모델로 계속 답합니다(OmniRoute 모드의 대체 경로).
-    mem_limit: 2g
-    memswap_limit: 3g
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    # 8GB+ VPS 기본 4g (4GB VPS에서는 KIT_OMNIROUTE_MEM_LIMIT=2g, KIT_OMNIROUTE_MEMORY_MB=1536, KIT_OMNIROUTE_NODE_OPTIONS=--max-old-space-size=1280 권장)
+    mem_limit: ${KIT_OMNIROUTE_MEM_LIMIT:-4g}
+    memswap_limit: ${KIT_OMNIROUTE_MEMSWAP_LIMIT:-5g}
     volumes:
       - omniroute-data:/app/data
     environment:
       INITIAL_PASSWORD: ${KIT_OMNIROUTE_PASSWORD:?OmniRoute 비밀번호를 먼저 정하세요 - 비우면 대시보드가 비밀번호 없이 열립니다}
-      REQUIRE_API_KEY: "true"      # /v1 는 Hermes용 추론 키가 있어야만 응답
+      REQUIRE_API_KEY: "true"                        # /v1 는 Hermes용 추론 키가 있어야만 응답
       TZ: Asia/Seoul
-    # JWT·API 키 서명 비밀값은 학생이 만들지 않게 합니다. 볼륨에 처음 기동할 때 생성하고 이후 재사용합니다.
-    # (ponytail: 비밀값과 데이터가 같은 디스크 — 단일 사용자 VPS에선 .env도 같은 디스크라 차이 없음)
+      # 보안·프라이버시 하드닝 (docs/ops/vps-migration-playbook.md §7)
+      OMNIROUTE_EMERGENCY_FALLBACK: "false"          # 402 시 무료 학습 제공자로 몰래 우회하는 것 차단
+      ENABLE_REQUEST_LOGS: "false"                   # 요청 본문 DB 저장 금지
+      OMNIROUTE_ALLOW_LOCAL_PROVIDER_URLS: "false"   # 내부망 SSRF 차단
+      ALLOW_API_KEY_REVEAL: "false"                  # API 키 재노출 차단
+      # 메모리·카탈로그·긴 에이전트 턴 타임아웃 (docs/omniroute-setup-guide.md §2)
+      OMNIROUTE_MEMORY_MB: ${KIT_OMNIROUTE_MEMORY_MB:-3072}
+      NODE_OPTIONS: ${KIT_OMNIROUTE_NODE_OPTIONS:---max-old-space-size=2048}
+      CATALOG_BUILD_TIMEOUT_MS: "60000"
+      FETCH_TIMEOUT_MS: "180000"
+      STREAM_IDLE_TIMEOUT_MS: "90000"
+      STREAM_READINESS_TIMEOUT_MS: "60000"
+      STREAM_READINESS_MAX_TIMEOUT_MS: "90000"
+      STREAM_ACTIVE_TIMEOUT_MS: "1260000"
+      RATE_LIMIT_AUTO_ENABLE: "false"
+      CONTEXT_WINDOW_RECONCILE_INTERVAL: "0"
+      # 검증된 기능 플래그 (docs/omniroute-setup-guide.md §4)
+      CLAUDE_CACHE_TAIL_TTL_1H: "true"
+      ANTIGRAVITY_ACCOUNT_LEASE_ENABLED: "true"
+      STREAM_RECOVERY_ENABLED: "true"
+      STREAM_EARLY_EOF_SIBLING_FAILOVER_ENABLED: "true"
+      USAGE_LIMIT_IGNORE_UNPRICED: "true"
+      UNPRICED_USAGE_BUDGET_POLICY: "count_as_zero"
+    healthcheck:
+      test: ["CMD", "node", "healthcheck.mjs"]
+      interval: 120s
+      timeout: 15s
+      retries: 3
+      start_period: 240s
+    # JWT·API 키·스토리지 암호화 비밀값은 첫 기동 시 볼륨에 생성하고 이후 재사용합니다.
     entrypoint:
       - sh
       - -c
       - |
         s=/app/data/.kit-secrets
-        [ -s "$$s" ] || { umask 077; printf 'JWT_SECRET=%s\nAPI_KEY_SECRET=%s\n' "$$(head -c 48 /dev/urandom | base64 | tr -d '\n')" "$$(head -c 48 /dev/urandom | base64 | tr -d '\n')" > "$$s"; }
+        umask 077
+        [ -s "$$s" ] || printf 'JWT_SECRET=%s\nAPI_KEY_SECRET=%s\n' "$$(head -c 48 /dev/urandom | base64 | tr -d '\n')" "$$(head -c 48 /dev/urandom | base64 | tr -d '\n')" > "$$s"
+        grep -q '^STORAGE_ENCRYPTION_KEY=' "$$s" || printf 'STORAGE_ENCRYPTION_KEY=%s\n' "$$(head -c 32 /dev/urandom | base64 | tr -d '\n')" >> "$$s"
+        grep -q '^MACHINE_ID_SALT=' "$$s" || printf 'MACHINE_ID_SALT=%s\n' "$$(head -c 32 /dev/urandom | base64 | tr -d '\n')" >> "$$s"
         set -a; . "$$s"; set +a
         exec /app/check-permissions.sh node dev/run-standalone.mjs
     # 대시보드는 VPS 내부에만 바인딩합니다. 접속은 디스코드 /setup → OmniRoute 연결 → 대시보드 열기(15분 링크).
-    # SSH를 쓸 수 있으면 아래 터널로도 됩니다.
-    # ssh -L 20128:127.0.0.1:20128 <vps>
+    # SSH를 쓸 수 있으면 아래 터널로도 됩니다: ssh -L 20128:127.0.0.1:20128 <vps>
     ports: ["127.0.0.1:20128:20128"]
     networks: [hermes-kit]
 

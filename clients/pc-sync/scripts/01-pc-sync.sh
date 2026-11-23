@@ -4,6 +4,8 @@
 # 이 스크립트는 서버 설정을 건드리지 않는다. 서버 쪽 설정은 hermes-kit의 /setup 이 전부 담당한다.
 # 예전 버전은 이 단계에서 "wiki" 폴더 1개를 만들었으나, 키트는 볼트를 2개 만든다.
 . "$(dirname "$0")/lib.sh"
+TMP=""
+trap '[ -n "${TMP:-}" ] && rm -rf "$TMP"' EXIT
 discover
 
 echo "▶ 볼트 위치: $VAULT_ROOT"
@@ -98,9 +100,7 @@ LOCAL_ID="$(curl -fsS -H "X-API-Key: $APIKEY" "http://$GUI/rest/system/status" |
 echo "· 로컬 기기 ID: ${LOCAL_ID:0:7}…"
 
 # ---------- 2) 서버측 등록 (볼트 2개) ----------
-hssh "mkdir -p /opt/data/tmp" >/dev/null
-hscp "$SKILL_DIR/scripts/remote/st_pair.py" "$SSH_ALIAS:/opt/data/tmp/" >/dev/null
-PAIR_OUT="$(hssh "docker exec -u 10000 $CONTAINER python3 /opt/data/tmp/st_pair.py $LOCAL_ID 내-PC" 2>&1)" || {
+PAIR_OUT="$(hssh "docker exec -i -u 10000 $CONTAINER python3 - $LOCAL_ID 내-PC" < "$SKILL_DIR/scripts/remote/st_pair.py" 2>&1)" || {
   echo "$PAIR_OUT" >&2; echo "❌ 서버 등록 실패 (위 메시지 확인)" >&2; exit 1; }
 echo "$PAIR_OUT" | grep -v '^SERVER_ID=' | sed 's/^/  /'
 SERVER_ID="$(echo "$PAIR_OUT" | sed -n 's/^SERVER_ID=//p')"
@@ -114,14 +114,15 @@ if ! api GET rest/config/devices | json_has_key deviceID "$SERVER_ID"; then
 else
   echo "· 서버 기기 이미 등록됨(로컬)"
 fi
-native() { if [ "$OS" = win ] && command -v cygpath >/dev/null 2>&1; then cygpath -w "$1" | sed 's/\\/\\\\/g'; else printf '%s' "$1"; fi; }
+native() { if [ "$OS" = win ] && command -v cygpath >/dev/null 2>&1; then cygpath -w "$1"; else printf '%s' "$1"; fi; }
 link_folder() {
-  local fid="$1" label="$2" dir="$3"
+  local fid="$1" label="$2" dir="$3" payload
   if api GET rest/config/folders | json_has_key id "$fid"; then
     echo "· 로컬에 '$fid' 폴더가 이미 있음 — Syncthing 화면에서 공유 중인지 확인하세요."
     return 0
   fi
-  api POST rest/config/folders "{\"id\":\"$fid\",\"label\":\"$label\",\"path\":\"$(native "$dir")\",\"type\":\"sendreceive\",\"devices\":[{\"deviceID\":\"$SERVER_ID\"},{\"deviceID\":\"$LOCAL_ID\"}],\"rescanIntervalS\":60,\"fsWatcherEnabled\":true}" >/dev/null
+  payload="$(python3 -c 'import json,sys; print(json.dumps({"id":sys.argv[1],"label":sys.argv[2],"path":sys.argv[3],"type":"sendreceive","devices":[{"deviceID":sys.argv[4]},{"deviceID":sys.argv[5]}],"rescanIntervalS":60,"fsWatcherEnabled":True}))' "$fid" "$label" "$(native "$dir")" "$SERVER_ID" "$LOCAL_ID")"
+  api POST rest/config/folders "$payload" >/dev/null
   echo "✅ $label 연결(로컬): $dir"
 }
 link_folder "hermes-work"     "업무 볼트" "$WORK_DIR"

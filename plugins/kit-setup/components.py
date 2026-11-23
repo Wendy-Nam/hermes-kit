@@ -145,18 +145,6 @@ def _install(source, target, component_id, state):
     return {'id': component_id, 'status': 'installed', 'message': f"{doc['version']} 설치 완료"}
 
 
-def install_component(source, data_dir, component_id):
-    """Install a skill component from a previously trusted source. No executable installers."""
-    if component_id not in KITS:
-        return {'id': component_id, 'status': 'unavailable', 'message': '제공되지 않는 직무 팩입니다.'}
-    data = Path(data_dir).resolve()
-    with _locked(data):
-        state = _read_state(data)
-        result = _install(Path(source), data / 'skills' / 'kit' / component_id, component_id, state)
-        _save_state(data, state)
-        return result
-
-
 def retry_components(data_dir, *, selected_kits=None, seed_dir=Path('/opt/kit/seed')):
     data = Path(data_dir).resolve(); results = []
     with _locked(data):

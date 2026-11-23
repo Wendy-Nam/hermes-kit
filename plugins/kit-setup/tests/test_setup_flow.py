@@ -126,7 +126,7 @@ class DiscordLayout(unittest.IsolatedAsyncioTestCase):
         self.assertLessEqual(len(view.children),25)
         ids=[c.custom_id for c in view.children if getattr(c,'custom_id',None)]
         self.assertEqual(len(ids),len(set(ids)))
-        for cls in (views.ModelModal,views.OmniModal):
+        for cls in (views.ModelModal,views.OmniVisionModal):
             self.assertLessEqual(len(cls().children),5)
         view.stop()
         wizard=views.WizardView(packs.load_packs(),owner_id=123,channel_id=456)

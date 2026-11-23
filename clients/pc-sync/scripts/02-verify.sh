@@ -12,7 +12,6 @@ st() { curl -fsS -H "X-API-Key: $APIKEY" "http://$GUI/rest/$1" 2>/dev/null; }
 
 echo "▶ 1. 로컬 Syncthing"
 st "system/status" >/dev/null && echo "  ✅ 실행 중 (http://$GUI)" || { echo "  ❌ 응답 없음"; exit 1; }
-LOCAL_ID="$(st system/status | json_field myID)"
 
 echo "▶ 2. 서버 볼트 2개 등록 여부"
 # in_hermes, not a hand-built hssh string: the python program has quotes in it, and re-joining
@@ -36,8 +35,8 @@ echo "▶ 3. 실제 파일 왕복 (서버 → PC)"
 # 키트는 이걸 확인하지 않는다. 공유가 설정돼 있어도 경로·권한 문제로 파일이 안 움직일 수 있다.
 STAMP="hermes-sync-check-$(date +%s)"
 echo "  · 서버에 시험 파일 작성: $STAMP"
-hssh "docker exec -u 10000 $CONTAINER sh -c 'mkdir -p /var/syncthing/vaults/work && echo $STAMP > /var/syncthing/vaults/work/$STAMP.txt'" >/dev/null 2>&1 \
-  || hssh "docker exec -u 10000 $CONTAINER sh -c 'echo $STAMP > /opt/data/vaults/work/$STAMP.txt'" >/dev/null 2>&1 \
+hssh "docker exec -u 10000 $CONTAINER sh -c 'mkdir -p /opt/data/vaults/work && echo $STAMP > /opt/data/vaults/work/$STAMP.txt'" >/dev/null 2>&1 \
+  || hssh "docker exec -u 10000 $CONTAINER sh -c 'mkdir -p /var/syncthing/vaults/work && echo $STAMP > /var/syncthing/vaults/work/$STAMP.txt'" >/dev/null 2>&1 \
   || { echo "  ⚠️ 서버에 시험 파일을 쓰지 못했습니다 (볼트 경로 확인)"; FAIL=1; }
 GOT=""
 for i in $(seq 1 30); do

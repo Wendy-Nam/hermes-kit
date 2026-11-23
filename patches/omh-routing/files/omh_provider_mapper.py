@@ -33,9 +33,6 @@ import re
 _BASE = 'http://omniroute:20128'
 _TIMEOUT = 8.0
 _TRUSTED_TEST = {'active', 'ok', 'success'}
-# Effort and provider-side qualifiers that are not a different model.
-def _norm(value: str) -> str:
-    return re.sub(r'[^a-z0-9]', '', str(value or '').lower())
 
 
 def _tokens(value: str) -> list[str]:
@@ -183,16 +180,12 @@ def classify(identity: str, reference: str) -> int | None:
         # keeps its major comparable: compare the trailing minor only.
         ident_letter = _LETTER_VERSION.match(ident_core[0]) if ident_core else None
         ref_letter = _LETTER_VERSION.match(ref_core[0]) if ref_core else None
-        if ident_letter and ref_letter:
-            # Same lettered line ('k3', 'k2.6'): compare the numeric part only.
-            ident_key = ident_key
-            ref_key = ref_key
         ident_major, ident_minor = ident_key[0], (ident_key[1] if len(ident_key) > 1 else 0)
         ref_major, ref_minor = ref_key[0], (ref_key[1] if len(ref_key) > 1 else 0)
-        # Both sides are letter-prefixed versions of one line ('k3', 'k2.6'):
+        # Both sides are letter-prefixed versions of the SAME line ('k3', 'k2.6'):
         # the letter is the line marker, so any numeric step stays in family.
         if ident_letter and ref_letter:
-            return 1
+            return 1 if ident_letter.group(1) == ref_letter.group(1) else None
         if ref_major != ident_major:
             return None
         # Same major: a different minor is a family sibling (4.6 -> 4.7, k3 -> k2.6).
@@ -208,8 +201,23 @@ def classify(identity: str, reference: str) -> int | None:
     return 0
 
 
+def _child_exhausted(child: dict) -> bool:
+    if child.get('unavailable'):
+        return True
+    quota = child.get('quota') or {}
+    windows = quota.get('windows') or {}
+    for window in windows.values():
+        if isinstance(window, dict) and window.get('usedPercentage') is not None:
+            try:
+                if float(window['usedPercentage']) >= 100.0:
+                    return True
+            except (TypeError, ValueError):
+                continue
+    return False
+
+
 def _quota_exhausted(connection: dict) -> bool:
-    """True when a subscription account is at its session/5h cap.
+    """True when a subscription account (or every account in its pool) is at its session/5h cap.
 
     Codex and friends report a per-account pool where `usage` is the percentage
     of the rolling window already consumed. OmniRoute drops such accounts in a
@@ -222,19 +230,10 @@ def _quota_exhausted(connection: dict) -> bool:
     aggregate = pool.get('aggregate')
     if isinstance(aggregate, dict) and aggregate.get('status') not in (None, 'available'):
         return True
-    for child in pool.get('children') or []:
-        if not isinstance(child, dict) or child.get('unavailable'):
-            continue
-        quota = child.get('quota') or {}
-        windows = quota.get('windows') or {}
-        for window in windows.values():
-            if isinstance(window, dict) and window.get('usedPercentage') is not None:
-                try:
-                    if float(window['usedPercentage']) >= 100.0:
-                        return True
-                except (TypeError, ValueError):
-                    continue
-    return False
+    children = [c for c in (pool.get('children') or []) if isinstance(c, dict)]
+    if not children:
+        return False
+    return all(_child_exhausted(child) for child in children)
 
 
 def _get_json(path: str, token: str) -> dict:

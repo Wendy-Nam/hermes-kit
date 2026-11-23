@@ -7,8 +7,8 @@ import sys
 from pathlib import Path
 
 TARGETS = ["tools/tts_tool.py", "tools/tts_tool_providers.py", "gateway/run_voice.py", "gateway/run_startup.py",
-           "gateway/run_busy.py", "gateway/slash_commands.py", "hermes_cli/commands.py",
-           "hermes_cli/config_defaults.py", "plugins/platforms/discord/adapter.py"]
+           "gateway/run.py", "gateway/run_busy.py", "gateway/slash_commands.py", "gateway/platforms/base.py",
+           "hermes_cli/commands.py", "hermes_cli/config_defaults.py", "plugins/platforms/discord/adapter.py"]
 IMPORT_SMOKE = ["gateway.run_voice", "gateway.slash_commands", "tools.tts_tool"]
 
 ap = argparse.ArgumentParser(); ap.add_argument("--root", default="/opt/hermes"); ap.add_argument("--python", default=sys.executable)

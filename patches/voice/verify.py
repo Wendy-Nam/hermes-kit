@@ -14,7 +14,7 @@ ap = argparse.ArgumentParser(); ap.add_argument("--root", default="/opt/hermes")
 sys.path.insert(0, a.root)
 
 from gateway.config import Platform                      # noqa: E402
-from gateway.platforms.event import MessageEvent, MessageType  # noqa: E402
+from gateway.platforms.event import MessageEvent         # noqa: E402
 from gateway.run_voice import GatewayVoiceMixin           # noqa: E402
 from gateway.session import SessionSource                 # noqa: E402
 from tools.tts_tool import DEFAULT_PROVIDER, _get_provider, text_to_speech_tool  # noqa: E402

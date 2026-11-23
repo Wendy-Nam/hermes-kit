@@ -140,7 +140,7 @@ class Maintenance(unittest.TestCase):
         import disconnect
         disconnect.snapshot(self.home, {'model.default': 'new'}, {'model.default': 'old'})
         before = (self.home / disconnect.SNAPSHOT).read_bytes()
-        with patch.object(disconnect.os, 'replace', side_effect=OSError):
+        with patch.object(os, 'replace', side_effect=OSError):
             with self.assertRaises(OSError):
                 disconnect.snapshot(self.home, {'other': 'new'}, {'other': 'old'})
         self.assertEqual((self.home / disconnect.SNAPSHOT).read_bytes(), before)

@@ -5,8 +5,8 @@ from pathlib import Path
 
 target_file = Path('/opt/hermes/gateway/kanban_watchers.py')
 if not target_file.exists():
-    print('Target not found:', target_file)
-    exit(0)
+    print('ERROR: Target not found:', target_file)
+    raise SystemExit(1)
 
 content = target_file.read_text(encoding='utf-8')
 target = 'async def _kanban_notifier_watcher(self, interval: float = 5.0) -> None:'
@@ -19,4 +19,5 @@ if target in content:
 elif replacement in content:
     print('already patched: kanban interval')
 else:
-    print('WARN: pattern not found in kanban_watchers.py')
+    print('ERROR: pattern not found in kanban_watchers.py')
+    raise SystemExit(1)

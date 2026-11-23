@@ -95,22 +95,33 @@ def connect_mode(data_dir, password, chat_text, strong_text=''):
             key_name = prefix + '-mode-' + uuid.uuid4().hex[:8]
             created, _ = client.request('POST', '/api/keys', {'name': key_name, 'noLog': True, 'allowedConnections': allowed})
             inference = created.get('key')
-            if not isinstance(inference, str) or not inference or '\n' in inference:
-                raise SetupError('추론 키 생성 결과가 올바르지 않습니다')
-            failed = []
-            for s in {s['id_']: s for s in chat_steps + strong_steps}.values():
-                try:
-                    _probe(client, s['id_'], inference, s['connectionId'])
-                except SetupError:
-                    failed.append(s['id_'])
-            chat_steps = [s for s in chat_steps if s['id_'] not in failed]
-            strong_steps = [s for s in strong_steps if s['id_'] not in failed]
-            if not chat_steps or not strong_steps:
-                raise SetupError('도구 호출 시험을 통과한 모델이 없습니다: ' + ', '.join(failed[:5]))
-            chat_combo, strong_combo = prefix + '-chat', prefix + '-strong'
-            _replace_combo(client, chat_combo, chat_steps)
-            _replace_combo(client, strong_combo, strong_steps)
             new_key_id = _identifier(created.get('id'))
+            if not isinstance(inference, str) or not inference or '\n' in inference:
+                try:
+                    client.request('DELETE', '/api/keys/' + new_key_id)
+                except SetupError:
+                    pass
+                raise SetupError('추론 키 생성 결과가 올바르지 않습니다')
+            try:
+                failed = []
+                for s in {s['id_']: s for s in chat_steps + strong_steps}.values():
+                    try:
+                        _probe(client, s['id_'], inference, s['connectionId'])
+                    except SetupError:
+                        failed.append(s['id_'])
+                chat_steps = [s for s in chat_steps if s['id_'] not in failed]
+                strong_steps = [s for s in strong_steps if s['id_'] not in failed]
+                if not chat_steps or not strong_steps:
+                    raise SetupError('도구 호출 시험을 통과한 모델이 없습니다: ' + ', '.join(failed[:5]))
+                chat_combo, strong_combo = prefix + '-chat', prefix + '-strong'
+                _replace_combo(client, chat_combo, chat_steps)
+                _replace_combo(client, strong_combo, strong_steps)
+            except Exception:
+                try:
+                    client.request('DELETE', '/api/keys/' + new_key_id)
+                except SetupError:
+                    pass
+                raise
             main = config.get('model') or {}
             fallback = config.get('fallback_providers') or []
             if main.get('provider') not in (None, '', 'auto', 'default', PROVIDER_NAME) and main.get('default'):
@@ -137,6 +148,10 @@ def connect_mode(data_dir, password, chat_text, strong_text=''):
                     set_env(data / '.env', {KEY_ENV: old_key})
                 else:
                     drop_env(data / '.env', [KEY_ENV])
+                try:
+                    client.request('DELETE', '/api/keys/' + new_key_id)
+                except SetupError:
+                    pass
                 raise
             previous = state.get('mode') or {}
             delegation = config.get('delegation') or {}
@@ -185,8 +200,9 @@ def leave_mode(data_dir):
                  'delegation.provider': before.get('provider'), 'delegation.model': before.get('model')})
     from model_setup import delegation_route
     route, _ = delegation_route(read(data))
-    from omh_enhancements import sync_base_route
-    sync_base_route(data, route['provider'], route['model'])
+    if route:
+        from omh_enhancements import sync_base_route
+        sync_base_route(data, route['provider'], route['model'])
     return True, f"대화를 {first['model']} 직접 연결로 되돌렸습니다. 적용하기(재시작) 후 반영됩니다."
 
 
@@ -253,7 +269,8 @@ def open_dashboard(data_dir, password, *, wait=90):
             status, _ = client.request('GET', '/api/tunnels/cloudflared')
             url = status.get('publicUrl')
             if status.get('running') and isinstance(url, str) and url.startswith('https://'):
-                (Path(data_dir) / TUNNEL_MARK).write_text(str(int(time.time()) + TUNNEL_MINUTES * 60))
+                from fs_util import atomic_write
+                atomic_write(Path(data_dir) / TUNNEL_MARK, str(int(time.time()) + TUNNEL_MINUTES * 60), prefix='.kit-tunnel-')
                 # A fresh trycloudflare name takes a few seconds to resolve; hand it over once it does.
                 import socket
                 host = url.split('/')[2]

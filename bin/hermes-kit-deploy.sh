@@ -15,7 +15,7 @@
 #   - Never deletes or overwrites an existing container's user data, `.env`, `auth.json`, vaults, or sessions.
 #   - Before any migration/update, snapshots `/opt/data` config, `.omh`, and plugins into a timestamped backup.
 #   - Syncs `/opt/data/plugins/kit-setup` from the latest kit image so running or existing volumes get the
-#     latest `voice_adapter.py`, `omh_routing.py`, `omniroute_presets.py`, and OMH v5.0.0 upgrader.
+#     latest `omh_routing.py`, `omniroute_presets.py`, and OMH v5.0.0 upgrader.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -30,7 +30,7 @@ HERMES_VERSION="${HERMES_VERSION:-0.23.3}"
 KIT_VERSION="${KIT_VERSION:-19}"
 RELEASE_TAG="${HERMES_VERSION}-k${KIT_VERSION}"
 DEFAULT_HERMES_IMAGE="ghcr.io/wendy-nam/hermes-kit:${RELEASE_TAG}"
-DEFAULT_OMNIROUTE_IMAGE="ghcr.io/wendy-nam/hermes-kit:omniroute-rtk-json-3"
+DEFAULT_OMNIROUTE_IMAGE="ghcr.io/diegosouzapw/omniroute:3.8.54"
 
 SSH_TARGET=""
 SSH_PORT="22"
@@ -52,6 +52,7 @@ Commands:
   migrate       Non-destructive upgrade/migration of an existing Hermes / OMH / OmniRoute server
   verify        Verify Hermes core, voice quick-call adapter, OMH v5.0.0 routing, and OmniRoute status
   preset        Plan or apply recommended OmniRoute available-resource combos & OMH 12-category chains
+  job-hunt      Install or update Wendy-Nam/hermes-job-hunt-for-korean inside the Hermes container (native)
 
 SSH Options (optional — omit to run locally on the current machine):
   --ssh <user@host>        Run deployment on a remote VPS over SSH
@@ -60,7 +61,7 @@ SSH Options (optional — omit to run locally on the current machine):
   --remote-dir <path>      Target directory on remote server (default: /opt/hermes-kit)
 
 Options:
-  --with-omniroute         Include OmniRoute (v3.8.54-web + RTK envelope + CommandCode/UI overlay)
+  --with-omniroute         Include OmniRoute (v3.8.54-web + RTK envelope + UI overlay)
   --build-local            Build Docker images locally from the repository instead of pulling GHCR tags
   --apply-presets          Automatically apply recommended OmniRoute combos + OMH 12-category routing
   --container <name>       Target an existing Hermes container by name (auto-detected if omitted)
@@ -68,21 +69,35 @@ Options:
 EOF
 }
 
+EXTRA_ARGS=()
+
+need_arg() {
+  if [[ "$2" -lt 2 ]]; then
+    echo "[error] Option '$1' requires an argument." >&2
+    usage >&2
+    exit 2
+  fi
+}
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --ssh)
+      need_arg "$1" "$#"
       SSH_TARGET="$2"
       shift 2
       ;;
     -p|--port)
+      need_arg "$1" "$#"
       SSH_PORT="$2"
       shift 2
       ;;
     -i|--identity)
+      need_arg "$1" "$#"
       SSH_IDENTITY="$2"
       shift 2
       ;;
     --remote-dir)
+      need_arg "$1" "$#"
       REMOTE_DIR="$2"
       shift 2
       ;;
@@ -99,22 +114,40 @@ while [[ $# -gt 0 ]]; do
       shift
       ;;
     --container)
+      need_arg "$1" "$#"
       CONTAINER_NAME="$2"
       shift 2
-      ;;
-    install|migrate|update|verify|doctor|preset)
-      ACTION="$1"
-      shift
-      break
       ;;
     -h|--help)
       usage
       exit 0
       ;;
-    *)
+    --)
+      shift
+      EXTRA_ARGS+=("$@")
+      break
+      ;;
+    -*)
       echo "[error] Unknown argument: $1" >&2
       usage >&2
       exit 2
+      ;;
+    install|migrate|update|verify|doctor|preset|job-hunt)
+      if [[ -z "${ACTION}" ]]; then
+        ACTION="$1"
+      else
+        EXTRA_ARGS+=("$1")
+      fi
+      shift
+      ;;
+    *)
+      if [[ -z "${ACTION}" ]]; then
+        echo "[error] Unknown command: $1" >&2
+        usage >&2
+        exit 2
+      fi
+      EXTRA_ARGS+=("$1")
+      shift
       ;;
   esac
 done
@@ -124,35 +157,61 @@ if [[ -z "${ACTION}" ]]; then
   exit 2
 fi
 
-EXTRA_ARGS=("$@")
-
 # ── Remote SSH Dispatch ───────────────────────────────────────────────────────────────────────
 if [[ -n "${SSH_TARGET}" ]]; then
   SSH_OPTS=(-p "${SSH_PORT}" -o StrictHostKeyChecking=accept-new)
   if [[ -n "${SSH_IDENTITY}" ]]; then
     SSH_OPTS+=(-i "${SSH_IDENTITY}")
   fi
+  REMOTE_DIR_Q="$(printf '%q' "${REMOTE_DIR}")"
   echo "[deploy] Syncing hermes-kit (${RELEASE_TAG}) to ${SSH_TARGET}:${REMOTE_DIR} ..."
-  ssh "${SSH_OPTS[@]}" "${SSH_TARGET}" "mkdir -p '${REMOTE_DIR}'"
+  ssh "${SSH_OPTS[@]}" "${SSH_TARGET}" "mkdir -p ${REMOTE_DIR_Q}"
   tar -C "${REPO_ROOT}" \
     --exclude='.git' \
     --exclude='__pycache__' \
     --exclude='.pytest_cache' \
-    -czf - . | ssh "${SSH_OPTS[@]}" "${SSH_TARGET}" "tar -xzf - -C '${REMOTE_DIR}'"
+    -czf - . | ssh "${SSH_OPTS[@]}" "${SSH_TARGET}" "tar -xzf - -C ${REMOTE_DIR_Q}"
 
-  FORWARD_FLAGS=()
-  [[ "${WITH_OMNIROUTE}" -eq 1 ]] && FORWARD_FLAGS+=(--with-omniroute)
-  [[ "${BUILD_LOCAL}" -eq 1 ]] && FORWARD_FLAGS+=(--build-local)
-  [[ "${APPLY_PRESETS}" -eq 1 ]] && FORWARD_FLAGS+=(--apply-presets)
-  [[ -n "${CONTAINER_NAME}" ]] && FORWARD_FLAGS+=(--container "${CONTAINER_NAME}")
+  REMOTE_CMD=(bash ./bin/hermes-kit-deploy.sh)
+  [[ "${WITH_OMNIROUTE}" -eq 1 ]] && REMOTE_CMD+=(--with-omniroute)
+  [[ "${BUILD_LOCAL}" -eq 1 ]] && REMOTE_CMD+=(--build-local)
+  [[ "${APPLY_PRESETS}" -eq 1 ]] && REMOTE_CMD+=(--apply-presets)
+  [[ -n "${CONTAINER_NAME}" ]] && REMOTE_CMD+=(--container "${CONTAINER_NAME}")
+  REMOTE_CMD+=("${ACTION}")
+  if [[ "${#EXTRA_ARGS[@]}" -gt 0 ]]; then
+    REMOTE_CMD+=("${EXTRA_ARGS[@]}")
+  fi
 
-  REMOTE_ENV=()
-  [[ -n "${DISCORD_BOT_TOKEN:-}" ]] && REMOTE_ENV+=("DISCORD_BOT_TOKEN=${DISCORD_BOT_TOKEN}")
-  [[ -n "${KIT_OMNIROUTE_PASSWORD:-}" ]] && REMOTE_ENV+=("KIT_OMNIROUTE_PASSWORD=${KIT_OMNIROUTE_PASSWORD}")
+  REMOTE_CMD_Q=""
+  for arg in "${REMOTE_CMD[@]}"; do
+    REMOTE_CMD_Q+=" $(printf '%q' "${arg}")"
+  done
+
+  # Transfer secrets via a mode-0600 temp file over stdin rather than remote command-line args
+  # (avoids shell injection on special characters and keeps secrets out of remote `ps`).
+  REMOTE_ENV_PAYLOAD=""
+  if [[ -n "${DISCORD_BOT_TOKEN:-}" ]]; then
+    REMOTE_ENV_PAYLOAD+="export DISCORD_BOT_TOKEN=$(printf '%q' "${DISCORD_BOT_TOKEN}")"$'\n'
+  fi
+  if [[ -n "${KIT_OMNIROUTE_PASSWORD:-}" ]]; then
+    REMOTE_ENV_PAYLOAD+="export KIT_OMNIROUTE_PASSWORD=$(printf '%q' "${KIT_OMNIROUTE_PASSWORD}")"$'\n'
+  fi
 
   echo "[deploy] Executing '${ACTION}' on ${SSH_TARGET} ..."
-  exec ssh -t "${SSH_OPTS[@]}" "${SSH_TARGET}" \
-    "cd '${REMOTE_DIR}' && env ${REMOTE_ENV[*]:-} bash ./bin/hermes-kit-deploy.sh ${FORWARD_FLAGS[*]:-} ${ACTION} ${EXTRA_ARGS[*]:-}"
+  if [[ -n "${REMOTE_ENV_PAYLOAD}" ]]; then
+    REMOTE_ENV_FILE="$(printf '%s' "${REMOTE_ENV_PAYLOAD}" | ssh "${SSH_OPTS[@]}" "${SSH_TARGET}" \
+      'umask 077 && f="$(mktemp /tmp/hermes-kit-env.XXXXXX)" && cat > "$f" && printf "%s" "$f"')"
+    REMOTE_ENV_FILE_Q="$(printf '%q' "${REMOTE_ENV_FILE}")"
+    SSH_TTY_ARGS=()
+    [[ -t 0 ]] && SSH_TTY_ARGS+=(-t)
+    exec ssh "${SSH_TTY_ARGS[@]}" "${SSH_OPTS[@]}" "${SSH_TARGET}" \
+      "trap 'rm -f ${REMOTE_ENV_FILE_Q}' EXIT; . ${REMOTE_ENV_FILE_Q}; rm -f ${REMOTE_ENV_FILE_Q}; cd ${REMOTE_DIR_Q} &&${REMOTE_CMD_Q}"
+  else
+    SSH_TTY_ARGS=()
+    [[ -t 0 ]] && SSH_TTY_ARGS+=(-t)
+    exec ssh "${SSH_TTY_ARGS[@]}" "${SSH_OPTS[@]}" "${SSH_TARGET}" \
+      "cd ${REMOTE_DIR_Q} &&${REMOTE_CMD_Q}"
+  fi
 fi
 
 # ── Local Execution Helpers ───────────────────────────────────────────────────────────────────
@@ -182,13 +241,13 @@ build_local_images() {
     "${REPO_ROOT}"
 
   if [[ "${WITH_OMNIROUTE}" -eq 1 ]]; then
-    log "Building OmniRoute v3.8.54-web RTK adapter & CommandCode/UI overlay locally ..."
+    log "Building OmniRoute v3.8.54-web RTK adapter & UI overlay locally ..."
     docker build -t "hermes-kit:omniroute-adapter" "${REPO_ROOT}/advanced/omniroute-rtk-envelope"
     docker build \
       --build-arg "KIT_OMNIROUTE_IMAGE=hermes-kit:omniroute-adapter" \
-      -t "hermes-kit:omniroute-cc-ui" \
+      -t "hermes-kit:omniroute-ui-patch" \
       "${REPO_ROOT}/advanced/omniroute-patches"
-    export KIT_OMNIROUTE_IMAGE="hermes-kit:omniroute-cc-ui"
+    export KIT_OMNIROUTE_IMAGE="hermes-kit:omniroute-ui-patch"
   fi
 }
 
@@ -208,9 +267,39 @@ sync_kit_into_container() {
     if [ ! -f \"\$SITE/yaml.py\" ] && [ ! -d \"\$SITE/yaml\" ]; then
       printf 'from hermes_yaml import safe_load, safe_dump, YAMLError\nload = safe_load\ndump = safe_dump\n' > \"\$SITE/yaml.py\"
     fi
+    rm -rf /opt/data/plugins/kit-setup/__pycache__
     cp -rf /opt/kit/plugins/kit-setup/. /opt/data/plugins/kit-setup/
+    rm -rf /opt/data/plugins/kit-setup/__pycache__
     chown -R 10000:10000 /opt/data/plugins/kit-setup 2>/dev/null || true
   "
+}
+
+resolve_omniroute_password() {
+  if [[ -n "${KIT_OMNIROUTE_PASSWORD:-}" ]]; then
+    printf '%s' "${KIT_OMNIROUTE_PASSWORD}"
+    return 0
+  fi
+  if [[ -f "${REPO_ROOT}/.env" ]]; then
+    local line
+    line="$(grep -m1 '^KIT_OMNIROUTE_PASSWORD=' "${REPO_ROOT}/.env" 2>/dev/null || true)"
+    if [[ -n "${line}" ]]; then
+      printf '%s' "${line#KIT_OMNIROUTE_PASSWORD=}"
+      return 0
+    fi
+  fi
+  return 1
+}
+
+compose_omniroute_up() {
+  local args=(-f "${REPO_ROOT}/advanced/docker-compose.omniroute.yml")
+  if [[ -f "${REPO_ROOT}/.env" ]]; then
+    args+=(--env-file "${REPO_ROOT}/.env")
+  fi
+  if [[ "${BUILD_LOCAL}" -eq 1 ]]; then
+    docker compose "${args[@]}" up -d --pull never
+  else
+    docker compose "${args[@]}" up -d
+  fi
 }
 
 run_container_migration() {
@@ -244,11 +333,13 @@ run_container_migration() {
   '
 
   if [[ "${APPLY_PRESETS}" -eq 1 ]]; then
-    if [[ -z "${KIT_OMNIROUTE_PASSWORD:-}" ]]; then
-      warn "--apply-presets requested, but KIT_OMNIROUTE_PASSWORD is not set in environment. Skipping preset apply."
+    local pw=""
+    pw="$(resolve_omniroute_password || true)"
+    if [[ -z "${pw}" ]]; then
+      warn "--apply-presets requested, but KIT_OMNIROUTE_PASSWORD is not set in environment or .env. Skipping preset apply."
     else
       log "Applying recommended OmniRoute resource combos + OMH 12-category routing chains ..."
-      docker exec -e "KIT_OMNIROUTE_PASSWORD=${KIT_OMNIROUTE_PASSWORD}" "${cid}" \
+      docker exec -e "KIT_OMNIROUTE_PASSWORD=${pw}" "${cid}" \
         /opt/hermes/.venv/bin/python /opt/data/plugins/kit-setup/bootstrap.py omniroute-preset apply
     fi
   fi
@@ -258,20 +349,43 @@ run_verification() {
   local cid
   cid="$(detect_hermes_container)"
   [[ -n "${cid}" ]] || die "No running Hermes container found."
-  log "Verifying Hermes container '${cid}' ..."
+  log "Verifying Hermes container '${cid}' (read-only) ..."
   docker exec "${cid}" /opt/hermes/.venv/bin/python -c '
 import sys
 from pathlib import Path
 sys.path.insert(0, "/opt/data/plugins/kit-setup")
-import voice_adapter
-v = voice_adapter.install_all()
-print("[verify] Voice quick-call & auto-follow adapter:", v)
+tts_ok = False
+slash_ok = False
+try:
+    import tools.tts_tool as tts_mod
+    tts_ok = "none" in getattr(tts_mod, "VALID_PROVIDERS", ())
+except Exception:
+    pass
+try:
+    import gateway.run_slash as slash_mod
+    slash_ok = hasattr(getattr(slash_mod, "GatewaySlashCommandsMixin", None), "_handle_call_command")
+except Exception:
+    pass
+print("[verify] Voice patches (build-time):", {"tts": tts_ok, "call_slash": slash_ok})
 import omh_routing
 r = omh_routing.status("/opt/data")
 print("[verify] OMH quota-aware routing patches:", r["status"], r.get("files", {}))
 import components
 st = components._read_state(Path("/opt/data"))
 print("[verify] Installed component keys:", sorted(st.get("components", {}).keys()))
+db = Path("/opt/data/state.db")
+if db.is_file():
+    import sqlite3
+    con = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
+    try:
+        qc = con.execute("PRAGMA quick_check").fetchone()[0]
+    finally:
+        con.close()
+    print("[verify] state.db quick_check:", qc)
+    if qc != "ok":
+        sys.exit(1)
+if r["status"] in ("drifted", "degraded", "error"):
+    sys.exit(1)
 '
   log "Verification complete."
 }
@@ -287,19 +401,24 @@ case "${ACTION}" in
       printf 'DISCORD_BOT_TOKEN=%s\n' "${DISCORD_BOT_TOKEN}" > "${REPO_ROOT}/.env"
       [[ -n "${KIT_OMNIROUTE_PASSWORD:-}" ]] && printf 'KIT_OMNIROUTE_PASSWORD=%s\n' "${KIT_OMNIROUTE_PASSWORD}" >> "${REPO_ROOT}/.env"
     fi
-    log "Starting Hermes (${KIT_HERMES_IMAGE:-${DEFAULT_HERMES_IMAGE}}) + Syncthing stack ..."
+    log "Starting Hermes (${DEFAULT_HERMES_IMAGE}) + Syncthing stack ..."
     docker compose -f "${REPO_ROOT}/docker-compose.yml" up -d
     if [[ "${WITH_OMNIROUTE}" -eq 1 ]]; then
-      [[ -n "${KIT_OMNIROUTE_PASSWORD:-}" ]] || grep -q '^KIT_OMNIROUTE_PASSWORD=' "${REPO_ROOT}/.env" 2>/dev/null \
-        || die "KIT_OMNIROUTE_PASSWORD is required when --with-omniroute is set."
+      pw="$(resolve_omniroute_password || true)"
+      [[ -n "${pw}" ]] || die "KIT_OMNIROUTE_PASSWORD is required when --with-omniroute is set."
       log "Starting OmniRoute (${KIT_OMNIROUTE_IMAGE:-${DEFAULT_OMNIROUTE_IMAGE}}) stack ..."
-      docker compose -f "${REPO_ROOT}/advanced/docker-compose.omniroute.yml" up -d
+      compose_omniroute_up
     fi
     cid="$(detect_hermes_container)"
-    if [[ -n "${cid}" ]] && [[ "${APPLY_PRESETS}" -eq 1 ]] && [[ -n "${KIT_OMNIROUTE_PASSWORD:-}" ]]; then
-      sleep 3
-      docker exec -e "KIT_OMNIROUTE_PASSWORD=${KIT_OMNIROUTE_PASSWORD}" "${cid}" \
-        /opt/hermes/.venv/bin/python /opt/data/plugins/kit-setup/bootstrap.py omniroute-preset apply
+    if [[ -n "${cid}" ]] && [[ "${APPLY_PRESETS}" -eq 1 ]]; then
+      pw="$(resolve_omniroute_password || true)"
+      if [[ -n "${pw}" ]]; then
+        sleep 3
+        docker exec -e "KIT_OMNIROUTE_PASSWORD=${pw}" "${cid}" \
+          /opt/hermes/.venv/bin/python /opt/data/plugins/kit-setup/bootstrap.py omniroute-preset apply
+      else
+        warn "--apply-presets requested, but KIT_OMNIROUTE_PASSWORD is not set in environment or .env. Skipping preset apply."
+      fi
     fi
     run_verification
     ;;
@@ -315,13 +434,13 @@ case "${ACTION}" in
       run_container_migration "${cid}"
       if [[ "${WITH_OMNIROUTE}" -eq 1 ]]; then
         log "Updating OmniRoute container stack ..."
-        docker compose -f "${REPO_ROOT}/advanced/docker-compose.omniroute.yml" up -d
+        compose_omniroute_up
       fi
       run_verification
     else
       log "No running Hermes container detected; running compose update in ${REPO_ROOT} ..."
       docker compose -f "${REPO_ROOT}/docker-compose.yml" up -d
-      [[ "${WITH_OMNIROUTE}" -eq 1 ]] && docker compose -f "${REPO_ROOT}/advanced/docker-compose.omniroute.yml" up -d
+      [[ "${WITH_OMNIROUTE}" -eq 1 ]] && compose_omniroute_up
       cid="$(detect_hermes_container)"
       [[ -n "${cid}" ]] && run_container_migration "${cid}"
       run_verification
@@ -332,10 +451,27 @@ case "${ACTION}" in
     cid="$(detect_hermes_container)"
     [[ -n "${cid}" ]] || die "No running Hermes container found."
     sub="${EXTRA_ARGS[0]:-plan}"
-    pw="${EXTRA_ARGS[1]:-${KIT_OMNIROUTE_PASSWORD:-}}"
+    pw="${EXTRA_ARGS[1]:-$(resolve_omniroute_password || true)}"
     [[ -n "${pw}" ]] || die "Pass OmniRoute dashboard password as argument or KIT_OMNIROUTE_PASSWORD env var."
     docker exec -e "KIT_OMNIROUTE_PASSWORD=${pw}" "${cid}" \
       /opt/hermes/.venv/bin/python /opt/data/plugins/kit-setup/bootstrap.py omniroute-preset "${sub}"
+    ;;
+
+  job-hunt)
+    cid="$(detect_hermes_container)"
+    [[ -n "${cid}" ]] || die "No running Hermes container found."
+    log "Installing/updating Wendy-Nam/hermes-job-hunt-for-korean inside '${cid}' (native) ..."
+    docker exec "${cid}" sh -eu -c '
+      tmp="$(mktemp -d /tmp/job-hunt.XXXXXX)"
+      trap '\''rm -rf "$tmp"'\'' EXIT
+      git clone --depth 1 https://github.com/Wendy-Nam/hermes-job-hunt-for-korean.git "$tmp"
+      /opt/hermes/.venv/bin/python "$tmp/native/install.py" \
+        --home /opt/data \
+        --job-root /opt/data/vaults/personal/job-hunting \
+        --mail-backend none \
+        "$@"
+    ' _ "${EXTRA_ARGS[@]}"
+    log "job-hunt native install/update complete."
     ;;
 
   verify|doctor)

@@ -179,19 +179,15 @@ if __name__ == "__main__":
     replace_blocks(root / "gateway/run_voice.py", [(
         "    async def _handle_voice_channel_input(",
         RUN_VOICE_METHODS + "\n    async def _handle_voice_channel_input(")], "_wire_voice_auto_follow")
-    startup_py = root / "gateway/run_startup.py"
-    startup_src = startup_py.read_text(encoding="utf-8") if startup_py.exists() else ""
-    if "        self._wire_teams_pipeline_runtime()\n" in startup_src:
-        replace_blocks(startup_py, [(
-            "        self._wire_teams_pipeline_runtime()\n",
-            "        self._wire_teams_pipeline_runtime()\n        self._wire_voice_auto_follow()\n")],
-            "_wire_voice_auto_follow()")
-    else:
-        for cand in (root / "gateway/run.py", startup_py):
-            if cand.exists() and "        self._wire_teams_pipeline_runtime()\n" in cand.read_text(encoding="utf-8"):
-                replace_blocks(cand, [(
-                    "        self._wire_teams_pipeline_runtime()\n",
-                    "        self._wire_teams_pipeline_runtime()\n        self._wire_voice_auto_follow()\n")],
-                    "_wire_voice_auto_follow()")
-                break
+    wired = False
+    for cand in (root / "gateway/run_startup.py", root / "gateway/run.py"):
+        if cand.exists() and "        self._wire_teams_pipeline_runtime()\n" in cand.read_text(encoding="utf-8"):
+            replace_blocks(cand, [(
+                "        self._wire_teams_pipeline_runtime()\n",
+                "        self._wire_teams_pipeline_runtime()\n        self._wire_voice_auto_follow()\n")],
+                "_wire_voice_auto_follow()")
+            wired = True
+            break
+    if not wired:
+        raise SystemExit("50-voice-auto-follow: _wire_teams_pipeline_runtime() anchor not found in gateway/run_startup.py or gateway/run.py")
 

@@ -56,9 +56,10 @@ def _conversation(row):
                 raise ValueError("invalid branch")
             seen.add(node)
             item = mapping[node]
-            if item.get("message"):
+            if isinstance(item.get("message"), dict):
                 message = item["message"]
-                role = message.get("author", {}).get("role", "unknown")
+                author = message.get("author")
+                role = author.get("role", "unknown") if isinstance(author, dict) else "unknown"
                 if role in ("user", "assistant"):
                     chain.append((role, _text(message)))
             node = item.get("parent")

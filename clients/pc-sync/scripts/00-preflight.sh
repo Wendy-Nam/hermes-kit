@@ -9,7 +9,7 @@ echo "  컨테이너: $CONTAINER"
 echo "  SSH 별칭: $SSH_ALIAS"
 
 echo
-echo "▶ 1. kit-setup 플러گ인"
+echo "▶ 1. kit-setup 플러그인"
 # /setup 이 Discord에 등록돼야 이 스킬이 쓸 수 있다. k11 이전엔 조용히 실패했다.
 if in_hermes "test -d /opt/data/plugins/kit-setup" ; then
   echo "  ✅ kit-setup 존재"
@@ -33,7 +33,7 @@ fi
 echo
 echo "▶ 3. 볼트 2개 (sync 대상)"
 for v in work personal; do
-  if hssh "test -d /opt/data/vaults/$v" || in_hermes "test -d /var/syncthing/vaults/$v"; then
+  if in_hermes "test -d /opt/data/vaults/$v" || in_hermes "test -d /var/syncthing/vaults/$v"; then
     echo "  ✅ $v 볼트 존재"
   else
     echo "  ⚠️ $v 볼트가 아직 없습니다 — Discord에서 /setup 을 한 번 실행하세요." >&2

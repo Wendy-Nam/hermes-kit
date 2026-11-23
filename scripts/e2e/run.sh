@@ -6,8 +6,16 @@ IMG="$1"; N="kit-e2e-$$"; HERE=$(cd "$(dirname "$0")" && pwd); NET="kit-e2e-net-
 trap 'docker rm -f "$N" "$O" >/dev/null 2>&1 || true; docker volume rm -f "$N" >/dev/null 2>&1 || true; docker network rm "$NET" >/dev/null 2>&1 || true' EXIT
 docker network create "$NET" >/dev/null
 wait_seed() {
-  i=0; until docker logs "$N" 2>&1 | grep -qE '^\[kit\] (done|kit [0-9]+ already seeded)'; do
-    i=$((i+1)); [ $i -lt 150 ] || { docker logs "$N" 2>&1 | tail -40; exit 1; }; sleep 2; done
+  since="${1:-}"
+  i=0
+  while :; do
+    if [ -n "$since" ]; then
+      docker logs --since "$since" "$N" 2>&1 | grep -qE '^\[kit\] (done|kit [0-9]+ already seeded)' && break
+    else
+      docker logs "$N" 2>&1 | grep -qE '^\[kit\] (done|kit [0-9]+ already seeded)' && break
+    fi
+    i=$((i+1)); [ $i -lt 150 ] || { docker logs "$N" 2>&1 | tail -40; exit 1; }; sleep 2
+  done
 }
 prep() {
   docker cp "$HERE/." "$N:/tmp/e2e"; docker exec -u root "$N" chown -R hermes /tmp/e2e
@@ -17,7 +25,8 @@ docker volume create "$N" >/dev/null
 docker run -d --name "$N" --network "$NET" --network-alias kit-hermes -e DISCORD_BOT_TOKEN=dummy -v "$N:/opt/data" "$IMG" gateway run >/dev/null
 wait_seed; prep
 docker exec -u hermes -e HERMES_HOME=/opt/data "$N" /opt/hermes/.venv/bin/python /tmp/e2e/install_e2e.py stage1 || s1=1
-docker restart "$N" >/dev/null; sleep 5; wait_seed; prep
+RESTART_TS="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+docker restart "$N" >/dev/null; sleep 5; wait_seed "$RESTART_TS"; prep
 docker logs "$N" 2>&1 | grep '^\[kit\]' | tail -8
 docker exec -u hermes -e HERMES_HOME=/opt/data "$N" /opt/hermes/.venv/bin/python /tmp/e2e/install_e2e.py stage2 || s2=1
 if [ -n "${OMNI_IMAGE:-}" ]; then

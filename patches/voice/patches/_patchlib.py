@@ -33,13 +33,16 @@ def replace_blocks(path: Path, edits, marker: str, *, optional: bool = False) ->
                              f"  anchor: {old.strip().splitlines()[0][:100]!r}")
         src = src.replace(old, new, 1)
     tmp = path.with_name(path.name + ".tmp-hvp")
-    tmp.write_text(src, encoding="utf-8")
-    py_compile.compile(str(tmp), doraise=True)          # never leave a broken file in place
-    bak = path.with_name(f"{path.name}.bak-{time.strftime('%Y%m%d-%H%M%S')}-hvp")
-    n = 0
-    while bak.exists():  # two patches in the same second must not clobber the earlier (pristine) backup
-        n += 1; bak = bak.with_name(f"{bak.name.rsplit('.', 1)[0] if n > 1 else bak.name}.{n}")
-    shutil.copy2(path, bak)
-    tmp.replace(path)
+    try:
+        tmp.write_text(src, encoding="utf-8")
+        py_compile.compile(str(tmp), doraise=True)          # never leave a broken file in place
+        bak = path.with_name(f"{path.name}.bak-{time.strftime('%Y%m%d-%H%M%S')}-hvp")
+        n = 0
+        while bak.exists():  # two patches in the same second must not clobber the earlier (pristine) backup
+            n += 1; bak = bak.with_name(f"{bak.name.rsplit('.', 1)[0] if n > 1 else bak.name}.{n}")
+        shutil.copy2(path, bak)
+        tmp.replace(path)
+    finally:
+        tmp.unlink(missing_ok=True)
     print(f"{path.name}: patched")
     return True

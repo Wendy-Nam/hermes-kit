@@ -56,4 +56,69 @@ class ReviewRegressions(unittest.TestCase):
             for channel in ('1'*16,'1'*21,'١'*18):
                 self.assertIn('채널 ID',proactive.enable(home,channel,'12:00','topic')[1])
 
+    def test_disconnect_plan_includes_derived_and_omniroute_keys(self):
+        import disconnect, env_store, packs
+        with tempfile.TemporaryDirectory() as td:
+            home=Path(td); env_file=home/'.env'
+            env_store.set_env(env_file,{
+                'WEBSHARE_API_KEY':'ws-key',
+                'WEBSHARE_PROXY_USERNAME':'ws-user',
+                'WEBSHARE_PROXY_PASSWORD':'ws-pass',
+                'KIT_OMNIROUTE_API_KEY':'or-key',
+                'OMNIROUTE_API_KEY':'or-key',
+                'DISCORD_BOT_TOKEN':'keep-me',
+            })
+            keys,_=disconnect.plan(home,env_file,packs.load_packs())
+            for expected in ('WEBSHARE_API_KEY','WEBSHARE_PROXY_USERNAME','WEBSHARE_PROXY_PASSWORD',
+                             'KIT_OMNIROUTE_API_KEY','OMNIROUTE_API_KEY'):
+                self.assertIn(expected,keys)
+            self.assertNotIn('DISCORD_BOT_TOKEN',keys)
+
+    def test_doctor_components_handles_preserved_and_optional_statuses(self):
+        import doctor, bootstrap
+        rows=[
+            {'id':'youtube-summary','required':True,'status':'installed','message':'ok'},
+            {'id':'job','required':True,'status':'preserved','message':'user modified'},
+            {'id':'k-skill','required':False,'status':'failed','message':'retry later'},
+            {'id':'pm','required':True,'status':'failed','message':'missing'},
+        ]
+        with patch.object(bootstrap,'component_status',return_value=rows):
+            findings={f.name:f.status for f in doctor.check_components(Path('/tmp'))}
+        self.assertEqual(findings['스킬 youtube-summary'],doctor.OK)
+        self.assertEqual(findings['스킬 job'],doctor.OK)
+        self.assertEqual(findings['스킬 k-skill'],doctor.WARN)
+        self.assertEqual(findings['스킬 pm'],doctor.BAD)
+
+    def test_env_store_rejects_cr_in_key_name(self):
+        import env_store
+        with tempfile.TemporaryDirectory() as td:
+            with self.assertRaises(ValueError):
+                env_store.set_env(Path(td)/'.env',{'FOO\rBAR':'val'})
+
+    def test_fs_util_atomic_write_preserves_mode_and_cleans_up(self):
+        import fs_util, os, stat
+        with tempfile.TemporaryDirectory() as td:
+            p=Path(td)/'state.json'
+            fs_util.atomic_write(p,'{"ok":true}\n',mode=0o600,fsync=True)
+            self.assertEqual(p.read_text(),'{"ok":true}\n')
+            self.assertEqual(stat.S_IMODE(os.stat(p).st_mode),0o600)
+            self.assertEqual(list(Path(td).glob('.kit-*')),[])
+
+    def test_omh_quota_exhausted_multi_account_pool(self):
+        import importlib.util
+        root=Path(__file__).resolve().parents[3]/'patches'/'omh-routing'/'files'
+        for mod_name in ('omh_provider_mapper','route_readiness'):
+            spec=importlib.util.spec_from_file_location(mod_name,root/f'{mod_name}.py')
+            mod=importlib.util.module_from_spec(spec); spec.loader.exec_module(mod)
+            partial={'codexAccountPool':{'aggregate':{'status':'available'},'children':[
+                {'quota':{'windows':{'5h':{'usedPercentage':100.0}}}},
+                {'quota':{'windows':{'5h':{'usedPercentage':25.0}}}},
+            ]}}
+            all_spent={'codexAccountPool':{'aggregate':{'status':'available'},'children':[
+                {'quota':{'windows':{'5h':{'usedPercentage':100.0}}}},
+                {'unavailable':True},
+            ]}}
+            self.assertFalse(mod._quota_exhausted(partial),mod_name)
+            self.assertTrue(mod._quota_exhausted(all_spent),mod_name)
+
 if __name__=='__main__':unittest.main()

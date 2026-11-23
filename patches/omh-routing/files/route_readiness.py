@@ -69,28 +69,31 @@ def _quota_exhausted(connection):
         status = aggregate.get('status')
         if isinstance(status, str) and status not in ('', 'available'):
             return True
-    children = pool.get('children')
-    if not isinstance(children, list):
+    children = [c for c in (pool.get('children') or []) if isinstance(c, dict)]
+    if not children:
         return False
     for child in children:
-        if not isinstance(child, dict) or child.get('unavailable') is True:
+        if child.get('unavailable') is True:
             continue
         quota = child.get('quota')
         windows = quota.get('windows') if isinstance(quota, dict) else None
-        if not isinstance(windows, dict):
-            continue
-        for window in windows.values():
-            if not isinstance(window, dict):
-                continue
-            value = window.get('usedPercentage')
-            if value is None:
-                continue
-            try:
-                if float(value) >= 100.0:
-                    return True
-            except (TypeError, ValueError):
-                continue
-    return False
+        child_at_cap = False
+        if isinstance(windows, dict):
+            for window in windows.values():
+                if not isinstance(window, dict):
+                    continue
+                value = window.get('usedPercentage')
+                if value is None:
+                    continue
+                try:
+                    if float(value) >= 100.0:
+                        child_at_cap = True
+                        break
+                except (TypeError, ValueError):
+                    continue
+        if not child_at_cap:
+            return False
+    return True
 
 
 def _read_json(path, token):

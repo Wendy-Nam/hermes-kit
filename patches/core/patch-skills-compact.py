@@ -7,8 +7,8 @@ import re
 TARGET = Path("/opt/hermes/agent/system_prompt.py")
 
 if not TARGET.exists():
-    print(f"Target {TARGET} not found; skipping patch.")
-    raise SystemExit(0)
+    print(f"Error: Target {TARGET} not found.")
+    raise SystemExit(1)
 
 content = TARGET.read_text(encoding="utf-8")
 
@@ -42,7 +42,7 @@ NEW_PATTERN = """    try:
                                          compact_categories=frozenset(_compact_cats) if _compact_cats else None,
                                          skills_dir_override=_agent_skills_dir(agent))"""
 
-if "skills.compact_categories" in content:
+if 'get("compact_categories"' in content:
     print("skills.compact_categories already patched in system_prompt.py.")
 elif OLD_PATTERN in content:
     content = content.replace(OLD_PATTERN, NEW_PATTERN)

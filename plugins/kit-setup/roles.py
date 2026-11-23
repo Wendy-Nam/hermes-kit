@@ -9,7 +9,6 @@ every apply and boot, so a model or key change never leaves a role on a stale or
 """
 import os
 import subprocess
-import tempfile
 from pathlib import Path
 
 HERMES = '/opt/hermes/.venv/bin/hermes'
@@ -56,12 +55,8 @@ def _name(line):
 
 
 def _atomic(path, text, mode=None):
-    fd, tmp = tempfile.mkstemp(prefix='.kit-', dir=path.parent)
-    with os.fdopen(fd, 'w', encoding='utf-8') as f:
-        f.write(text)
-    if mode is not None:
-        os.chmod(tmp, mode)
-    os.replace(tmp, path)
+    from fs_util import atomic_write
+    atomic_write(path, text, mode=mode)
 
 
 def ensure_roles(data_dir, *, hermes=HERMES):
@@ -98,9 +93,10 @@ def ensure_roles(data_dir, *, hermes=HERMES):
 
 def low_memory(meminfo='/proc/meminfo'):
     try:
-        for line in open(meminfo):
-            if line.startswith('MemTotal:'):
-                return int(line.split()[1]) * 1024 < LOW_MEMORY_BYTES
+        with open(meminfo, encoding='utf-8') as f:
+            for line in f:
+                if line.startswith('MemTotal:'):
+                    return int(line.split()[1]) * 1024 < LOW_MEMORY_BYTES
     except (OSError, ValueError, IndexError):
         pass
     return False

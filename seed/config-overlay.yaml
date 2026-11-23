@@ -1,5 +1,5 @@
 # Keys the kit changes on top of Hermes' default config.yaml (merged once, on first kit boot).
-# Values mirror the author's tuned server; key names verified against v2026.9.11 + patches/core.
+# Values mirror the author's tuned server; key names verified against v0.23.3 + patches/core.
 agent:
   reasoning_effort: low
   max_turns: 20

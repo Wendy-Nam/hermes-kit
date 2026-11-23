@@ -1,5 +1,4 @@
 """Retry optional components on every boot without reseeding student configuration."""
-import json
 import os
 from pathlib import Path
 import subprocess
@@ -108,7 +107,9 @@ def boot(data_dir):
     # Cron registration happens in /setup Apply after a home channel is chosen.
     # Registering earlier would produce an undeliverable maintenance failure notice.
     version=Path('/opt/kit/RELEASE_VERSION')
-    if version.exists():(root/'.kit-release-version').write_text(version.read_text())
+    if version.exists():
+        from fs_util import atomic_write
+        atomic_write(root/'.kit-release-version',version.read_text(encoding='utf-8'),prefix='.kit-ver-')
 
 if __name__=='__main__':
     import sys
