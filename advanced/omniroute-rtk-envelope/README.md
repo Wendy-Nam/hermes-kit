@@ -55,7 +55,7 @@ docker run --rm --network none \
 
 ## Compression worker dependencies (`omniroute-rtk-json-3`)
 
-OmniRoute 3.8.51's standalone image omits eight packages its own `package.json`
+OmniRoute 3.8.51+ standalone images (currently pinned to `3.8.54-web`) omit eight packages their own `package.json`
 declares and `open-sse/services/compression/compressionWorker.js` imports
 (`xxhash-wasm`, `uuid`, `@toon-format/toon`, `omniglyph`, `safe-regex`, `smol-toml`,
 `socks`, `yazl`). The worker then fails at import and compression runs on the main

@@ -9,8 +9,6 @@ import json
 import urllib.error
 import urllib.request
 
-Result = tuple[bool, str]   # (ok, one human-readable line)
-
 _UA = "hermes-kit"
 
 

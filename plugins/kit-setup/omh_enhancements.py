@@ -121,7 +121,7 @@ def family_model(route):
         try:
             doc=json.loads(OMNIROUTE_STATE.read_text())
             active=doc.get('active') or {}
-            if active.get('name')==model and isinstance(active.get('model'),str): return active['model']
+            if active.get('name')==model and isinstance(active.get('model'),str): return active['model'].split('/',1)[-1]
             presets=(doc.get('presets') or {}).get('combos') or {}
             head=presets.get(model)
             if isinstance(head,list) and head and isinstance(head[0],str): return head[0].split('/',1)[-1]

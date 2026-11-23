@@ -250,9 +250,6 @@ echo "▶ 00-preflight.sh"
 # look like it hung for no reason.
 rc=0; out="$(cd "$SKILL" && bash scripts/00-preflight.sh 2>&1)" || rc=$?
 [ "$rc" = 0 ] || { echo "$out" >&2; fail "00-preflight.sh exited $rc"; }
-
-rc=0; out="$(cd "$SKILL" && bash scripts/00-preflight.sh 2>&1)" || rc=$?
-[ "$rc" = 0 ] || { echo "$out" >&2; fail "00-preflight.sh exited $rc"; }
 pass "00-preflight.sh passed against the simulated VPS"
 
 PC_KEY="$ST_KEY"

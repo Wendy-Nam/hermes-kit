@@ -232,6 +232,9 @@ def rollback(data_dir):
         target = data / PLUGIN_DIR / name if name in CODE_PATCHES else _entitlement_path(data)
         target.parent.mkdir(parents=True, exist_ok=True)
         _atomic_write(target, backup.read_bytes())
+        if name in CODE_PATCHES:
+            for pyc in (target.parent / '__pycache__').glob(target.stem + '.*.pyc'):
+                pyc.unlink(missing_ok=True)
         changed.append(name)
     return {'status': 'ok', 'changed': changed,
             'message': ('원본을 복원했습니다: ' + ', '.join(changed)) if changed else '복원할 파일이 없습니다.'}

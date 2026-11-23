@@ -29,6 +29,11 @@ class OmniRoutePresetsTest(unittest.TestCase):
         self.assertEqual(planned['hermes-chat']['steps'][0]['id_'], 'codex/gpt-6-luna')
         self.assertEqual(planned['hermes-ultrabrain']['steps'][0]['id_'], 'codex/gpt-6.2-astra')
         self.assertTrue(any(s['id_'].startswith('cline/') for s in planned['hermes-free']['steps']))
+        # Privacy boundary: training-capable free providers must never enter private combos.
+        for private_combo in ('hermes-chat', 'hermes-coding', 'hermes-ultrabrain'):
+            for step in planned[private_combo]['steps']:
+                prefix = step['id_'].split('/', 1)[0]
+                self.assertNotIn(prefix, op.TRAINING_FREE_PROVIDERS, f'{prefix} leaked into {private_combo}')
 
     def test_apply_presets_wires_combos_and_omh_categories(self):
         with tempfile.TemporaryDirectory() as tmp:

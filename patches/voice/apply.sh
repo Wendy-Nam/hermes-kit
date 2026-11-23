@@ -21,8 +21,8 @@ done
 
 if [ "$MODE" = rollback ]; then
   for f in tools/tts_tool.py tools/tts_tool_providers.py gateway/run_voice.py gateway/run_startup.py \
-           gateway/run_busy.py gateway/slash_commands.py hermes_cli/commands.py hermes_cli/config_defaults.py \
-           plugins/platforms/discord/adapter.py; do
+           gateway/run.py gateway/run_busy.py gateway/slash_commands.py gateway/platforms/base.py \
+           hermes_cli/commands.py hermes_cli/config_defaults.py plugins/platforms/discord/adapter.py; do
     first=$(ls "$ROOT/$f".bak-*-hvp 2>/dev/null | sort | head -1)
     [ -n "$first" ] && cp -p "$first" "$ROOT/$f" && echo "restored $f <- $(basename "$first")"
   done

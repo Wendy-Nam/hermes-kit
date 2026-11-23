@@ -38,7 +38,10 @@ def connections():
     return (d.get("connections") or d.get("data") or []) if isinstance(d, dict) else d
 
 
-print("login:", req("POST", "/api/auth/login", {"password": pw})[0])
+login_status, _ = req("POST", "/api/auth/login", {"password": pw})
+print("login:", login_status)
+if login_status != 200:
+    raise SystemExit(f"login failed: HTTP {login_status}")
 
 if "settings" in phases:
     print("memory.skillsEnabled=false:", req("PUT", "/api/settings/memory", {"skillsEnabled": False})[0])
@@ -65,7 +68,9 @@ if "sync" in phases:
         if not c.get("isActive", True):
             continue
         name = c.get("name") or c.get("provider")
-        s1, d1 = req("PUT", f"/api/providers/{c['id']}", {"providerSpecificData": {"autoSync": True}})
+        psd = dict(c.get("providerSpecificData") or {}) if isinstance(c.get("providerSpecificData"), dict) else {}
+        psd["autoSync"] = True
+        s1, d1 = req("PUT", f"/api/providers/{c['id']}", {"providerSpecificData": psd})
         s2, d2 = req("POST", f"/api/providers/{c['id']}/sync-models", {}, timeout=180)
         ok = s1 == 200 and s2 == 200
         tot["ok" if ok else "fail"] += 1

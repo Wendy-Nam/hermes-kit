@@ -135,7 +135,6 @@ def stage1():
 
     @step('/invite: non-owner is refused, owner is told how to make a link by hand')
     def _():
-        import owner
         i, sent = interaction(user_id=5, owner_id=42)
         run(state['invite'].callback(i))
         check('/invite: non-owner refused', '소유자만' in text(sent), text(sent))

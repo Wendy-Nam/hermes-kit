@@ -34,31 +34,45 @@ from omniroute_setup import (
     _save,
 )
 
-# Curated candidate pools ordered by tier (head -> subscription -> free pool -> reserve).
-# Derived from ops/omniroute/om_pool.py & ops/omniroute/omh_chains.py.
+# Privacy classification (docs/omniroute-providers.md):
+# - PRIVATE_PROVIDERS: subscriptions or zero-training APIs allowed in private/personal combos.
+# - TRAINING_FREE_PROVIDERS: free/training-capable aggregators restricted strictly to public/free combos (`hermes-free`).
+PRIVATE_PROVIDERS = frozenset({
+    'claude', 'codex', 'agy', 'antigravity', 'cohere', 'mistral',
+    'cloudflare-ai', 'scaleway', 'exaone', 'opencode-go', 'kiro',
+    'openai', 'anthropic', 'upstage',
+})
+TRAINING_FREE_PROVIDERS = frozenset({
+    'openrouter', 'kilocode', 'nvidia', 'cline', 'orcarouter', 'inception',
+    'electronhub', 'kilo-anon', 'ovh-anon', 'clod', 'dreamprompting', 'septor',
+    'unorouter', 'sail', 'xkiro', 'agnes',
+})
+PUBLIC_ONLY_COMBOS = frozenset({'hermes-free'})
+
+# Curated candidate pools ordered by tier (head -> subscription -> zero-training API -> reserve).
 PRESET_COMBO_SPECS = {
     'hermes-chat': {
-        'description': '일상 대화 및 메인 에이전트 콤보 (DeepSeek/Codex/Solar/Claude/무료 풀 폴백)',
+        'description': '일상 대화 및 메인 에이전트 콤보 (Codex/Claude/Antigravity/EXAONE/OpenCode-Go)',
         'candidates': [
-            'command-code/deepseek/deepseek-v4.1-flash',
             'codex/gpt-6-luna',
             'codex/gpt-6.2-sol',
-            'upstage/solar-pro4',
             'claude/claude-sonnet-5-5',
             'claude/claude-sonnet-5',
+            'anthropic/claude-sonnet-4-6',
             'agy/claude-sonnet-4-6',
             'agy/gemini-3.8-flash-medium',
             'antigravity/claude-sonnet-4-6',
             'antigravity/gemini-3.8-flash-tiered',
-            'unorouter/kimi-k3:free',
-            'sail/moonshotai/Kimi-K3',
-            'cline/nvidia/nemotron-3-ultra-550b-a55b:free',
-            'cline/qwen/qwen3.8-27b:free',
+            'exaone/k-exaone_v2.5',
+            'upstage/solar-pro4',
+            'opencode-go/deepseek/deepseek-v4.1-flash',
+            'openai/gpt-4.1',
+            'gemini/gemini-2.5-flash',
             'cloudflare-ai/@cf/openai/gpt-oss-120b',
         ],
     },
     'hermes-free': {
-        'description': '무료/오픈 가용 리소스 전용 콤보 (Kimi/Nemotron/Qwen/Mistral 무료 풀)',
+        'description': '공개·무료 가용 리소스 전용 콤보 (개인 데이터 미전송 공개 작업용)',
         'candidates': [
             'unorouter/kimi-k3:free',
             'sail/moonshotai/Kimi-K3',
@@ -71,9 +85,9 @@ PRESET_COMBO_SPECS = {
             'cline/google/gemma-4-31b-it:free',
             'nvidia/nvidia/nemotron-3-ultra-550b-a55b',
             'openrouter/google/gemma-4-31b-it:free',
+            'gemini/gemini-2.5-flash',
             'mistral/ministral-14b-latest',
             'mistral/ministral-8b-latest',
-            'groq/openai/gpt-oss-120b',
             'cloudflare-ai/@cf/openai/gpt-oss-120b',
             'xkiro/qwen/qwen3.8-max:free',
         ],
@@ -81,15 +95,16 @@ PRESET_COMBO_SPECS = {
     'hermes-fast': {
         'description': '초고속 경량 도구 호출 콤보 (quick / simple-work 위임용)',
         'candidates': [
-            'sail/zai-org/GLM-5.3-Flash',
+            'exaone/k-exaone_v2.5',
             'mistral/ministral-8b-latest',
             'mistral/ministral-14b-latest',
-            'groq/openai/gpt-oss-120b',
-            'cerebras/gpt-oss-120b',
             'codex/gpt-6-luna',
             'claude/claude-haiku-5-5',
             'claude/claude-haiku-4-5-20251001',
-            'cline/nvidia/nemotron-3.5-lightning:free',
+            'anthropic/claude-haiku-4-5-20251001',
+            'agy/gemini-3.8-flash-medium',
+            'gemini/gemini-2.5-flash',
+            'openai/gpt-4.1-mini',
             'cloudflare-ai/@cf/openai/gpt-oss-120b',
         ],
     },
@@ -102,18 +117,15 @@ PRESET_COMBO_SPECS = {
             'claude/claude-opus-5',
             'claude/claude-sonnet-5-5',
             'claude/claude-sonnet-5',
+            'anthropic/claude-sonnet-4-6',
+            'kiro/claude-sonnet-4-5',
             'agy/gemini-3.1-pro-high',
             'agy/claude-sonnet-4-6',
-            'command-code/moonshotai/Kimi-K2.7-Code',
-            'command-code/Qwen/Qwen3.8-Max',
-            'command-code/deepseek/deepseek-v4.1-flash',
-            'huggingface/moonshotai/Kimi-K2.7-Code',
+            'opencode-go/deepseek/deepseek-v4.1-flash',
             'mistral/codestral-latest',
-            'nvidia/nvidia/nemotron-3-ultra-550b-a55b',
-            'cline/nvidia/nemotron-3-ultra-550b-a55b:free',
-            'unorouter/kimi-k3:free',
-            'sail/moonshotai/Kimi-K3',
-            'xkiro/qwen/qwen3.8-max:free',
+            'openai/gpt-4.1',
+            'gemini/gemini-2.5-pro',
+            'scaleway/qwen3-235b-a22b-instruct-2507',
         ],
     },
     'hermes-ultrabrain': {
@@ -126,33 +138,31 @@ PRESET_COMBO_SPECS = {
             'claude/claude-fable-5-2',
             'claude/claude-opus-5-5',
             'claude/claude-opus-5',
+            'anthropic/claude-opus-4-6',
             'agy/gemini-3.1-pro-high',
             'agy/claude-opus-4-6-thinking',
             'antigravity/gemini-3.1-pro-high',
             'antigravity/claude-opus-4-6-thinking',
-            'command-code/deepseek/deepseek-v4.1-flash',
-            'command-code/moonshotai/Kimi-K2.7-Code',
-            'sail/moonshotai/Kimi-K3',
-            'unorouter/kimi-k3:free',
-            'cline/nvidia/nemotron-3-ultra-550b-a55b:free',
-            'xkiro/qwen/qwen3.8-max:free',
+            'gemini/gemini-2.5-pro',
+            'scaleway/qwen3-235b-a22b-instruct-2507',
         ],
     },
     'hermes-writing': {
         'description': '한국어/다국어 문서 작성·요약·창작 콤보 (writing / artistry 위임용)',
         'candidates': [
+            'exaone/k-exaone_v2.5',
             'upstage/solar-pro4',
             'agy/gemini-3.1-pro-high',
             'claude/claude-opus-5-5',
             'claude/claude-opus-5',
             'claude/claude-sonnet-5-5',
             'claude/claude-sonnet-5',
+            'anthropic/claude-sonnet-4-6',
+            'cohere/command-a-03-2025',
             'codex/gpt-6.2-sol',
             'codex/gpt-6-sol',
-            'sail/moonshotai/Kimi-K3',
-            'unorouter/kimi-k3:free',
-            'command-code/Qwen/Qwen3.8-Max',
-            'cline/qwen/qwen3.8-27b:free',
+            'opencode-go/deepseek/deepseek-v4.1-flash',
+            'gemini/gemini-2.5-pro',
             'cloudflare-ai/@cf/openai/gpt-oss-120b',
         ],
     },
@@ -162,13 +172,11 @@ PRESET_COMBO_SPECS = {
             'claude/claude-fable-5-2',
             'claude/claude-opus-5-5',
             'claude/claude-opus-5',
+            'anthropic/claude-sonnet-4-6',
             'agy/gemini-3.1-pro-high',
-            'command-code/moonshotai/Kimi-K2.7-Code',
-            'command-code/deepseek/deepseek-v4.1-flash',
             'codex/gpt-6.2-sol',
             'codex/gpt-6-sol',
-            'sail/moonshotai/Kimi-K3',
-            'unorouter/kimi-k3:free',
+            'gemini/gemini-2.5-pro',
             'cloudflare-ai/@cf/openai/gpt-oss-120b',
         ],
     },
@@ -216,15 +224,22 @@ def discover_available_models(client, connections=None):
 
 
 def plan_presets(connections, catalog):
-    """Build concrete combo step lists filtered to the user's active OmniRoute connections."""
+    """Build concrete combo step lists filtered to the user's active OmniRoute connections.
+
+    Enforces privacy separation: training-capable free providers (`TRAINING_FREE_PROVIDERS`)
+    are only placed in public/free combos (`PUBLIC_ONLY_COMBOS`), never in private combos.
+    """
     planned = {}
     for combo_name, spec in PRESET_COMBO_SPECS.items():
+        is_public = combo_name in PUBLIC_ONLY_COMBOS
         steps = []
         seen = set()
         for candidate in spec['candidates']:
             if '/' not in candidate or candidate in seen:
                 continue
             prefix, model = candidate.split('/', 1)
+            if not is_public and prefix in TRAINING_FREE_PROVIDERS:
+                continue
             conn = connections.get(prefix)
             if conn is None:
                 continue
@@ -239,9 +254,11 @@ def plan_presets(connections, catalog):
                 'connectionId': _identifier(conn.get('id')),
                 'id_': candidate,
             })
-        # If none of the curated candidates matched by exact model ID, fall back to the active connections' default/first chat models
+        # Fallback: if no curated candidates matched, pick default/first chat models while respecting privacy boundary.
         if not steps:
             for prefix, conn in connections.items():
+                if not is_public and prefix in TRAINING_FREE_PROVIDERS:
+                    continue
                 models = sorted(catalog.get(prefix) or [])
                 pick = conn.get('defaultModel') or (models[0] if models else None)
                 if pick:
@@ -326,22 +343,33 @@ def apply_presets(data_dir, password, *, probe_heads=False, switch_main=False):
             inference = created.get('key')
             new_key_id = _identifier(created.get('id'))
             if not isinstance(inference, str) or not inference or '\n' in inference:
+                try:
+                    client.request('DELETE', '/api/keys/' + new_key_id)
+                except SetupError:
+                    pass
                 raise SetupError('추론 키 생성 결과가 올바르지 않습니다')
-            if probe_heads:
-                for combo_name, info in list(planned.items()):
-                    kept = []
-                    for step in info['steps']:
-                        try:
-                            _probe(client, step['id_'], inference, step['connectionId'])
-                            kept.append(step)
-                        except SetupError:
-                            continue
-                    if kept:
-                        info['steps'] = kept
-            created_combos = {}
-            for combo_name, info in planned.items():
-                _replace_combo(client, combo_name, info['steps'])
-                created_combos[combo_name] = [s['id_'] for s in info['steps']]
+            try:
+                if probe_heads:
+                    for combo_name, info in list(planned.items()):
+                        kept = []
+                        for step in info['steps']:
+                            try:
+                                _probe(client, step['id_'], inference, step['connectionId'])
+                                kept.append(step)
+                            except SetupError:
+                                continue
+                        if kept:
+                            info['steps'] = kept
+                created_combos = {}
+                for combo_name, info in planned.items():
+                    _replace_combo(client, combo_name, info['steps'])
+                    created_combos[combo_name] = [s['id_'] for s in info['steps']]
+            except Exception:
+                try:
+                    client.request('DELETE', '/api/keys/' + new_key_id)
+                except SetupError:
+                    pass
+                raise
             default_aux_combo = (
                 'hermes-coding' if 'hermes-coding' in created_combos
                 else ('hermes-free' if 'hermes-free' in created_combos else next(iter(created_combos)))
@@ -370,15 +398,31 @@ def apply_presets(data_dir, password, *, probe_heads=False, switch_main=False):
                     'model.api_mode': None,
                     'fallback_providers': fallback,
                 })
-            old_key = get_env(data / '.env').get(KEY_ENV)
+            env_before = get_env(data / '.env')
+            old_key = env_before.get(KEY_ENV)
+            old_omni_key = env_before.get('OMNIROUTE_API_KEY')
             set_env(data / '.env', {KEY_ENV: inference, 'OMNIROUTE_API_KEY': inference})
             try:
                 write(data, changes)
             except Exception:
+                restore = {}
+                drop = []
                 if old_key:
-                    set_env(data / '.env', {KEY_ENV: old_key})
+                    restore[KEY_ENV] = old_key
                 else:
-                    drop_env(data / '.env', [KEY_ENV])
+                    drop.append(KEY_ENV)
+                if old_omni_key:
+                    restore['OMNIROUTE_API_KEY'] = old_omni_key
+                else:
+                    drop.append('OMNIROUTE_API_KEY')
+                if restore:
+                    set_env(data / '.env', restore)
+                if drop:
+                    drop_env(data / '.env', drop)
+                try:
+                    client.request('DELETE', '/api/keys/' + new_key_id)
+                except SetupError:
+                    pass
                 raise
             state['presets'] = {
                 'combos': created_combos,
@@ -386,13 +430,6 @@ def apply_presets(data_dir, password, *, probe_heads=False, switch_main=False):
                 'chat_combo': default_chat_combo,
                 'key_id': new_key_id,
             }
-            # Record the head model of default_aux_combo under state['active'] so kit_enhanced.family_model
-            # calibrates against the concrete model family.
-            head_model = created_combos[default_aux_combo][0]
-            state.setdefault('active', {}).update({
-                'name': default_aux_combo,
-                'model': head_model,
-            })
             _save(data, state)
             for k in _items(client, '/api/keys', 'keys'):
                 if str(k.get('name') or '').startswith(prefix + '-preset-') and k.get('id') != new_key_id:

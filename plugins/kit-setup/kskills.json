@@ -14,9 +14,9 @@
     "korean-spell-check"
   ],
   "kits": {
-    "job": ["job-posting-match", "daangn-jobs-search", "national-pension-workplace", "biz-health-check", "korean-humanizer"],
+    "job": ["daangn-jobs-search", "national-pension-workplace", "biz-health-check"],
     "sales": ["biz-health-check", "g2b-order-plan-search", "government-support-survey", "localdata-business-status"],
-    "mkt": ["naver-shopping-search", "naver-blog-research", "danawa-price-search", "korean-humanizer", "store-longevity-radar"],
+    "mkt": ["naver-shopping-search", "naver-blog-research", "danawa-price-search", "store-longevity-radar"],
     "pm": ["government-support-survey", "kstartup-search", "korean-law-search"],
     "dev": ["kr-whois-lookup"]
   },

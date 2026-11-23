@@ -150,7 +150,7 @@ def run(root: Path, *, apply: bool, enforce_hash: bool = False) -> list[dict]:
             if not result.get("changed"):
                 continue
             path = root / result["file"]
-            before = result.pop("before")
+            result.pop("before", None)
             after = result.pop("after")
             st = path.stat()
             fd, temp_name = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=path.parent)

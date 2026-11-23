@@ -7,14 +7,17 @@ would the first model it tries actually have a live provider?
 from __future__ import annotations
 
 import importlib
+import os
 import sys
 
-sys.path.insert(0, "/opt/data/plugins")
-sys.path.insert(0, "/opt/data/plugins/omh")
+HERMES_HOME = os.environ.get("HERMES_HOME") or "/opt/data"
+OMH_HOME = os.environ.get("OMH_HOME") or os.path.join(HERMES_HOME, ".omh")
 
-import omh_provider_mapper as MAP  # noqa: E402
+sys.path.insert(0, os.path.join(HERMES_HOME, "plugins"))
+sys.path.insert(0, os.path.join(HERMES_HOME, "plugins", "omh"))
 
 try:
+    import omh_provider_mapper as MAP  # noqa: E402
     OMH = importlib.import_module("omh.hermes_delegation")
 except ModuleNotFoundError:
     # OMH is optional and may not be installed yet. Importing at module scope used
@@ -30,8 +33,8 @@ def main() -> int:
     if not resources.get("ok"):
         print("resources unavailable:", resources.get("reason"))
         return 2
-    chains = OMH.effective_mixture_category_chains("/opt/data/.omh", "/opt/data")
-    routes, _ = OMH.load_model_provider_routes("/opt/data/.omh")
+    chains = OMH.effective_mixture_category_chains(OMH_HOME, HERMES_HOME)
+    routes, _ = OMH.load_model_provider_routes(OMH_HOME)
     print("resources: ok  combos=%d  connections=%d"
           % (len(resources["combos"]), len(resources["connections"])))
     print()

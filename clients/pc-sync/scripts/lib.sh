@@ -26,17 +26,6 @@ esac
 # rc=2 로 죽는다. 호출한 곳에는 "서버 Syncthing 이 응답하지 않는다" 만 보이므로, 실제 원인은
 # 한참 위에 있다. 이 문제를 CI 가 처음 잡아냈다.
 #
-# 셸에서 특별한 의미를 가지는 인자만 작은따옴표로 감싼 뒤 보낸다. 파이썬 코드의 줄바꿈과
-# 내부 따옴표가 그대로 살아남고, 인용이 필요 없는 일반 단어(docker, test, -d)는 건드리지 않아
-# 파이프라인을 쓰는 호출도 그대로 동작한다. printf %q 를 전체에 적용하면 첫 단어 docker 까지
-# 이스케이프되어 명령을 못 찾으므로(rc=127) 쓰지 않는다.
-# ssh 는 인자를 공백으로 이어 붙여 하나의 원격 명령 문자열을 만든다. 그래서 인자에 들어 있던
-# 따옴표가 그대로 사라진다. 예를 들어
-#   hssh "python3" "-c" "import sys"
-# 는 서버에 python3 -c import sys 로 도착하고, 파이썬은 import 라는 파일을 찾으려다
-# rc=2 로 죽는다. 호출한 곳에는 "서버 Syncthing 이 응답하지 않는다" 만 보이므로, 실제 원인은
-# 한참 위에 있다. 이 문제를 CI 가 처음 잡아냈다.
-#
 # 인용은 프로그램 본문에만 건다. `test -d /opt/data/x` 같은 명령은 원래 여러 단어이고
 # 원격 셸이 공백으로 나눠 실행해야 하므로, 통째로 작은따옴표로 감싸면 셸이 그 이름을 가진
 # 프로그램을 찾다 rc=127 로 죽는다. -c 다음에 오는 인자만 프로그램으로 본다.
@@ -78,11 +67,10 @@ hssh() {
   done
   ssh -o BatchMode=yes -o ConnectTimeout=15 "$SSH_ALIAS" "${quoted[*]}"
 }
-hscp() { scp -q -o BatchMode=yes -o ConnectTimeout=15 "$@"; }
 
 # 키트 컨테이너 탐색. 컨테이너 이름에 hermes가 들어가고 kit 이미지를 쓰는 것만 Pick한다.
 discover() {
-  CONTAINER="$(hssh 'docker ps --format "{{.Names}}|{{.Image}}" | grep -i hermes | grep -iv omniroute | head -1' | cut -d'|' -f1)"
+  CONTAINER="$(hssh 'docker ps --format "{{.Names}}|{{.Image}}" | grep -i hermes | grep -iv omniroute | head -1' | cut -d'|' -f1 || true)"
   if [ -z "$CONTAINER" ]; then
     cat >&2 <<'EOF'
 ❌ 실행 중인 Hermes 키트 컨테이너를 찾지 못했습니다.
@@ -96,7 +84,6 @@ discover() {
 EOF
     exit 1
   fi
-  DATA_DIR="/opt/data"
 }
 
 # 서버에서 실행: hermes 컨테이너 안(uid 10000)으로 명령을 넘긴다.

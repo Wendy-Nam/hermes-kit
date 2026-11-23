@@ -37,7 +37,7 @@ def set_env(path: Path, updates: dict[str, str]) -> None:
     for k, v in updates.items():
         # A newline in a value would let a modal submit forge extra env lines; an "=" in a key
         # would silently redirect the write. Both are rejected rather than escaped.
-        if not k or "\n" in v or "\r" in v or "\n" in k or "=" in k:
+        if not k or "\n" in v or "\r" in v or "\n" in k or "\r" in k or "=" in k:
             raise ValueError(f"invalid env entry: {k!r}")
     lines = path.read_text().splitlines() if path.exists() else []
     todo = dict(updates)

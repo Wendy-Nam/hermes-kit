@@ -4,7 +4,6 @@ A non-developer should never paste a key into a chat window: it would land in th
 the model's context. This plugin takes keys through a Discord modal, checks them against the
 provider, and only then writes them to .env. No LLM is involved in any of it.
 """
-import logging
 import os
 import sys
 
@@ -14,16 +13,9 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 if _HERE not in sys.path:
     sys.path.insert(0, _HERE)
 
-log = logging.getLogger(__name__)
-
 
 def register(ctx):
     """Entry point. Everything Discord-specific lives in discord_ui, which imports discord."""
-    try:
-        import voice_adapter
-        voice_adapter.install_all()
-    except Exception:
-        log.debug("kit-setup: voice_adapter load skipped", exc_info=True)
     from discord_ui import build
 
     ctx.register_platform_handler("discord", build)

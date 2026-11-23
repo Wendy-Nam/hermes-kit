@@ -27,14 +27,19 @@ def merge_file(target: Path, overlay: Path) -> None:
     over = yaml.safe_load(overlay.read_text()) or {}
     if not isinstance(over, dict):
         raise ValueError(f"overlay must be a mapping: {overlay}")
-    base = yaml.safe_load(target.read_text()) or {}
+    base = yaml.safe_load(target.read_text(encoding="utf-8")) or {}
+    if not isinstance(base, dict):
+        raise ValueError(f"target must be a mapping: {target}")
     merged = deep_merge(base, over)
     mode = os.stat(target).st_mode
     fd, tmp = tempfile.mkstemp(dir=target.parent, prefix=f".{target.name}.")
-    with os.fdopen(fd, "w") as f:
-        yaml.safe_dump(merged, f, allow_unicode=True, sort_keys=False)
-    os.chmod(tmp, mode)
-    os.replace(tmp, target)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            yaml.safe_dump(merged, f, allow_unicode=True, sort_keys=False)
+        os.chmod(tmp, mode)
+        os.replace(tmp, target)
+    finally:
+        Path(tmp).unlink(missing_ok=True)
 
 
 if __name__ == "__main__":

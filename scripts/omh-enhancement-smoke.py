@@ -77,7 +77,7 @@ with tempfile.TemporaryDirectory(prefix='kit-omh-acceptance-') as directory:
 
     (data / 'SOUL.md').write_text('# 나의 AI 비서\n')  # a student seeded before the route rule
     result = install_upstream_omh(data, routing={'model': 'gemini-3-flash', 'provider': 'gemini'},
-                                  host_version='0.21.2')
+                                  host_version='0.23.3')
     assert result['status'] == 'installed', result
     assert '보정이 켜졌습니다' in result['message'], result
     assert (data / RECEIPT).is_file()

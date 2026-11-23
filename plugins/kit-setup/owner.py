@@ -69,16 +69,20 @@ def configure_app(token: str) -> tuple[str | None, str | None]:
         return None, f"봇 토큰이 거부됐습니다 (HTTP {e.code}) — Developer Portal에서 Reset Token을 다시 하세요"
     except Exception as e:
         return None, f"디스코드에 연결하지 못했습니다 ({type(e).__name__})"
+    app_id = app.get("id") if isinstance(app, dict) else None
+    if not app_id or not str(app_id).isdigit():
+        return None, "디스코드 앱 ID를 확인하지 못했습니다 — 봇 토큰을 다시 확인하세요"
     try:
+        existing_flags = int(app.get("flags") or 0)
         _discord_patch("/applications/@me", token, {
-            "flags": LIMITED,
+            "flags": existing_flags | LIMITED,
             "install_params": {"scopes": ["bot", "applications.commands"],
                                "permissions": str(PERMS)},
         })
     except Exception as e:
         # Not fatal: the student can still invite the bot, they may just have to tick a box.
         log.warning("install_params update failed (%s) — invite link still usable", type(e).__name__)
-    return invite_url(str(app.get("id"))), None
+    return invite_url(str(app_id)), None
 
 
 def remember_invite(data_dir, url: str) -> bool:

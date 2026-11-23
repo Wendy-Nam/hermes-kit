@@ -91,15 +91,21 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.release != '')
         env:
           RELEASE: ${{ inputs.release }}
+          GITHUB_REF_NAME: ${{ github.ref_name }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -a; . ./versions.env; set +a
-          if [ -n "$RELEASE" ] && [ "$RELEASE" != "$HERMES_VERSION-k$KIT_VERSION" ]; then
-            echo "release input $RELEASE does not match versions.env $HERMES_VERSION-k$KIT_VERSION"; exit 1
+          expected="$HERMES_VERSION-k$KIT_VERSION"
+          if [ -n "$RELEASE" ] && [ "$RELEASE" != "$expected" ]; then
+            echo "release input $RELEASE does not match versions.env $expected"; exit 1
+          fi
+          if [ "${{ github.ref_type }}" = "tag" ] && [ "$GITHUB_REF_NAME" != "v$expected" ]; then
+            echo "tag $GITHUB_REF_NAME does not match versions.env v$expected"; exit 1
           fi
           owner=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
           img="ghcr.io/$owner/hermes-kit"
-          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
-          for t in "$HERMES_VERSION-k$KIT_VERSION" latest; do docker tag hermes-kit:ci "$img:$t"; docker push "$img:$t"; done
+          printf '%s' "$GH_TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          for t in "$expected" latest; do docker tag hermes-kit:ci "$img:$t"; docker push "$img:$t"; done
       - name: record the dispatched release as its v* tag
         if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.release != ''
         env:

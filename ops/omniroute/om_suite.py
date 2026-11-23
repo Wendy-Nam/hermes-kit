@@ -8,19 +8,33 @@ usage: om_suite.py loop|bigctx|stream|responses|cache [combo...]
 import json, sys, time, urllib.error, urllib.request
 
 BASE, MIG = "http://127.0.0.1:20128", "/docker/omniroute/migrate"
-KEY = open("/docker/omniroute/hermes-api-key").read().strip()
-TOOLS = json.load(open(f"{MIG}/hermes-tools.json"))
-test, combos = sys.argv[1], sys.argv[2:]
+_TOOLS_CACHE = None
+
+
+def _key():
+    with open("/docker/omniroute/hermes-api-key", encoding="utf-8") as f:
+        return f.read().strip()
+
+
+def _tools():
+    global _TOOLS_CACHE
+    if _TOOLS_CACHE is None:
+        with open(f"{MIG}/hermes-tools.json", encoding="utf-8") as f:
+            _TOOLS_CACHE = json.load(f)
+    return _TOOLS_CACHE
 
 
 def post(path, body, sid="suite", timeout=240, stream=False):
     r = urllib.request.Request(BASE + path, data=json.dumps(body).encode(), method="POST",
-                               headers={"Content-Type": "application/json", "Authorization": f"Bearer {KEY}",
+                               headers={"Content-Type": "application/json", "Authorization": f"Bearer {_key()}",
                                         "X-Session-Id": sid, "X-OmniRoute-No-Cache": "true"})
     t = time.time()
     try:
         x = urllib.request.urlopen(r, timeout=timeout)
-        return time.time() - t, (x if stream else json.load(x)), None
+        if stream:
+            return time.time() - t, x, None
+        with x:
+            return time.time() - t, json.load(x), None
     except urllib.error.HTTPError as e:
         return time.time() - t, None, f"{e.code} {e.read().decode('utf-8', 'replace')[:200]}"
     except Exception as e:
@@ -35,7 +49,7 @@ def loop(c):
             {"role": "user", "content": "read_file로 /etc/hostname 과 /etc/os-release 를 읽고, 호스트 이름과 OS를 한국어 한 문장으로 알려줘."}]
     seen, served, total = [], set(), 0
     for turn in range(1, 6):
-        dt, d, err = post("/v1/chat/completions", {"model": c, "messages": msgs, "tools": TOOLS, "max_tokens": 800}, sid=f"loop-{c}")
+        dt, d, err = post("/v1/chat/completions", {"model": c, "messages": msgs, "tools": _tools(), "max_tokens": 800}, sid=f"loop-{c}")
         total += dt
         if err:
             return f"FAIL turn {turn}: {err}"
@@ -74,24 +88,25 @@ def bigctx(c):
 
 
 def stream(c):
-    body = {"model": c, "stream": True, "tools": TOOLS, "max_tokens": 300,
+    body = {"model": c, "stream": True, "tools": _tools(), "max_tokens": 300,
             "messages": [{"role": "user", "content": "read_file 도구로 /etc/hostname 을 읽어줘."}]}
     dt, x, err = post("/v1/chat/completions", body, sid=f"stream-{c}", stream=True)
     if err:
         return f"FAIL {err}"
     chunks, tool, text, first = 0, False, "", None
-    for line in x:
-        line = line.decode("utf-8", "replace").strip()
-        if not line.startswith("data:") or line == "data: [DONE]":
-            continue
-        first = first or time.time()
-        try:
-            delta = json.loads(line[5:])["choices"][0].get("delta") or {}
-        except Exception:
-            continue
-        chunks += 1
-        tool = tool or bool(delta.get("tool_calls"))
-        text += delta.get("content") or ""
+    with x:
+        for line in x:
+            line = line.decode("utf-8", "replace").strip()
+            if not line.startswith("data:") or line == "data: [DONE]":
+                continue
+            first = first or time.time()
+            try:
+                delta = json.loads(line[5:])["choices"][0].get("delta") or {}
+            except Exception:
+                continue
+            chunks += 1
+            tool = tool or bool(delta.get("tool_calls"))
+            text += delta.get("content") or ""
     ok = chunks > 1 and (tool or text.strip())
     return f"{'PASS' if ok else 'FAIL'} chunks={chunks} tool_call={tool} text={text.strip()[:40]!r}"
 
@@ -118,5 +133,12 @@ def cache(c):
     return " | ".join(res)
 
 
-for c in combos:
-    print(f"{test:9} {c:26} {globals()[test](c)}", flush=True)
+TESTS = {"loop": loop, "bigctx": bigctx, "stream": stream, "responses": responses, "cache": cache}
+
+if __name__ == "__main__":
+    if len(sys.argv) < 2 or sys.argv[1] not in TESTS:
+        raise SystemExit(f"usage: om_suite.py {'|'.join(TESTS)} [combo...]")
+    test_name, combos = sys.argv[1], sys.argv[2:]
+    fn = TESTS[test_name]
+    for c in combos:
+        print(f"{test_name:9} {c:26} {fn(c)}", flush=True)

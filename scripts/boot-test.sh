@@ -3,7 +3,7 @@
 # Usage: scripts/boot-test.sh <image>. Uses a dummy bot token (the gateway won't log in; cont-init still runs).
 set -eu
 IMG="$1"; VOL="kit-boot-test-$$"
-trap 'docker rm -f "$VOL" >/dev/null 2>&1 || true; docker volume rm -f "$VOL" >/dev/null 2>&1 || true' EXIT
+trap 'rm -f /tmp/bt1.$$ /tmp/bt2.$$; docker rm -f "$VOL" >/dev/null 2>&1 || true; docker volume rm -f "$VOL" >/dev/null 2>&1 || true' EXIT
 boot() {
   docker run -d --name "$VOL" -e DISCORD_BOT_TOKEN=dummy -v "$VOL:/opt/data" "$IMG" gateway run >/dev/null
   i=0; until docker logs "$VOL" 2>&1 | grep -qE '^\[kit\] (done|kit [0-9]+ already seeded)'; do

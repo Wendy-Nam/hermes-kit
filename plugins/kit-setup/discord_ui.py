@@ -45,23 +45,6 @@ def _env():
     return get_env(ENV_FILE)
 
 
-def _read_config() -> dict:
-    """The current config, flattened to "a.b.c" -> value.
-
-    Read straight from config.yaml rather than shelling out per key: this runs on every pack
-    apply, and one `hermes config get` per setting is a round trip nobody needs.
-    """
-    import yaml
-
-    try:
-        doc = yaml.safe_load((DATA / "config.yaml").read_text(encoding="utf-8")) or {}
-    except OSError:
-        return {}
-    except Exception:
-        return {}          # a malformed config must not block a pack apply
-    return _flatten(doc) if isinstance(doc, dict) else {}
-
-
 def _flatten(doc, prefix=()):
     out = {}
     for k, v in doc.items():
@@ -90,7 +73,7 @@ def _write(values: dict, config: dict) -> list[str]:
         return [f"{CROSS} 설정 적용 실패: {k} — 키는 저장됐지만 설정은 반영되지 않았습니다" for k in config]
 
 
-async def _verify(entries) -> list[tuple[str, bool, str]]:
+async def _verify(entries) -> list[tuple[str, bool, str, str | None]]:
     """Validate a pack's keys concurrently — a pack is a few seconds, not a few minutes.
 
     `entries` is [(KeySpec, value)]; values are passed straight to the validator and are never
@@ -225,7 +208,6 @@ def build(bot, adapter):
     """
     import discord as dc
     from discord import app_commands
-    from views import HomeView   # imported here, not at module level: it needs discord.py
 
     import validators as v
     from packs import load_kits, load_packs
@@ -235,12 +217,6 @@ def build(bot, adapter):
     except Exception:
         log.exception("kit-setup: pack definitions are invalid — /setup is disabled")
         return
-
-    try:
-        import voice_adapter
-        voice_adapter.wire_discord_voice(bot, adapter)
-    except Exception:
-        log.debug("kit-setup: wire_discord_voice skipped", exc_info=True)
 
     async def setup(interaction: dc.Interaction):
         await setup_command(interaction, packs_list, kits_list, bot)
@@ -293,7 +269,15 @@ def build(bot, adapter):
         await channel.send("설정을 적용하고 다시 연결했습니다. 질문을 해 보세요. 상태 확인은 `/doctor`, 변경은 `/setup`입니다.")
 
     bot.add_listener(on_guild_join, "on_guild_join")
-    asyncio.get_event_loop().create_task(sync_all())
-    asyncio.get_event_loop().create_task(greet_after_restart())
+    bg_tasks: set[asyncio.Task] = set()
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        loop = asyncio.get_event_loop()
+    for coro in (sync_all(), greet_after_restart()):
+        t = loop.create_task(coro)
+        bg_tasks.add(t)
+        t.add_done_callback(bg_tasks.discard)
+    bot._kit_bg_tasks = bg_tasks
     log.info("kit-setup: guild-scoped /setup registered")
 

@@ -51,7 +51,11 @@ def public(url):
 async def main():
     if len(sys.argv) < 2:
         print("usage: jsextract <url> [max_chars]", file=sys.stderr); return 2
-    url, limit = sys.argv[1], int(sys.argv[2]) if len(sys.argv) > 2 else 12000
+    url = sys.argv[1]
+    try:
+        limit = max(1, int(sys.argv[2])) if len(sys.argv) > 2 else 12000
+    except ValueError:
+        print("invalid max_chars: must be an integer", file=sys.stderr); return 2
     if not public(url):
         print("refused: public http(s) URLs only", file=sys.stderr); return 2
     from crawl4ai import AsyncWebCrawler, BrowserConfig, CrawlerRunConfig
@@ -89,6 +93,9 @@ description: web_extract가 빈 결과나 오류를 준 JavaScript 렌더링 페
 - 로그인이 필요한 페이지, CAPTCHA, 봇 차단은 우회하지 않는다. 실패 사실을 사용자에게 알린다.
 - 한 번에 몇 초~1분 걸리고 CPU를 쓴다. 같은 페이지를 반복해서 긁지 않는다.
 '''
+
+
+from fs_util import atomic_write as _atomic_write
 
 
 def status(data_dir):
@@ -142,15 +149,14 @@ def install(data_dir):
                 _run([str(target / 'bin/python'), '-c', check], 120, env)
             finally:
                 shutil.rmtree(staging, ignore_errors=True)
-            tool = data / TOOL
-            tool.parent.mkdir(parents=True, exist_ok=True)
-            tool.write_text(JSEXTRACT.format(python=target / 'bin/python', browsers=BROWSERS,
-                                             cache=data / '.kit-tools/crawl4ai-cache'))
-            tool.chmod(0o755)
-            skill = data / SKILL
-            skill.parent.mkdir(parents=True, exist_ok=True)
-            skill.write_text(SKILL_TEXT)
-            (data / RECEIPT).write_text(json.dumps({'crawl4ai': CRAWL4AI, 'playwright': PLAYWRIGHT}) + '\n')
+            _atomic_write(
+                data / TOOL,
+                JSEXTRACT.format(python=target / 'bin/python', browsers=BROWSERS,
+                                 cache=data / '.kit-tools/crawl4ai-cache'),
+                mode=0o755,
+            )
+            _atomic_write(data / SKILL, SKILL_TEXT)
+            _atomic_write(data / RECEIPT, json.dumps({'crawl4ai': CRAWL4AI, 'playwright': PLAYWRIGHT}) + '\n')
         return True, 'JS 페이지 추출기를 설치했습니다. 적용하기(재시작) 후 web_extract가 빈 결과를 줄 때 자동으로 사용합니다.'
     except subprocess.TimeoutExpired:
         return False, '설치 시간이 초과되었습니다. 네트워크 확인 후 다시 시도해 주세요.'

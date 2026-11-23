@@ -10,9 +10,10 @@ USER root
 
 # rtk, checksum-verified (python urllib: the base image's tool set is not guaranteed)
 RUN python3 - <<EOF
-import hashlib, io, os, shutil, tarfile, urllib.request
+import hashlib, io, os, platform, shutil, tarfile, urllib.request
+arch = {"x86_64": "x86_64", "amd64": "x86_64", "aarch64": "aarch64", "arm64": "aarch64"}[platform.machine().lower()]
 base = "https://github.com/rtk-ai/rtk/releases/download/v${RTK_VERSION}/"
-name = "rtk-x86_64-unknown-linux-musl.tar.gz"
+name = f"rtk-{arch}-unknown-linux-musl.tar.gz"
 blob = urllib.request.urlopen(base + name, timeout=60).read()
 sums = urllib.request.urlopen(base + "checksums.txt", timeout=60).read().decode()
 want = next(l.split()[0] for l in sums.splitlines() if l.strip().endswith(name))
@@ -34,10 +35,9 @@ RUN set -eu; PY=/opt/hermes/.venv/bin/python; \
       printf 'from hermes_yaml import safe_load, safe_dump, YAMLError\nload = safe_load\ndump = safe_dump\n' > "$SITE/yaml.py"; \
     fi; \
     export HERMES_HOME=/tmp/kit-build-home HOME=/tmp/kit-build-home; mkdir -p /tmp/kit-build-home; \
-    $PY /opt/kit/patches/core/patch-terminal-failure-status.py --root /opt/hermes --apply; \
     $PY /opt/kit/patches/core/patch-process-hint-names.py --root /opt/hermes --apply --no-enforce-hash; \
     sh /opt/kit/patches/voice/apply.sh; \
-    for f in hook-overlap-skip hook-policy-serialization lifecycle-guard-sqlite kanban-interval kanban-progress-notify kanban-heartbeat-note budget-caps skills-view-cap cron-max-turns cron-iteration-outcome skills-compact vision-inbound skill-context-reuse; do \
+    for f in lifecycle-guard-sqlite kanban-interval kanban-progress-notify kanban-heartbeat-note budget-caps skills-view-cap cron-max-turns cron-iteration-outcome skills-compact vision-inbound skill-context-reuse; do \
       $PY /opt/kit/patches/core/patch-$f.py; \
     done; \
     cd /opt/hermes && $PY -c "import yaml, gateway.run, gateway.kanban_watchers_notifier, tools.terminal_tool, hermes_cli.plugins_dispatch, agent.prompt_builder, agent.system_prompt, tools.skills_tool, tools.budget_config, cron.scheduler"; \
@@ -51,13 +51,15 @@ import os, urllib.request
 plugins = [("dataview", "blacksmithgu/obsidian-dataview", "0.5.70"),
            ("obsidian-tasks-plugin", "obsidian-tasks-group/obsidian-tasks", "8.4.0"),
            ("tasknotes", "callumalpass/tasknotes", "4.13.5")]
-for vault in ("work", "personal"):
-    for pid, repo, ver in plugins:
-        d = f"/opt/kit/seed/vaults/{vault}/.obsidian/plugins/{pid}"
-        os.makedirs(d, exist_ok=True)
-        for a in ("main.js", "manifest.json", "styles.css"):
-            with urllib.request.urlopen(f"https://github.com/{repo}/releases/download/{ver}/{a}", timeout=60) as r, open(f"{d}/{a}", "wb") as f:
-                f.write(r.read())
+for pid, repo, ver in plugins:
+    for a in ("main.js", "manifest.json", "styles.css"):
+        with urllib.request.urlopen(f"https://github.com/{repo}/releases/download/{ver}/{a}", timeout=60) as r:
+            blob = r.read()
+        for vault in ("work", "personal"):
+            d = f"/opt/kit/seed/vaults/{vault}/.obsidian/plugins/{pid}"
+            os.makedirs(d, exist_ok=True)
+            with open(f"{d}/{a}", "wb") as f:
+                f.write(blob)
 EOF
 
 COPY bin /opt/kit/bin

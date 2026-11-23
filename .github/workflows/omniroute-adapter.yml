@@ -1,6 +1,16 @@
 name: omniroute-adapter
 on:
   workflow_dispatch:
+    inputs:
+      publish:
+        description: "Push image to GHCR after all checks pass"
+        type: boolean
+        required: false
+        default: true
+  pull_request:
+    paths:
+      - advanced/omniroute-rtk-envelope/**
+      - .github/workflows/omniroute-adapter.yml
   push:
     branches: [main]
     paths:
@@ -34,6 +44,7 @@ jobs:
           cmp advanced/omniroute-rtk-envelope/envelope.cjs /tmp/shipped-envelope.cjs
           ! grep -Eq 'sk-[A-Za-z0-9_-]{20,}|ghp_[A-Za-z0-9]{30,}|Bearer eyJ|187\.127\.124\.238|hermes-self|hermes-snow-search' /tmp/shipped-envelope.cjs
       - name: publish separately from Hermes runtime tags
+        if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.publish)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |

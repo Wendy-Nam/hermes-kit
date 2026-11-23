@@ -34,7 +34,7 @@ from hermes_cli import plugins_dispatch
 source = open(plugins_dispatch.__file__, encoding='utf-8').read()
 assert (('_POLICY_SERIALIZATION_DEADLINE_V2' in source and 'waited_for_policy_overlap' in source)
         or ('_hook_abandoned' in source and 'gate_key' in source))
-from hermes_cli.plugins import PluginManager, get_plugin_manager
+from hermes_cli.plugins import get_plugin_manager
 manager = get_plugin_manager()
 calls, release = [], threading.Event()
 def policy(**kwargs):
