@@ -159,8 +159,13 @@ entitlement remain checked only when the student runs setup.
 ## Optional JS page extractor
 
 `crawl4ai_setup.install(data_dir)` creates `crawl4ai-env` on the data volume with
-`crawl4ai==0.9.4` and `playwright==1.63.0`, whose chromium-headless-shell revision
-1243 is the one the Hermes image ships; no browser is downloaded. It writes
+`crawl4ai==0.9.6` and `playwright==1.64.1`, whose Chromium revision 1248 is the
+full Chromium the Hermes v0.23.3 image ships at `PLAYWRIGHT_BROWSERS_PATH`
+(`/opt/hermes/tools/chromium-1248`); crawl4ai launches it with
+`channel="chromium"`, so no headless shell or other browser is downloaded. Before
+installing it checks that the image really ships that revision, and after pip it
+checks the installed Playwright's `browsers.json` expects it; a mismatch refuses
+with both revisions named. It writes
 `bin/jsextract` (public http(s) only; private, loopback and link-local addresses
 refused) and the `kit-tools/js-page-extract` skill. Default extraction remains
 `web.extract_backend: parallel` (keyless). `uninstall` removes all of it.
