@@ -20,6 +20,10 @@
   리비전을, pip 설치 후에는 설치된 Playwright의 `browsers.json`이 기대하는 리비전을 확인합니다. 다음
   베이스 이미지 업그레이드로 Chromium이 바뀌면 조용히 깨지는 대신 "이미지: chromium-XXXX, 키트:
   chromium-1248"처럼 양쪽 리비전을 밝히며 거부합니다. 단위 테스트(`test_crawl4ai_setup.py`)를 추가했습니다.
+- **역할 프로필(`research`/`coder`/`creator`)의 `.env`에 Hermes 템플릿 주석이 그대로 복사되었습니다.**
+  `v0.23.3`은 `.env`를 `.env.example`에서 만들고, 그 주석에 `# DISCORD_BOT_TOKEN=` 같은 채널 키
+  이름이 들어 있습니다. 실제 토큰이 새지는 않았지만 이제 역할에는 실제 `KEY=value` 줄만 복사합니다
+  (CI e2e "role … no bot token" 3건 실패의 원인).
 
 ## 0.23.3-k19 — 최신 업스트림 전면 업그레이드 + 보이스 경량 어댑터 + 추천 스킬 & OmniRoute/OMH 프리셋 + SSH 올인원 배포
 

@@ -27,7 +27,9 @@ class Roles(unittest.TestCase):
 
     def test_roles_get_the_main_model_and_keys_but_never_the_bot_token(self):
         with (self.root / '.env').open('a') as f:
-            f.write('export\tDISCORD_TOKEN_ALT=leak\nexport  DISCORD_X=leak\n')
+            f.write('export\tDISCORD_TOKEN_ALT=leak\nexport  DISCORD_X=leak\n'
+                    # Hermes seeds .env from its .env.example, which names channel keys in comments.
+                    '# Hermes Agent Environment Configuration\n# DISCORD_BOT_TOKEN=\n\n')
         rows = roles.ensure_roles(self.root, hermes=str(self.hermes))
         self.assertEqual(rows, [f'{r}: 준비됨' for r in roles.ROLES])
         for role in roles.ROLES:
@@ -35,6 +37,7 @@ class Roles(unittest.TestCase):
             self.assertEqual(config_store.read(home)['model'], {'provider': 'openai-codex', 'default': 'gpt-6-luna'})
             env = env_store.get_env(home / '.env')
             self.assertEqual(env, {'GEMINI_API_KEY': 'g'})
+            self.assertNotIn('DISCORD', (home / '.env').read_text())
             self.assertEqual(stat.S_IMODE(os.stat(home / '.env').st_mode), 0o600)
             self.assertIn(roles.MARK, (home / 'SOUL.md').read_text())
         soul = (self.root / 'SOUL.md').read_text()

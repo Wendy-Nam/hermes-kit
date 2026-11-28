@@ -124,8 +124,10 @@ def sync_roles(data_dir, *, meminfo='/proc/meminfo'):
     env_lines = []
     env_file = root / '.env'
     if env_file.is_file():
+        # Only real assignments: Hermes seeds .env from its .env.example, whose comments name
+        # channel keys (e.g. "# DISCORD_BOT_TOKEN=") and are of no use to a role.
         env_lines = [line for line in env_file.read_text(encoding='utf-8').splitlines()
-                     if not _name(line).startswith(CHANNEL_PREFIXES)]
+                     if '=' in line and _name(line) and not _name(line).startswith(('#', *CHANNEL_PREFIXES))]
     synced = []
     for role in ROLES:
         home = _profile(root, role)
