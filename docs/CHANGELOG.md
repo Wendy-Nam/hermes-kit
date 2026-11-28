@@ -6,6 +6,25 @@
 이미지: `ghcr.io/wendy-nam/hermes-kit:0.23.3-kN`. 기수 배포 기준은
 [설치 도우미 안내](instructor-install-guide.md)의 "강사·운영자 출시 기준"을 따릅니다.
 
+## 미출시 — JS 페이지 추출기가 v0.23.3 이미지의 Chromium을 다시 씁니다
+
+- **선택 설치 JS 페이지 추출기(crawl4ai)가 0.23.3-k19 이미지에서 설치되지 않았습니다.** Hermes
+  `v0.23.3` 베이스 이미지는 브라우저를 `/opt/hermes/.playwright`의
+  `chromium_headless_shell-1243` 대신 `PLAYWRIGHT_BROWSERS_PATH=/opt/hermes/tools`의 전체 Chromium
+  `chromium-1248`(Chrome for Testing 156.0.8078.80)로 싣습니다. 키트는 옛 경로·리비전을 찾다가
+  "브라우저 버전이 달라 설치하지 않았습니다"로 거부했고, CI의 `jsextract-smoke`도 같은 이유로 실패했습니다.
+- 고정 버전을 `crawl4ai==0.9.6`(`playwright>=1.64.1` 요구) + `playwright==1.64.1`(browsers.json의
+  chromium 리비전 1248)로 올렸습니다. crawl4ai는 `channel="chromium"`으로 이미지의 전체 Chromium을
+  띄우므로 브라우저를 따로 내려받지 않습니다.
+- 브라우저 경로는 이미지의 `PLAYWRIGHT_BROWSERS_PATH`에서 읽고, 설치 전에는 이미지에 실제로 있는
+  리비전을, pip 설치 후에는 설치된 Playwright의 `browsers.json`이 기대하는 리비전을 확인합니다. 다음
+  베이스 이미지 업그레이드로 Chromium이 바뀌면 조용히 깨지는 대신 "이미지: chromium-XXXX, 키트:
+  chromium-1248"처럼 양쪽 리비전을 밝히며 거부합니다. 단위 테스트(`test_crawl4ai_setup.py`)를 추가했습니다.
+- **역할 프로필(`research`/`coder`/`creator`)의 `.env`에 Hermes 템플릿 주석이 그대로 복사되었습니다.**
+  `v0.23.3`은 `.env`를 `.env.example`에서 만들고, 그 주석에 `# DISCORD_BOT_TOKEN=` 같은 채널 키
+  이름이 들어 있습니다. 실제 토큰이 새지는 않았지만 이제 역할에는 실제 `KEY=value` 줄만 복사합니다
+  (CI e2e "role … no bot token" 3건 실패의 원인).
+
 ## 0.23.3-k19 — 최신 업스트림 전면 업그레이드 + 보이스 경량 어댑터 + 추천 스킬 & OmniRoute/OMH 프리셋 + SSH 올인원 배포
 
 - **전 컴포넌트 최신 업스트림 업그레이드**

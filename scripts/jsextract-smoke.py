@@ -7,8 +7,10 @@ import crawl4ai_setup as c
 
 with tempfile.TemporaryDirectory(prefix='kit-jsextract-') as directory:
     data = Path(directory)
+    assert c.check_image_browser() is None, c.check_image_browser()
     ok, message = c.install(data)
     assert ok, message
+    assert c.playwright_revision(data / c.ENV_DIR) == c.REVISION, c.playwright_revision(data / c.ENV_DIR)
     assert c.status(data)['installed'] and (data / c.SKILL).is_file()
     again = c.install(data)
     assert again[0] and '이미' in again[1], again

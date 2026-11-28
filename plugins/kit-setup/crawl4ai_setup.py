@@ -4,23 +4,32 @@ Default page extraction stays Hermes' keyless `web_extract`. This adds a fallbac
 command, `/opt/data/bin/jsextract <url>`, and a skill telling the agent to use it
 only when `web_extract` comes back empty on a script-heavy page.
 
-crawl4ai 0.9.4 pins Playwright 1.63.0, whose chromium-headless-shell revision (1243)
-is the one the Hermes image already ships at PLAYWRIGHT_BROWSERS_PATH, so no
-browser is downloaded. The virtualenv (~850 MB) lives on the data volume.
+crawl4ai 0.9.6 requires Playwright >= 1.64.1; Playwright 1.64.1's browsers.json
+pins Chromium revision 1248, which is the full Chromium (Chrome for Testing 156)
+the Hermes v0.23.3 image ships at PLAYWRIGHT_BROWSERS_PATH (/opt/hermes/tools).
+crawl4ai launches it with channel="chromium", so no chromium-headless-shell is
+needed and no browser is downloaded. The revision is read from the image at
+install time and again from the installed Playwright, so a base-image bump that
+changes Chromium refuses with both revisions named instead of breaking later.
+The virtualenv (~850 MB) lives on the data volume.
 """
 from __future__ import annotations
 import json
 import os
+import re
 from pathlib import Path
 import shutil
 import subprocess
 import sys
 import tempfile
 
-CRAWL4AI = 'crawl4ai==0.9.4'
-PLAYWRIGHT = 'playwright==1.63.0'
-BROWSERS = '/opt/hermes/.playwright'
-REVISION = 'chromium_headless_shell-1243'
+CRAWL4AI = 'crawl4ai==0.9.6'
+PLAYWRIGHT = 'playwright==1.64.1'
+# The image's own Playwright store (the Hermes base image sets this ENV).
+BROWSERS = os.environ.get('PLAYWRIGHT_BROWSERS_PATH') or '/opt/hermes/tools'
+# Chromium revision in PLAYWRIGHT's driver/package/browsers.json. Bump together.
+REVISION = 'chromium-1248'
+_BROWSER_DIR = re.compile(r'chromium(?:_headless_shell)?-(\d+)')
 ENV_DIR = 'crawl4ai-env'
 TOOL = 'bin/jsextract'
 SKILL = 'skills/kit-tools/js-page-extract/SKILL.md'
@@ -107,6 +116,37 @@ def status(data_dir):
     return {'installed': (data / TOOL).is_file() and (data / ENV_DIR / 'bin/python').is_file(), **receipt}
 
 
+def image_revisions(browsers=None):
+    """Chromium revisions installed in the image's Playwright store, e.g. ['chromium-1248']."""
+    root = Path(browsers or BROWSERS)
+    try:
+        entries = list(root.iterdir())
+    except OSError:
+        return []
+    return sorted(p.name for p in entries
+                  if _BROWSER_DIR.fullmatch(p.name) and p.is_dir() and (p / 'INSTALLATION_COMPLETE').is_file())
+
+
+def check_image_browser(browsers=None):
+    """Returns None when the image ships REVISION, else a message naming both revisions."""
+    found = image_revisions(browsers)
+    if REVISION in found:
+        return None
+    seen = ', '.join(found) or '없음'
+    return (f'이 이미지의 브라우저 버전이 달라 설치하지 않았습니다 (이미지: {seen}, 키트: {REVISION}). '
+            '키트 업데이트 후 다시 시도해 주세요.')
+
+
+def playwright_revision(venv):
+    """Chromium revision the installed Playwright expects, read from its browsers.json."""
+    found = sorted(Path(venv).glob('lib/python*/site-packages/playwright/driver/package/browsers.json'))
+    if len(found) != 1:
+        raise RuntimeError('playwright browsers.json not found')
+    browsers = json.loads(found[0].read_text())['browsers']
+    revision = next(b['revision'] for b in browsers if b['name'] == 'chromium')
+    return f'chromium-{revision}'
+
+
 def _run(argv, timeout, env=None):
     result = subprocess.run(argv, capture_output=True, text=True, timeout=timeout, env=env)
     if result.returncode:
@@ -123,8 +163,9 @@ def install(data_dir):
             current = status(data)
             if current.get('installed') and current.get('crawl4ai') == CRAWL4AI:
                 return True, 'JS 페이지 추출기가 이미 설치되어 있습니다.'
-            if not (Path(BROWSERS) / REVISION).is_dir():
-                return False, '이 이미지의 브라우저 버전이 달라 설치하지 않았습니다. 키트 업데이트 후 다시 시도해 주세요.'
+            mismatch = check_image_browser()
+            if mismatch:
+                return False, mismatch
             if shutil.disk_usage(data).free < MIN_FREE:
                 return False, '디스크 여유 공간이 2GB 미만이라 설치하지 않았습니다.'
             if any(p.is_symlink() for p in (data / ENV_DIR, data / 'bin', data / 'skills')):
@@ -142,6 +183,10 @@ def install(data_dir):
                 versions = _run([str(venv / 'bin/python'), '-c', check], 120, env).split()
                 if versions != [CRAWL4AI.split('==')[1], PLAYWRIGHT.split('==')[1]]:
                     raise RuntimeError('unexpected versions')
+                expected = playwright_revision(venv)
+                if expected != REVISION:
+                    return False, (f'설치된 Playwright가 기대하는 브라우저({expected})가 '
+                                   f'이미지({REVISION})와 달라 설치하지 않았습니다. 키트 업데이트 후 다시 시도해 주세요.')
                 target = data / ENV_DIR
                 if target.exists(): shutil.rmtree(target)
                 # Only bin/python is used, and it resolves its prefix from its own location.
