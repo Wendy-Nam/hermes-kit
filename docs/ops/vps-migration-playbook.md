@@ -61,6 +61,7 @@
 1. Syncthing 동기화 완료 확인 후 구 서버 동결.
 2. 정지 상태에서 `rsync -aHAX --delete --numeric-ids` (아카이브·캐시 제외) → 볼트 `sha256` 매니페스트 일치 확인.
 3. `.env` 키 보강 (봇 토큰 유지) → 프로덕션 변환 실행 (`./bin/hermes-kit-deploy.sh migrate`).
+   - OmniRoute 볼륨을 옮겨 왔다면 이름을 명시하세요: `./bin/hermes-kit-deploy.sh migrate --with-omniroute --container <hermes 컨테이너> --omniroute-volume <이관한 볼륨>`. OmniRoute 볼륨이 둘 이상이면 스크립트는 추측하지 않고 멈춥니다.
 4. `docker compose up -d` → 로그에서 Discord `Connected as` / Telegram `polling confirmed` 및 `./bin/hermes-kit-deploy.sh verify` 통과 확인.
 5. 구 서버는 만료일까지 정지 상태로 보존해 롤백 창으로 활용.
 

@@ -21,6 +21,9 @@
   - [`plugins/kit-setup/omniroute_presets.py`](../plugins/kit-setup/omniroute_presets.py)를 통해 사용자의 OmniRoute에 실제로 연결된 무료 풀 및 구독 계정만 자동 감지하여 7종 추천 콤보(`hermes-chat`, `hermes-free`, `hermes-fast`, `hermes-coding`, `hermes-ultrabrain`, `hermes-writing`, `hermes-visual-engineering`)를 구성하고, OMH 12개 작업 카테고리 체인과 편향 보정 프롬프트를 한 번에 연결합니다 (Discord `/setup → 고급 설정 → OmniRoute 연결 → 추천 가용 리소스 콤보 + OMH 자동 셋업` 또는 `bootstrap.py omniroute-preset apply`).
 - **원격 SSH 및 로컬 겸용 올인원 설치·마이그레이션 CLI ([`bin/hermes-kit-deploy.sh`](../bin/hermes-kit-deploy.sh))**
   - 로컬 VPS 또는 원격 SSH(`--ssh user@host`)에서 `install`, `migrate`, `preset`, `verify`를 한 번에 수행하며 기존 컨테이너 데이터와 설정을 안전하게 백업·보존합니다.
+- **배포 CLI 수정 — 컨테이너 오탐·OmniRoute 빈 볼륨 문제**
+  - Hermes 자동 탐지가 이름/이미지에 `hermes`가 들어간 첫 컨테이너를 고르던 탓에 `hermes-kit:omniroute-*` 이미지나 `hermes-kit-syncthing-*` 컨테이너를 본체로 오인하던 문제를 고쳤습니다. 이제 OmniRoute·Syncthing을 제외하고 `/opt/hermes/.venv`가 있는 컨테이너만 후보로 삼으며, 후보가 여럿이면 추측하지 않고 `--container`를 요구합니다.
+  - `--omniroute-volume <이름>`(또는 `KIT_OMNIROUTE_VOLUME`)으로 이관한 OmniRoute 데이터 볼륨을 external로 명시 연결합니다. OmniRoute 볼륨이 여러 개면 자동 선택하지 않고 멈추며, 지정한 볼륨이 없으면 빈 볼륨을 만들지 않습니다. 기존 OmniRoute 컨테이너의 compose 프로젝트를 재사용해 중복 기동을 막습니다.
 - **저장소 정리**: 루트에 잘못 커밋되어 있던 `costRules.ts` 및 미사용 프로토타입 `spikes/s2` 제거.
 
 ## 0.21.2-k18 — OMH가 없을 때 안내가 갈리는 것을 고쳤습니다

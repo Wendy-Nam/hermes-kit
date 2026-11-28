@@ -40,6 +40,7 @@ WITH_OMNIROUTE=0
 BUILD_LOCAL=0
 APPLY_PRESETS=0
 CONTAINER_NAME=""
+OMNIROUTE_VOLUME="${KIT_OMNIROUTE_VOLUME:-}"
 ACTION=""
 
 usage() {
@@ -65,6 +66,8 @@ Options:
   --build-local            Build Docker images locally from the repository instead of pulling GHCR tags
   --apply-presets          Automatically apply recommended OmniRoute combos + OMH 12-category routing
   --container <name>       Target an existing Hermes container by name (auto-detected if omitted)
+  --omniroute-volume <v>   Attach this existing Docker volume as OmniRoute /app/data (env: KIT_OMNIROUTE_VOLUME).
+                           Required when more than one OmniRoute data volume exists (e.g. after a VPS move).
   -h, --help               Show this help message
 EOF
 }
@@ -116,6 +119,11 @@ while [[ $# -gt 0 ]]; do
     --container)
       need_arg "$1" "$#"
       CONTAINER_NAME="$2"
+      shift 2
+      ;;
+    --omniroute-volume)
+      need_arg "$1" "$#"
+      OMNIROUTE_VOLUME="$2"
       shift 2
       ;;
     -h|--help)
@@ -177,6 +185,7 @@ if [[ -n "${SSH_TARGET}" ]]; then
   [[ "${BUILD_LOCAL}" -eq 1 ]] && REMOTE_CMD+=(--build-local)
   [[ "${APPLY_PRESETS}" -eq 1 ]] && REMOTE_CMD+=(--apply-presets)
   [[ -n "${CONTAINER_NAME}" ]] && REMOTE_CMD+=(--container "${CONTAINER_NAME}")
+  [[ -n "${OMNIROUTE_VOLUME}" ]] && REMOTE_CMD+=(--omniroute-volume "${OMNIROUTE_VOLUME}")
   REMOTE_CMD+=("${ACTION}")
   if [[ "${#EXTRA_ARGS[@]}" -gt 0 ]]; then
     REMOTE_CMD+=("${EXTRA_ARGS[@]}")
@@ -219,14 +228,77 @@ log() { printf '\033[1;34m[hermes-kit]\033[0m %s\n' "$*"; }
 warn() { printf '\033[1;33m[hermes-kit][warn]\033[0m %s\n' "$*" >&2; }
 die() { printf '\033[1;31m[hermes-kit][error]\033[0m %s\n' "$*" >&2; exit 1; }
 
+# A real Hermes runtime ships the gateway venv; sidecars (OmniRoute, Syncthing) never do.
+is_hermes_runtime() {
+  docker exec "$1" test -x /opt/hermes/.venv/bin/python >/dev/null 2>&1
+}
+
+# Prints the single running Hermes container, or nothing. Dies if the choice is ambiguous.
+# Name/image substring matching alone is unsafe: `hermes-kit:omniroute-*` images and the
+# `hermes-kit-syncthing-*` compose containers also contain "hermes".
 detect_hermes_container() {
   if [[ -n "${CONTAINER_NAME}" ]]; then
+    [[ "$(docker inspect -f '{{.State.Running}}' "${CONTAINER_NAME}" 2>/dev/null)" == "true" ]] \
+      || die "--container '${CONTAINER_NAME}' is not a running container."
+    is_hermes_runtime "${CONTAINER_NAME}" \
+      || die "--container '${CONTAINER_NAME}' is not a Hermes runtime (no /opt/hermes/.venv)."
     echo "${CONTAINER_NAME}"
     return
   fi
-  local found
-  found="$(docker ps --format '{{.Names}}\t{{.Image}}' | awk '$1 ~ /hermes/ || $2 ~ /hermes/ {print $1; exit}')"
-  echo "${found}"
+  local name image service
+  local labelled=() matched=()
+  while IFS=$'\t' read -r name image service; do
+    [[ -n "${name}" ]] || continue
+    case "${name} ${image} ${service}" in
+      *omniroute*|*syncthing*|*swap-init*) continue ;;
+    esac
+    if [[ "${service}" == "hermes" ]]; then
+      is_hermes_runtime "${name}" && labelled+=("${name}")
+    elif [[ "${name}" == *hermes* || "${image}" == *hermes* ]]; then
+      is_hermes_runtime "${name}" && matched+=("${name}")
+    fi
+  done < <(docker ps --format '{{.Names}}\t{{.Image}}\t{{.Label "com.docker.compose.service"}}')
+  local candidates=("${labelled[@]}")
+  [[ "${#candidates[@]}" -gt 0 ]] || candidates=("${matched[@]}")
+  if [[ "${#candidates[@]}" -gt 1 ]]; then
+    die "Multiple Hermes containers are running (${candidates[*]}). Pick one with --container <name>."
+  fi
+  echo "${candidates[0]:-}"
+}
+
+# Prints the OmniRoute data volume to attach, or nothing (compose then creates its default volume).
+# Never guesses between several candidates: after a VPS move an empty auto-created volume and the
+# migrated one can both exist, and picking the wrong one silently hides all OmniRoute state.
+resolve_omniroute_volume() {
+  if [[ -n "${OMNIROUTE_VOLUME}" ]]; then
+    docker volume inspect "${OMNIROUTE_VOLUME}" >/dev/null 2>&1 \
+      || die "OmniRoute volume '${OMNIROUTE_VOLUME}' does not exist (refusing to create an empty one)."
+    echo "${OMNIROUTE_VOLUME}"
+    return
+  fi
+  local vols
+  vols="$(docker volume ls --format '{{.Name}}' | grep -i 'omniroute' | sort -u || true)"
+  local count
+  count="$(printf '%s' "${vols}" | grep -c . || true)"
+  if [[ "${count}" -gt 1 ]]; then
+    die "Multiple OmniRoute data volumes exist: $(echo ${vols}). Pick the one holding storage.sqlite with --omniroute-volume <name>."
+  fi
+  printf '%s' "${vols}"
+}
+
+# Compose project of an existing OmniRoute container, so `up` recreates it in place instead of
+# starting a duplicate that fights over 127.0.0.1:20128.
+existing_omniroute_project() {
+  local name image service project
+  while IFS=$'\t' read -r name image service project; do
+    [[ -n "${name}" ]] || continue
+    if [[ "${service}" == "omniroute" || "${image}" == *omniroute* ]]; then
+      [[ -n "${project}" ]] \
+        || die "OmniRoute container '${name}' is not managed by docker compose. Stop it first (docker stop ${name}); its data volume is kept."
+      echo "${project}"
+      return
+    fi
+  done < <(docker ps -a --format '{{.Names}}\t{{.Image}}\t{{.Label "com.docker.compose.service"}}\t{{.Label "com.docker.compose.project"}}')
 }
 
 build_local_images() {
@@ -292,6 +364,18 @@ resolve_omniroute_password() {
 
 compose_omniroute_up() {
   local args=(-f "${REPO_ROOT}/advanced/docker-compose.omniroute.yml")
+  local vol project
+  vol="$(resolve_omniroute_volume)"
+  project="$(existing_omniroute_project)"
+  if [[ -n "${vol}" ]]; then
+    local override="${REPO_ROOT}/advanced/.omniroute-volume.override.yml"
+    printf 'volumes:\n  omniroute-data:\n    external: true\n    name: "%s"\n' "${vol}" > "${override}"
+    args+=(-f "${override}")
+    log "OmniRoute will use existing data volume '${vol}'."
+  elif [[ "${ACTION}" == "migrate" || "${ACTION}" == "update" ]]; then
+    warn "No existing OmniRoute data volume found; compose will create a new empty one."
+  fi
+  [[ -n "${project}" ]] && args+=(-p "${project}")
   if [[ -f "${REPO_ROOT}/.env" ]]; then
     args+=(--env-file "${REPO_ROOT}/.env")
   fi
